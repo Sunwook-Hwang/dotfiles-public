@@ -1,0 +1,15 @@
+packer_compiled.lua
+lazy-lock.json
+
+tmux*.log
+nvim/.config/nvim/session/*
+indent.log
+.DS_Store
+.vscode
+
+.luarc.json
+
+.vim-bookmarks
+ignore
+
+lvim/.config/lvim/session/*

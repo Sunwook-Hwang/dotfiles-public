@@ -1,0 +1,97 @@
+{
+  "frame": {
+    "prefix": "frame",
+    "body": [
+      "\\begin{frame}[t]",
+      "	\\frametitle{${1:${VISUAL}}}",
+      "	$0",
+      "\\end{frame}",
+      ""
+    ],
+    "description": "BEAMER: frame"
+  },
+  "BEAMER: 50-50 split frame": {
+    "prefix": "framesplit",
+    "body": [
+      "\\begin{columns}",
+      "	\\begin{column}{0.5\\textwidth}",
+      "		${1:${VISUAL}}",
+      "	\\end{column}",
+      "	\\begin{column}{0.5\\textwidth}",
+      "		$2",
+      "	\\end{column}",
+      "\\end{columns}$0",
+      ""
+    ],
+    "description": "BEAMER: 50-50 split frame"
+  },
+  "BEAMER: 50-50 split frame of images": {
+    "prefix": "frameimgsplit",
+    "body": [
+      "\\begin{columns}",
+      "	\\begin{column}{0.5\\textwidth}",
+      "		\\begin{figure}[htbp]",
+      "			\\centering",
+      "			\\includegraphics[width=\\linewidth]{${1:File}}",
+      "			\\caption{${2:Caption}}%",
+      "		\\end{figure}",
+      "	\\end{column}",
+      "	\\begin{column}{0.5\\textwidth}",
+      "		\\begin{figure}[htbp]",
+      "			\\centering",
+      "			\\includegraphics[width=\\linewidth]{${3:File}}",
+      "			\\caption{${4:Caption}}%",
+      "		\\end{figure}",
+      "	\\end{column}",
+      "\\end{columns}$0",
+      ""
+    ],
+    "description": "BEAMER: 50-50 split frame of images"
+  },
+  "BEAMER: centered box subtitleframe": {
+    "prefix": "framesubtitle",
+    "body": [
+      "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%",
+      "{",
+      "\\setbeamertemplate{headline}{}",
+      "\\title[]{$1}",
+      "\\subtitle[]{}",
+      "\\author[]{}",
+      "\\institute{}",
+      "\\date{}",
+      "\\maketitle",
+      "}",
+      "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%",
+      ""
+    ],
+    "description": "BEAMER: centered box subtitleframe"
+  },
+  "Hyperref": {
+    "prefix": "href",
+    "body": ["\\href{${1:Link}}{${2:${VISUAL:Text}}}$0"],
+    "description": "Hyperref"
+  },
+  "Subfigure env with label": {
+    "prefix": "subfig",
+    "body": [
+      "\\begin{figure}[htbp]",
+      "	\\centering",
+      "	\\begin{subfigure}{.5\\linewidth}",
+      "		\\centering",
+      "		\\includegraphics[width=0.9\\linewidth]{${1:File1}}",
+      "		\\caption{${2:Caption1}}%",
+      "		\\label{sfig:${1/\\.\\w+//}}",
+      "	\\end{subfigure}%",
+      "	\\begin{subfigure}{.5\\linewidth}",
+      "		\\centering",
+      "		\\includegraphics[width=0.9\\linewidth]{${4:File2}}",
+      "		\\caption{${5:Caption2}}%",
+      "		\\label{sfig:${4/\\.\\w+//}}",
+      "	\\end{subfigure}%",
+      "	\\caption{}%",
+      "	% \\label{fig:main_label}%",
+      "\\end{figure}"
+    ],
+    "description": "Subfigure env with label"
+  }
+}

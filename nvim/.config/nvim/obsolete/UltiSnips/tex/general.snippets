@@ -1,0 +1,99 @@
+# Author: Neel Basak
+# Github: https://github.com/Neelfrost
+# File: general.snippets
+
+snippet begin "Begin env" b
+\begin{${1:Env}}
+	${0:${VISUAL:Content}}
+\end{$1}
+endsnippet
+
+snippet resize "Resize box" b
+\resizebox{\linewidth}{!}{%
+	${1:${VISUAL}}
+}$0
+endsnippet
+
+snippet 'mulc(\d+)' "Multicols env" br
+\begin{multicols}{`!p snip.rv = match.group(1)`}
+	${2:${VISUAL}}
+\end{multicols}$0
+endsnippet
+
+snippet cb "Multicols columnbreak"
+
+\columnbreak
+
+endsnippet
+
+snippet mini "Minipage env" b
+\begin{minipage}{0.5\linewidth}
+	${1:${VISUAL:Content}}
+\end{minipage}%$0
+endsnippet
+
+snippet href "Hyperref" w
+\href{${1:Link}}{${2:${VISUAL:Text}}}$0
+endsnippet
+
+snippet noind "Non-indented paragraph" b
+\noindent$0
+endsnippet
+
+# -------------------------- References and labels -------------------------- #
+
+snippet '([fF])ref' "Figure reference" wr
+`!p snip.rv = match.group(1)`igure.~\ref{$1}$0
+endsnippet
+
+snippet '([eE])ref' "Equation reference" wr
+`!p snip.rv = match.group(1)`quation.~\ref{$1}$0
+endsnippet
+
+snippet '([rR])ref' "Reaction reference" wr
+`!p snip.rv = match.group(1)`eaction.~\ref{$1}$0
+endsnippet
+
+snippet '([tT])ref' "Table reference" wr
+`!p snip.rv = match.group(1)`able.~\ref{$1}$0
+endsnippet
+
+snippet flab "Figure label" w
+\label{fig:$1}
+endsnippet
+
+snippet slab "Section label" w
+\label{sec:$1}
+endsnippet
+
+snippet elab "Equation label" w
+\label{eq:$1}
+endsnippet
+
+snippet rlab "Reaction label" w
+\label{rxn:$1}
+endsnippet
+
+snippet tlab "Reaction label" w
+\label{table:$1}
+endsnippet
+
+# ----------------------------------- Misc ----------------------------------- #
+
+# snippet '(?<![\\\{\}])%' "Escaped %" rA
+# \%
+# endsnippet
+
+snippet ie "i.e.," w
+i.e.,
+endsnippet
+
+snippet eg "e.g.," w
+e.g.,
+endsnippet
+
+snippet Eg "E.g.," w
+E.g.,
+endsnippet
+
+# vim:ts=2 sw=2 noexpandtab

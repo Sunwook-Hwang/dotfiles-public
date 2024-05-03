@@ -1,0 +1,7 @@
+[user]
+	email = swhwang@netlab.snu.ac.kr
+	name = Sunwook Hwang
+[core]
+	editor = nvim
+[credential]
+	helper = store

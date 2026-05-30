@@ -1,0 +1,9 @@
+[user]
+	email = koonuss@gmail.com
+	name = Sunwook Hwang
+[core]
+	editor = nvim
+[credential]
+	helper = store
+[init]
+	defaultBranch = main

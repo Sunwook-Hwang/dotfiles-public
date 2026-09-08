@@ -34,6 +34,7 @@ COMMON_PACKAGES=(
     clangd
     cmake
     curl
+    ctags
     fd
     fzf
     gh
@@ -159,6 +160,7 @@ function package_name_for {
         apt:autojump) echo "autojump" ;;
         apt:build_tools) echo "build-essential" ;;
         apt:ca_certificates) echo "ca-certificates" ;;
+        apt:ctags) echo "universal-ctags" ;;
         apt:clang_format) echo "clang-format" ;;
         apt:fd) echo "fd-find" ;;
         apt:ninja) echo "ninja-build" ;;
@@ -174,6 +176,7 @@ function package_name_for {
         dnf:autojump|yum:autojump) echo "autojump-zsh" ;;
         dnf:build_tools|yum:build_tools) echo "@development-tools" ;;
         dnf:ca_certificates|yum:ca_certificates) echo "ca-certificates" ;;
+        dnf:ctags|yum:ctags) echo "universal-ctags" ;;
         dnf:clang_format|yum:clang_format) echo "clang-tools-extra" ;;
         dnf:clangd|yum:clangd) echo "clang-tools-extra" ;;
         dnf:fd|yum:fd) echo "fd-find" ;;
@@ -189,6 +192,7 @@ function package_name_for {
 
         pacman:build_tools) echo "base-devel" ;;
         pacman:ca_certificates) echo "ca-certificates" ;;
+        pacman:ctags) echo "universal-ctags" ;;
         pacman:fd) echo "fd" ;;
         pacman:gh) echo "github-cli" ;;
         pacman:clang_format) echo "clang" ;;
@@ -325,8 +329,18 @@ function install_lazygit_fallback {
     rm -rf "$tmpdir"
 }
 
+function install_herdr_fallback {
+    if command -v herdr >/dev/null 2>&1; then
+        return
+    fi
+
+    echo "Installing Herdr..."
+    curl -fsSL https://herdr.dev/install.sh | sh
+}
+
 function fallback_package_setup {
     install_autojump_fallback || echo "Warning: autojump fallback install failed; continuing without autojump." >&2
+    install_herdr_fallback || echo "Warning: Herdr install failed; continuing without Herdr." >&2
     install_lazygit_fallback || echo "Warning: lazygit fallback install failed; continuing without lazygit." >&2
 }
 

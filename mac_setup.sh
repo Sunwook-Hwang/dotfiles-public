@@ -92,6 +92,7 @@ function base_setup {
         fzf
         gh
         git
+        herdr
         htop
         jq
         lazygit
@@ -108,6 +109,7 @@ function base_setup {
         tldr
         tmux
         tree
+        universal-ctags
         uv
         vim
         wget

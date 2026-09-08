@@ -1,0 +1,26 @@
+[keys]
+
+prefix = "ctrl+a"
+
+# Split
+split_horizontal = "prefix+s"
+split_vertical = "prefix+v"
+
+# Vim-style pane navigation
+focus_pane_left = "prefix+h"
+focus_pane_down = "prefix+j"
+focus_pane_up = "prefix+k"
+focus_pane_right = "prefix+l"
+
+# Resize
+resize_pane_left = "prefix+shift+h"
+resize_pane_down = "prefix+shift+j"
+resize_pane_up = "prefix+shift+k"
+resize_pane_right = "prefix+shift+l"
+
+# Tab navigation without prefix
+previous_tab = "alt+h"
+next_tab = "alt+l"
+
+# Reload config
+reload_config = "prefix+shift+r"

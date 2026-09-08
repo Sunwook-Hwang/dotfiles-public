@@ -33,7 +33,7 @@ function backup_conflicts {
     done < <(git ls-files "$folder")
 }
 
-for folder in claude codex git nvim zsh tmux; do
+for folder in claude codex git herdr nvim zsh tmux; do
     [[ -d "$folder" ]] || continue
     echo "Linking $folder"
     stow "${STOW_IGNORE_ARGS[@]}" -D -t "$TARGET" "$folder"

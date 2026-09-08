@@ -403,7 +403,7 @@ require("lazy").setup({
 			}
 
 			-- Footer + highlights
-			dashboard.section.footer.val = "sunwook-hwang.github.io"
+			dashboard.section.footer.val = "https://sunwook-hwang.github.io"
 			dashboard.section.footer.opts.hl = "Type"
 			dashboard.section.header.opts.hl = "Include"
 			dashboard.section.buttons.opts.hl = "Keyword"
@@ -467,7 +467,7 @@ require("lazy").setup({
 				{ "<leader>l", group = "[L]sp & Diagnostic" },
 				{ "<leader>g", group = "[G]it" },
 				{ "<leader>p", group = "[P]roject" },
-				{ "<leader>d", group = "[D]ebug" },
+				-- { "<leader>d", group = "[D]ebug" },
 			},
 		},
 	},
@@ -648,7 +648,7 @@ require("lazy").setup({
 				lua = { "stylua" },
 				c = { "clang_format" },
 				cpp = { "clang_format" },
-				python = { "isort", "black" },
+				python = { "ruff", "black" },
 				javascript = { "prettierd", "prettier", stop_after_first = true },
 			},
 		},
@@ -775,7 +775,8 @@ require("lazy").setup({
 
 			-- Detect project root and sync nvim-tree root
 			local function find_project_root()
-				local patterns = { ".git", "CMakeLists.txt", "compile_commands.json", "Makefile", "package.json", "pyproject.toml" }
+				local patterns =
+					{ ".git", "CMakeLists.txt", "compile_commands.json", "Makefile", "package.json", "pyproject.toml" }
 				local cwd = vim.fn.expand("%:p:h")
 				local home = vim.env.HOME or "~"
 				while cwd and cwd ~= home do
@@ -1017,7 +1018,11 @@ require("lazy").setup({
 					"emmet_ls",
 					"prismals",
 					"pyright",
+					"ty",
 					"eslint",
+				},
+				automatic_enable = {
+					exclude = { "pyright" },
 				},
 			})
 
@@ -1035,106 +1040,6 @@ require("lazy").setup({
 		end,
 	},
 
-	-- -------------------------------------
-	-- Debugging: nvim-dap + UI + virtual text + mason bridge
-	-- -------------------------------------
-	{
-		-- Core DAP
-		"mfussenegger/nvim-dap",
-		dependencies = {
-			-- UI panels (scopes, breakpoints, stacks, watches)
-			{ "rcarriga/nvim-dap-ui", dependencies = { "nvim-neotest/nvim-nio" } },
-			-- Inline virtual text for variables
-			{ "theHamsta/nvim-dap-virtual-text" },
-			-- Adapter installation via Mason
-			{ "jay-babu/mason-nvim-dap.nvim" },
-		},
-		keys = function()
-			local dap = require("dap")
-			local dapui = require("dapui")
-
-			local map = function(mode, lhs, rhs, desc)
-				vim.keymap.set(mode, lhs, rhs, { noremap = true, silent = true, desc = desc })
-			end
-
-			-- Core controls
-			map("n", "<leader>dc", dap.continue, "DAP: Continue/Start")
-			map("n", "<leader>dn", dap.step_over, "DAP: Step over")
-			map("n", "<leader>di", dap.step_into, "DAP: Step into")
-			map("n", "<leader>do", dap.step_out, "DAP: Step out")
-			map("n", "<leader>dx", dap.terminate, "DAP: Terminate")
-			map("n", "<leader>dr", dap.repl.open, "DAP: REPL")
-			map("n", "<leader>dl", dap.run_last, "DAP: Run last")
-
-			-- Breakpoints
-			map("n", "<leader>db", dap.toggle_breakpoint, "DAP: Toggle breakpoint")
-			map("n", "<leader>dB", function()
-				dap.set_breakpoint(vim.fn.input("Breakpoint condition: "))
-			end, "DAP: Conditional breakpoint")
-			map("n", "<leader>dw", function()
-				dap.set_breakpoint(nil, nil, vim.fn.input("Log point message: "))
-			end, "DAP: Log point")
-
-			-- UI
-			map("n", "<leader>du", dapui.toggle, "DAP: Toggle UI")
-
-			return {}
-		end,
-		config = function()
-			-- Virtual text
-			require("nvim-dap-virtual-text").setup({
-				enabled = true,
-				commented = false,
-			})
-
-			-- DAP UI
-			local dap = require("dap")
-			local dapui = require("dapui")
-
-			-- Auto open/close UI on session start/stop
-			dap.listeners.after.event_initialized["dapui_config"] = function()
-				dapui.open()
-			end
-			dap.listeners.before.event_terminated["dapui_config"] = function()
-				dapui.close()
-			end
-			dap.listeners.before.event_exited["dapui_config"] = function()
-				dapui.close()
-			end
-
-			-- Mason bridge: install and auto-configure common adapters
-			require("mason-nvim-dap").setup({
-				-- Install the adapters you care about; open :Mason to see exact names on your system
-				ensure_installed = { "python", "codelldb", "js" }, -- python(debugpy), C/C++(codelldb), JS/TS(vscode-js-debug)
-				automatic_installation = true,
-				handlers = {}, -- use default handlers (auto setup)
-			})
-
-			-- Minimal per-language examples (optional; mason-nvim-dap default handlers already cover common cases)
-
-			-- Python (debugpy) example: run current file
-			-- local py = require("dap").adapters.python -- set by mason-nvim-dap
-			-- require("dap").configurations.python = require("dap").configurations.python or {
-			--   {
-			--     type = "python",
-			--     request = "launch",
-			--     name = "Launch file",
-			--     program = "${file}",
-			--     console = "integratedTerminal",
-			--   },
-			-- }
-
-			-- JS/TS (vscode-js-debug) sample configs are auto-registered.
-			-- For Node:
-			-- table.insert(require("dap").configurations.javascript, {
-			--   type = "pwa-node",
-			--   request = "launch",
-			--   name = "Launch file",
-			--   program = "${file}",
-			--   cwd = "${workspaceFolder}",
-			-- })
-		end,
-	},
 
 	-- -------------------------------------
 	-- Indent guides: indent-blankline

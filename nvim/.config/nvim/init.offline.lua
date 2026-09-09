@@ -21,6 +21,19 @@ vim.opt.runtimepath = vim.tbl_filter(function(path)
 	return path == vim.env.VIMRUNTIME or path:match("/lib[^/]*/nvim$") ~= nil
 end, vim.opt.runtimepath:get())
 
+-- Choose compatibility paths once at startup, not on every editor event.
+-- The legacy API references below are used only when the new API is absent.
+local highlight_yank = vim.hl.hl_op or vim.hl.on_yank
+local set_window_width
+if vim.api.nvim_win_resize then
+	set_window_width = function(win, width)
+		vim.api.nvim_win_resize(win, width, -1, {})
+	end
+else
+	-- Neovim 0.12 does not provide nvim_win_resize().
+	set_window_width = vim.api.nvim_win_set_width
+end
+
 -- =========================================
 -- ============== CORE OPTIONS =============
 -- =========================================
@@ -63,11 +76,11 @@ local default_options = {
 	smartcase = true, -- smart case
 	smartindent = true, -- make indenting smarter again
 	splitbelow = true, -- force all horizontal splits to go below current window
-	splitright = true, -- force all vertical splits to go to the right of current window
+	splitright = true, -- force all vertical splits to go to the right current window
 	swapfile = false, -- do not create swap files
 	termguicolors = true, -- set term gui colors (most terminals support this)
 	title = true, -- set the title of window to the value of the titlestring
-	undodir = offline_data .. "/undo", -- set an undo directory
+	undodir = offline_data .. "/undo", -- enable persistent undo
 	undofile = true, -- enable persistent undo
 	updatetime = 250, -- idle time before CursorHold
 	writebackup = false, -- do not create a temporary backup while writing
@@ -295,7 +308,7 @@ vim.api.nvim_create_autocmd("TextYankPost", {
 	desc = "Highlight when yanking (copying) text",
 	group = vim.api.nvim_create_augroup("kickstart-highlight-yank", { clear = true }),
 	callback = function()
-		vim.hl.on_yank()
+		highlight_yank()
 	end,
 })
 
@@ -332,19 +345,30 @@ vim.opt.wildmenu = true
 vim.opt.wildmode = "longest:full,full"
 vim.opt.wildignore:append({ "*/.git/*", "*/node_modules/*", "*/__pycache__/*" })
 vim.opt.laststatus = 2
+function _G.OfflineDiagnosticStatus()
+	local counts = vim.diagnostic.count(0)
+	local parts = {}
+	for _, item in ipairs({ { "WARN", "Warn" }, { "HINT", "Hint" }, { "ERROR", "Error" } }) do
+		local count = counts[vim.diagnostic.severity[item[1]]] or 0
+		if count > 0 then
+			parts[#parts + 1] = item[2] .. " " .. count
+		end
+	end
+	return table.concat(parts, " ")
+end
 vim.opt.statusline =
-	" %f %m%r%h %{get(b:, 'offline_git_status', '')} %= %{v:lua.vim.diagnostic.status()} %y | %l:%c | %p%% "
+	" %f %m%r%h %{get(b:, 'offline_git_status', '')} %= %{v:lua.OfflineDiagnosticStatus()} %y | %l:%c | %p%% "
 -- 내장 renderer로 들여쓰기 가이드 표시: 텍스트/커서 이동마다 extmark를 재생성하지 않습니다.
 -- 선행 공백에만 shiftwidth 간격으로 선을 표시하며, 비어 있는 줄까지 이어주지는 않습니다.
 vim.opt.list = true
-vim.opt.listchars = { tab = "│ ", lead = " ", leadmultispace = "│   ", trail = ".", extends = ">", precedes = "<" }
+vim.opt.listchars = { tab = "┊ ", lead = " ", leadmultispace = "┊   ", trail = ".", extends = ">", precedes = "<" }
 local function update_indent_guides()
 	if vim.bo.buftype ~= "" or vim.bo.filetype == "netrw" then
 		vim.opt_local.listchars:remove("leadmultispace")
 		return
 	end
 	local width = vim.fn.shiftwidth()
-	vim.opt_local.listchars:append({ leadmultispace = "│" .. string.rep(" ", width - 1) })
+	vim.opt_local.listchars:append({ leadmultispace = "┊" .. string.rep(" ", width - 1) })
 end
 local indent_group = vim.api.nvim_create_augroup("offline-indent-guides", { clear = true })
 vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter" }, {
@@ -382,13 +406,34 @@ vim.g.netrw_browse_split = 4
 vim.g.netrw_keepdir = 1
 -- netrw reapplies these after drawing, overriding FileType window options.
 vim.g.netrw_bufsettings = "noma nomod nu nobl nowrap ro nornu"
+local netrw_lines_group = vim.api.nvim_create_augroup("offline-netrw-lines", { clear = true })
+vim.api.nvim_create_autocmd("Syntax", {
+	group = netrw_lines_group,
+	pattern = "netrw",
+	callback = function()
+		vim.cmd([[syntax match Conceal /[|│]/ contained containedin=netrwTreeBar conceal cchar=┊]])
+	end,
+})
+vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter", "WinEnter" }, {
+	group = netrw_lines_group,
+	callback = function()
+		local saved = vim.w.offline_netrw_conceal
+		if vim.bo.filetype == "netrw" then
+			vim.w.offline_netrw_conceal = saved or { vim.wo.conceallevel, vim.wo.concealcursor }
+			vim.wo.conceallevel, vim.wo.concealcursor = 2, "nvic"
+		elseif saved then
+			vim.wo.conceallevel, vim.wo.concealcursor = saved[1], saved[2]
+			vim.w.offline_netrw_conceal = nil
+		end
+	end,
+})
 vim.api.nvim_create_autocmd("FileType", {
 	pattern = "netrw",
 	callback = function(args)
 		local win = vim.api.nvim_get_current_win()
 		vim.schedule(function()
 			if vim.api.nvim_win_is_valid(win) and vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "netrw" then
-				vim.api.nvim_win_set_width(win, sidebar_width())
+				set_window_width(win, sidebar_width())
 				vim.api.nvim_set_option_value("winfixwidth", true, { win = win })
 			end
 		end)
@@ -528,7 +573,7 @@ vim.keymap.set("n", "<leader>e", function()
 			else
 				-- Starting with `nvim .` leaves only netrw: make it a sidebar.
 				vim.cmd("botright vnew")
-				vim.api.nvim_win_set_width(win, sidebar_width())
+				set_window_width(win, sidebar_width())
 				vim.api.nvim_set_option_value("winfixwidth", true, { win = win })
 				vim.g.netrw_chgwin = vim.fn.winnr()
 			end
@@ -643,11 +688,16 @@ vim.opt.tabline = "%!v:lua.OfflineTabline()"
 local function invalidate_tabline()
 	tabline_cache = nil
 end
-vim.api.nvim_create_autocmd({ "BufAdd", "BufDelete", "BufEnter", "BufFilePost", "BufModifiedSet", "TermOpen" }, {
+local tabline_events = { "BufAdd", "BufDelete", "BufEnter", "BufFilePost", "TermOpen" }
+if vim.fn.has("nvim-0.13") == 0 then
+	-- In 0.12, OptionSet alone does not cover modified changes caused by editing.
+	tabline_events[#tabline_events + 1] = "BufModifiedSet"
+end
+vim.api.nvim_create_autocmd(tabline_events, {
 	callback = invalidate_tabline,
 })
 vim.api.nvim_create_autocmd("OptionSet", {
-	pattern = { "buflisted", "buftype" },
+	pattern = { "buflisted", "buftype", "modified" },
 	callback = invalidate_tabline,
 })
 
@@ -830,6 +880,7 @@ vim.api.nvim_create_autocmd("BufEnter", {
 -- 기본 제한: 5초 / stdout 2 MiB. 검색은 부분 결과 허용, 포맷팅·diff는 완성된 결과만 적용.
 -- :OfflineCancel: 실행 중인 명령과 picker 취소.
 local running = {}
+local format_versions = {}
 local tag_projects = {}
 local definition_requests = {}
 local outline, cancel_outline
@@ -854,12 +905,41 @@ local function cancel_command(key)
 		running[key] = nil
 	end
 end
+local function finish_tag_waiters(waiters, succeeded, output)
+	for _, waiter in ipairs(waiters) do
+		local callback = waiter.failed
+		if succeeded then
+			callback = waiter.after
+		end
+		if callback then
+			local ok, err = pcall(callback, output)
+			if not ok then
+				vim.notify(tostring(err), vim.log.levels.WARN)
+			end
+		end
+	end
+end
+local function cancel_tag_build(root, project)
+	project.generation = project.generation + 1
+	cancel_command("ctags:" .. root)
+	local waiters = project.waiters
+	if project.active then
+		vim.list_extend(waiters, project.active.waiters)
+		for file in pairs(project.active.files) do
+			project.pending[file] = true
+		end
+	end
+	project.active, project.save_version = nil, nil
+	project.waiters, project.full, project.quiet = {}, false, true
+	finish_tag_waiters(waiters, false)
+end
 local function cancel_commands()
+	format_versions = {}
 	if outline and cancel_outline then
 		cancel_outline(outline)
 	end
-	for _, project in pairs(tag_projects) do
-		project.generation = project.generation + 1
+	for root, project in pairs(tag_projects) do
+		cancel_tag_build(root, project)
 	end
 	for buf, cancel in pairs(definition_requests) do
 		definition_requests[buf] = nil
@@ -1285,7 +1365,7 @@ open_picker = function(title, opts)
 	})
 	vim.api.nvim_create_autocmd("WinClosed", {
 		group = group,
-		pattern = tostring(query_win),
+		pattern = vim.tbl_map(tostring, state.windows),
 		callback = function()
 			state.close()
 		end,
@@ -1363,7 +1443,7 @@ local function file_picker(title, root, command)
 			picker.set_items({})
 		end,
 	}, function(output, limited)
-		local files = records(output, "\0", limited, 10000)
+		local files = records(output, "\0", limited)
 		for i, file in ipairs(files) do
 			if file:sub(1, 1) ~= "/" then
 				files[i] = root .. "/" .. file
@@ -1733,7 +1813,7 @@ map("n", "<leader>Ti", "<Cmd>set list!<CR>", "Toggle indent guides / whitespace 
 -- 터미널 버퍼는 일반 버퍼 순환에서 제외하고, 종료된 셸만 정리합니다.
 local terminal
 local function terminal_running(buf)
-	local job = vim.b[buf].terminal_job_id
+	local job = vim.bo[buf].channel
 	if type(job) ~= "number" or job <= 0 then
 		return false
 	end
@@ -2177,118 +2257,203 @@ end, "Blame current line (saved file)")
 -- ======== GIT: LINE CHANGE SIGNS =======
 -- =========================================
 -- 현재 버퍼(미저장 내용 포함)를 index와 비교하여 + / ~ / - 표시. stage/reset은 하지 않습니다.
--- 입력 후 200ms debounce. 미추적·바이너리·256 KiB 초과 파일은 제외합니다.
--- 혼합 구간의 수정/추가 구분은 내용 유사도 추정이며 실제 편집 이력 복원은 아닙니다.
+-- 버퍼별 단일 200ms 타이머. diff/행 정렬은 worker에서 실행하고 최신 결과만 표시합니다.
+-- 미추적·바이너리·256 KiB 초과 파일은 제외합니다. 창 이동만으로 index를 다시 읽지 않습니다.
 local git_signs = vim.api.nvim_create_namespace("offline-git-signs")
-local git_sign_versions = {}
+local git_sign_versions, git_sign_timers, git_diff_jobs, git_sign_rendered = {}, {}, {}, {}
 local git_base_cache = {}
--- A diff hunk gives counts, not which inserted lines replace the removed lines.
--- Align mixed hunks by content so an inserted blank does not steal a change sign.
-local function changed_lines(old, new, hunk, budget)
-	local a, m, b, n = unpack(hunk)
-	local changed = {}
-	if m == 0 or n == 0 then
-		return changed, budget
+local function stop_git_sign_timer(buf)
+	local timer = git_sign_timers[buf]
+	git_sign_timers[buf] = nil
+	if timer and not timer:is_closing() then
+		timer:stop()
+		timer:close()
 	end
-	local simple = m == n or m * n > budget
-	if not simple then
-		for i = a, a + m - 1 do
-			simple = simple or #old[i] > 256
-		end
-		for j = b, b + n - 1 do
-			simple = simple or #new[j] > 256
-		end
-	end
-	if simple then
-		for j = 0, n - 1 do
-			changed[j] = true
-		end
-		return changed, budget
-	end
-	local costs, steps = { [0] = {} }, {}
-	for j = 0, n do
-		costs[0][j] = j
-	end
-	for i = 1, m do
-		costs[i], steps[i] = { [0] = i }, {}
-		for j = 1, n do
-			local left, right = old[a + i - 1], new[b + j - 1]
-			local prefix, suffix, length = 0, 0, math.min(#left, #right)
-			while prefix < length and left:byte(prefix + 1) == right:byte(prefix + 1) do
-				prefix = prefix + 1
-			end
-			while suffix < length - prefix and left:byte(#left - suffix) == right:byte(#right - suffix) do
-				suffix = suffix + 1
-			end
-			local similarity = (prefix + suffix) / math.max(1, #left, #right)
-			local pair_cost = left == right and 0 or 1.8 - similarity
-			if (left:match("^%s*$") ~= nil) ~= (right:match("^%s*$") ~= nil) then
-				pair_cost = 1.95
-			end
-			local best, step = costs[i - 1][j - 1] + pair_cost, "pair"
-			if costs[i][j - 1] + 1 < best then
-				best, step = costs[i][j - 1] + 1, "add"
-			end
-			if costs[i - 1][j] + 1 < best then
-				best, step = costs[i - 1][j] + 1, "delete"
-			end
-			costs[i][j], steps[i][j] = best, step
-		end
-	end
-	local i, j = m, n
-	while i > 0 and j > 0 do
-		local step = steps[i][j]
-		if step == "pair" then
-			changed[j - 1] = true
-			i, j = i - 1, j - 1
-		elseif step == "add" then
-			j = j - 1
-		else
-			i = i - 1
-		end
-	end
-	return changed, budget - m * n
 end
+
+-- No editor API or main-thread upvalues in this function: luv serializes it.
+local function compute_git_marks(base, current, count)
+	local ok, result = pcall(function()
+		local old = vim.split(base, "\n", { plain = true })
+		local new = vim.split(current, "\n", { plain = true })
+		if #old > 20001 then
+			return {}
+		end
+		local hunks = vim.text.diff(base, current, { result_type = "indices", algorithm = "histogram" })
+		local signs = 0
+		for _, hunk in ipairs(hunks) do
+			signs = signs + math.max(1, hunk[4])
+			if signs > 2000 then
+				return {}
+			end
+		end
+		-- A hunk gives counts, not which inserted lines replace removed lines.
+		-- Keep mixed-hunk alignment bounded; this also stays off the UI thread.
+		local function changed_lines(hunk, budget)
+			local a, m, b, n = unpack(hunk)
+			local changed = {}
+			if m == 0 or n == 0 then
+				return changed, budget
+			end
+			local simple = m == n or m * n > budget
+			if not simple then
+				for i = a, a + m - 1 do
+					simple = simple or #old[i] > 256
+				end
+				for j = b, b + n - 1 do
+					simple = simple or #new[j] > 256
+				end
+			end
+			if simple then
+				for j = 0, n - 1 do
+					changed[j] = true
+				end
+				return changed, budget
+			end
+			local costs, steps = { [0] = {} }, {}
+			for j = 0, n do
+				costs[0][j] = j
+			end
+			for i = 1, m do
+				costs[i], steps[i] = { [0] = i }, {}
+				for j = 1, n do
+					local left, right = old[a + i - 1], new[b + j - 1]
+					local prefix, suffix, length = 0, 0, math.min(#left, #right)
+					while prefix < length and left:byte(prefix + 1) == right:byte(prefix + 1) do
+						prefix = prefix + 1
+					end
+					while suffix < length - prefix and left:byte(#left - suffix) == right:byte(#right - suffix) do
+						suffix = suffix + 1
+					end
+					local similarity = (prefix + suffix) / math.max(1, #left, #right)
+					local pair_cost = left == right and 0 or 1.8 - similarity
+					if (left:match("^%s*$") ~= nil) ~= (right:match("^%s*$") ~= nil) then
+						pair_cost = 1.95
+					end
+					local best, step = costs[i - 1][j - 1] + pair_cost, "pair"
+					if costs[i][j - 1] + 1 < best then
+						best, step = costs[i][j - 1] + 1, "add"
+					end
+					if costs[i - 1][j] + 1 < best then
+						best, step = costs[i - 1][j] + 1, "delete"
+					end
+					costs[i][j], steps[i][j] = best, step
+				end
+			end
+			local i, j = m, n
+			while i > 0 and j > 0 do
+				local step = steps[i][j]
+				if step == "pair" then
+					changed[j - 1] = true
+					i, j = i - 1, j - 1
+				elseif step == "add" then
+					j = j - 1
+				else
+					i = i - 1
+				end
+			end
+			return changed, budget - m * n
+		end
+		local marks, budget = {}, 4096
+		for _, hunk in ipairs(hunks) do
+			local removed, start, added = hunk[2], hunk[3], hunk[4]
+			local changed
+			changed, budget = changed_lines(hunk, budget)
+			for offset = 0, math.max(1, added) - 1 do
+				local text = added == 0 and "-" or (changed[offset] and "~" or "+")
+				if added > 0 and removed > added and offset == added - 1 then
+					text = "~-"
+				end
+				marks[#marks + 1] = {
+					math.max(1, math.min(count, start + offset)) - 1,
+					text,
+					added == 0 and "DiffDelete" or (changed[offset] and "DiffChange" or "DiffAdd"),
+				}
+			end
+		end
+		return marks
+	end)
+	return ok, ok and vim.mpack.encode(result) or tostring(result)
+end
+
+-- One worker plus one replaceable latest snapshot per buffer, never a FIFO of edits.
+-- Retain the work object until its completion callback, including after BufUnload.
+local function request_git_marks(buf, base, current, count, apply)
+	local request = { base = base, current = current, count = count, apply = apply }
+	local job = git_diff_jobs[buf]
+	if job then
+		job.pending = request
+		return
+	end
+	job = { request = request }
+	git_diff_jobs[buf] = job
+	job.work = vim.uv.new_work(compute_git_marks, vim.schedule_wrap(function(ok, payload)
+		if ok then
+			local decoded, marks = pcall(vim.mpack.decode, payload)
+			if decoded then
+				local applied, err = pcall(job.request.apply, marks)
+				if not applied then
+					vim.notify("Git signs: " .. tostring(err), vim.log.levels.WARN)
+				end
+			end
+		end
+		local pending = job.pending
+		job.pending = nil
+		if pending then
+			job.request = pending
+			job.work:queue(pending.base, pending.current, pending.count)
+		else
+			git_diff_jobs[buf] = nil
+		end
+	end))
+	job.work:queue(base, current, count)
+end
+
 local function queue_git_signs(buf, invalidate)
 	if invalidate then
-		git_base_cache[buf] = nil
+		git_base_cache[buf], git_sign_rendered[buf] = nil, nil
 	end
-	git_sign_versions[buf] = (git_sign_versions[buf] or 0) + 1
-	local version = git_sign_versions[buf]
-	local key = "git-signs:" .. buf
-	cancel_command(key)
 	if not vim.api.nvim_buf_is_loaded(buf) then
 		return
+	end
+	local rendered = git_sign_rendered[buf]
+	if rendered and rendered.tick == vim.api.nvim_buf_get_changedtick(buf)
+		and rendered.file == vim.api.nvim_buf_get_name(buf) then
+		return
+	end
+	git_sign_versions[buf] = {} -- unique token, also across unload/reload
+	local version = git_sign_versions[buf]
+	local key = "git-signs:" .. buf
+	stop_git_sign_timer(buf)
+	cancel_command(key)
+	if git_diff_jobs[buf] then
+		git_diff_jobs[buf].pending = nil
 	end
 	local function clear_signs()
 		if git_sign_versions[buf] == version and vim.api.nvim_buf_is_loaded(buf) then
 			vim.api.nvim_buf_clear_namespace(buf, git_signs, 0, -1)
 		end
 	end
-	-- Keep existing signs during debounce/IO; replace them only with a current result.
-	vim.defer_fn(function()
+	local timer
+	timer = vim.defer_fn(function()
+		if git_sign_timers[buf] ~= timer then
+			return
+		end
+		git_sign_timers[buf] = nil
 		if git_sign_versions[buf] ~= version or not vim.api.nvim_buf_is_loaded(buf) then
 			return
 		end
 		local file = vim.api.nvim_buf_get_name(buf)
-		-- Bound the native diff work as well as the asynchronous Git output.
 		local limit = 256 * 1024
-		if
-			vim.bo[buf].buftype ~= ""
-			or vim.b[buf].offline_large_file
-			or file == ""
-			or vim.fn.executable("git") == 0
-			or vim.api.nvim_buf_line_count(buf) > 20000
-			or vim.api.nvim_buf_get_offset(buf, vim.api.nvim_buf_line_count(buf)) > limit
-		then
+		if vim.bo[buf].buftype ~= "" or vim.b[buf].offline_large_file or file == ""
+			or vim.fn.executable("git") == 0 or vim.api.nvim_buf_line_count(buf) > 20000
+			or vim.api.nvim_buf_get_offset(buf, vim.api.nvim_buf_line_count(buf)) > limit then
 			clear_signs()
 			return
 		end
-		local root, is_git
-		vim.api.nvim_buf_call(buf, function()
-			root, is_git = project_root()
-		end)
-		if not is_git then
+		-- No temporary buffer/window switch and no BufEnter side effects.
+		local root = vim.fs.root(vim.fs.dirname(file), ".git")
+		if not root then
 			clear_signs()
 			return
 		end
@@ -2297,52 +2462,31 @@ local function queue_git_signs(buf, invalidate)
 		if vim.bo[buf].endofline then
 			current = current .. "\n"
 		end
+		local function is_current()
+			return git_sign_versions[buf] == version and vim.api.nvim_buf_is_loaded(buf)
+				and vim.api.nvim_buf_get_changedtick(buf) == tick
+				and vim.api.nvim_buf_get_name(buf) == file and not vim.b[buf].offline_large_file
+		end
 		local function apply_base(base)
-			if
-				git_sign_versions[buf] ~= version
-				or not vim.api.nvim_buf_is_loaded(buf)
-				or vim.api.nvim_buf_get_changedtick(buf) ~= tick
-				or vim.api.nvim_buf_get_name(buf) ~= file
-			then
+			if not is_current() then
 				return
 			end
 			if base:find("\0", 1, true) or current:find("\0", 1, true) then
 				clear_signs()
 				return
 			end
-			local count = vim.api.nvim_buf_line_count(buf)
-			local old, new = vim.split(base, "\n", { plain = true }), vim.split(current, "\n", { plain = true })
-			if #old > 20001 then
-				clear_signs()
-				return
-			end
-			local hunks = vim.text.diff(base, current, { result_type = "indices", algorithm = "myers" })
-			clear_signs()
-			local signs = 0
-			for _, hunk in ipairs(hunks) do
-				signs = signs + math.max(1, hunk[4])
-				if signs > 2000 then
+			request_git_marks(buf, base, current, vim.api.nvim_buf_line_count(buf), function(marks)
+				if not is_current() then
 					return
 				end
-			end
-			local budget = 4096
-			for _, hunk in ipairs(hunks) do
-				local removed, start, added = hunk[2], hunk[3], hunk[4]
-				local changed
-				changed, budget = changed_lines(old, new, hunk, budget)
-				for offset = 0, math.max(1, added) - 1 do
-					local text = added == 0 and "-" or (changed[offset] and "~" or "+")
-					if added > 0 and removed > added and offset == added - 1 then
-						text = "~-"
-					end
-					local line = math.max(1, math.min(count, start + offset))
-					vim.api.nvim_buf_set_extmark(buf, git_signs, line - 1, 0, {
-						sign_text = text,
-						sign_hl_group = added == 0 and "DiffDelete" or (changed[offset] and "DiffChange" or "DiffAdd"),
-						priority = 5,
+				clear_signs()
+				for _, mark in ipairs(marks) do
+					vim.api.nvim_buf_set_extmark(buf, git_signs, mark[1], 0, {
+						sign_text = mark[2], sign_hl_group = mark[3], priority = 5,
 					})
 				end
-			end
+				git_sign_rendered[buf] = { tick = tick, file = file }
+			end)
 		end
 		local cached = git_base_cache[buf]
 		if cached and cached.file == file and cached.root == root then
@@ -2354,60 +2498,65 @@ local function queue_git_signs(buf, invalidate)
 			return
 		end
 		run_command(key, { "git", "--no-pager", "show", ":./" .. file:sub(#root + 2) }, {
-			cwd = root,
-			max_bytes = limit,
-			quiet = true,
+			cwd = root, max_bytes = limit, quiet = true,
 			failed = function()
-				if git_sign_versions[buf] == version then
+				if is_current() then
 					git_base_cache[buf] = { file = file, root = root, base = false }
 					clear_signs()
 				end
 			end,
 		}, function(base)
-			if git_sign_versions[buf] == version then
+			if is_current() then
 				git_base_cache[buf] = { file = file, root = root, base = base }
 				apply_base(base)
 			end
 		end)
 	end, 200)
+	git_sign_timers[buf] = timer
 end
-vim.api.nvim_create_autocmd(
-	{
-		"BufEnter",
-		"BufWritePost",
-		"TextChanged",
-		"TextChangedI",
-		"FocusGained",
-		"ShellCmdPost",
-		"TermLeave",
-		"TermClose",
-	},
-	{
-		group = vim.api.nvim_create_augroup("offline-git-signs", { clear = true }),
-		callback = function(args)
-			if
-				args.event == "FocusGained"
-				or args.event == "ShellCmdPost"
-				or args.event == "TermLeave"
-				or args.event == "TermClose"
-			then
-				git_base_cache = {}
-				for _, win in ipairs(vim.api.nvim_list_wins()) do
-					queue_git_signs(vim.api.nvim_win_get_buf(win))
+vim.api.nvim_create_autocmd({
+	"BufEnter", "BufWritePost", "TextChanged", "TextChangedI",
+	"FocusGained", "ShellCmdPost", "TermLeave", "TermClose",
+}, {
+	group = vim.api.nvim_create_augroup("offline-git-signs", { clear = true }),
+	callback = function(args)
+		if args.event == "FocusGained" or args.event == "ShellCmdPost"
+			or args.event == "TermLeave" or args.event == "TermClose" then
+			git_base_cache, git_sign_rendered = {}, {}
+			local seen = {}
+			for _, win in ipairs(vim.api.nvim_list_wins()) do
+				local buf = vim.api.nvim_win_get_buf(win)
+				if not seen[buf] then
+					seen[buf] = true
+					queue_git_signs(buf)
 				end
-			else
-				queue_git_signs(args.buf, args.event ~= "TextChanged" and args.event ~= "TextChangedI")
 			end
-		end,
-	}
-)
-vim.api.nvim_create_autocmd("BufWipeout", {
+		else
+			queue_git_signs(args.buf, args.event == "BufWritePost")
+		end
+	end,
+})
+vim.api.nvim_create_autocmd({ "BufUnload", "BufWipeout" }, {
 	group = "offline-git-signs",
 	callback = function(args)
-		git_sign_versions[args.buf] = nil
-		git_base_cache[args.buf] = nil
-		local key = "git-signs:" .. args.buf
-		cancel_command(key)
+		stop_git_sign_timer(args.buf)
+		git_sign_versions[args.buf], git_base_cache[args.buf], git_sign_rendered[args.buf] = nil, nil, nil
+		if git_diff_jobs[args.buf] then
+			git_diff_jobs[args.buf].pending = nil
+		end
+		cancel_command("git-signs:" .. args.buf)
+	end,
+})
+vim.api.nvim_create_autocmd("VimLeavePre", {
+	group = "offline-git-signs",
+	callback = function()
+		for buf in pairs(git_sign_timers) do
+			stop_git_sign_timer(buf)
+		end
+		git_sign_versions = {}
+		for _, job in pairs(git_diff_jobs) do
+			job.pending = nil
+		end
 	end,
 })
 
@@ -2439,14 +2588,27 @@ map("n", "<leader>lf", function()
 		vim.notify("Formatting skipped: file exceeds 2 MiB")
 		return
 	end
+	cancel_command("format:" .. buf)
+	local version = {}
+	format_versions[buf] = version
+	local function is_current()
+		if format_versions[buf] ~= version or not vim.api.nvim_buf_is_loaded(buf) then
+			return false
+		end
+		if
+			not vim.bo[buf].modifiable
+			or vim.api.nvim_buf_get_name(buf) ~= file
+			or vim.api.nvim_buf_get_changedtick(buf) ~= tick
+		then
+			vim.notify("Buffer changed during formatting; result discarded")
+			return false
+		end
+		return true
+	end
 	local root = project_root()
 	local candidates = formatters[vim.bo.filetype]
-	if not candidates then
-		vim.lsp.buf.format({ async = true })
-		return
-	end
 	local command
-	for _, candidate in ipairs(candidates) do
+	for _, candidate in ipairs(candidates or {}) do
 		local executable = resolve_tool(candidate[1])
 		if executable ~= "" then
 			command = vim.deepcopy(candidate)
@@ -2455,20 +2617,44 @@ map("n", "<leader>lf", function()
 		end
 	end
 	if not command then
-		vim.notify("Formatter missing; trying LSP")
-		vim.lsp.buf.format({ async = true })
+		if candidates then
+			vim.notify("Formatter missing; trying LSP")
+		end
+		local clients = vim.lsp.get_clients({ bufnr = buf, method = "textDocument/formatting" })
+		if #clients == 0 then
+			vim.notify("No formatting provider for this buffer")
+			return
+		end
+		local params = vim.lsp.util.make_formatting_params()
+		-- Preserve sequential providers, checking edits and newer requests before each result.
+		local function format_next(index)
+			local client = clients[index]
+			if not client or not is_current() then
+				return
+			end
+			client:request("textDocument/formatting", params, function(err, edits)
+				if not is_current() then
+					return
+				end
+				if err then
+					vim.notify("LSP formatting: " .. err.message, vim.log.levels.WARN)
+					return
+				end
+				if edits and edits ~= vim.NIL then
+					vim.lsp.util.apply_text_edits(edits, buf, client.offset_encoding)
+				end
+				tick = vim.api.nvim_buf_get_changedtick(buf)
+				format_next(index + 1)
+			end, buf)
+		end
+		format_next(1)
 		return
 	end
 	local original_endofline = vim.bo[buf].endofline
 	local input = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
 		.. (original_endofline and "\n" or "")
 	local function apply(content)
-		if
-			not vim.api.nvim_buf_is_valid(buf)
-			or not vim.bo[buf].modifiable
-			or vim.api.nvim_buf_get_changedtick(buf) ~= tick
-		then
-			vim.notify("Buffer changed during formatting; result discarded")
+		if not is_current() then
 			return
 		end
 		local edits = vim.text.diff(input, content, { result_type = "indices" })
@@ -2498,6 +2684,12 @@ map("n", "<leader>lf", function()
 	end, command)
 	run_command("format:" .. buf, args, { stdin = input, cwd = root }, apply)
 end, "Format asynchronously with installed tool or LSP")
+vim.api.nvim_create_autocmd({ "BufUnload", "BufWipeout" }, {
+	callback = function(args)
+		format_versions[args.buf] = nil
+		cancel_command("format:" .. args.buf)
+	end,
+})
 
 -- =========================================
 -- ====== CTAGS: INDEX / NAVIGATION ======
@@ -2619,7 +2811,13 @@ end
 local function tag_project(root)
 	if not tag_projects[root] then
 		vim.fn.mkdir(offline_data .. "/tags", "p")
-		tag_projects[root] = { path = offline_data .. "/tags/" .. vim.fn.sha256(root), pending = {}, generation = 0 }
+		tag_projects[root] = {
+			path = offline_data .. "/tags/" .. vim.fn.sha256(root),
+			pending = {},
+			waiters = {},
+			quiet = true,
+			generation = 0,
+		}
 	end
 	return tag_projects[root]
 end
@@ -2651,18 +2849,11 @@ local function tag_filename(line)
 	local file = line:match("^[^\t]+\t([^\t]+)") or ""
 	return (file:gsub("\\(.)", { t = "\t", r = "\r", n = "\n", ["\\"] = "\\" }))
 end
-local function build_tags(root, full, files, after, failed, quiet)
+local function run_tag_build(root, full, changed, after, failed, quiet)
 	local project = tag_project(root)
 	project.generation = project.generation + 1
 	local generation = project.generation
 	cancel_command("ctags:" .. root)
-	for _, file in ipairs(files or {}) do
-		project.pending[file] = true
-	end
-	local changed = full and {} or vim.tbl_keys(project.pending)
-	if not full and #changed == 0 then
-		return
-	end
 	ctags_available(quiet, function(available)
 		if tag_projects[root] ~= project or project.generation ~= generation then
 			return
@@ -2735,11 +2926,7 @@ local function build_tags(root, full, files, after, failed, quiet)
 						return
 					end
 					if full then
-						project.ready, project.pending = true, {}
-					else
-						for _, file in ipairs(changed) do
-							project.pending[file] = nil
-						end
+						project.ready = true
 					end
 					for _, buf in ipairs(vim.api.nvim_list_bufs()) do
 						attach_tags(buf)
@@ -2803,6 +2990,46 @@ local function build_tags(root, full, files, after, failed, quiet)
 		end
 	end)
 end
+local function build_tags(root, full, files, after, failed, quiet)
+	local project = tag_project(root)
+	for _, file in ipairs(files or {}) do
+		project.pending[file] = true
+	end
+	project.full = project.full or full
+	project.quiet = project.quiet and quiet == true
+	if after or failed then
+		project.waiters[#project.waiters + 1] = { after = after, failed = failed }
+	end
+	if project.active or (not project.full and not next(project.pending)) then
+		return
+	end
+	-- Snapshot this batch so saves and requests arriving during it remain queued.
+	local batch = { files = project.pending, full = project.full, waiters = project.waiters, quiet = project.quiet }
+	project.pending, project.waiters, project.full, project.quiet = {}, {}, false, true
+	project.active = batch
+	local function finish(succeeded, output)
+		if tag_projects[root] ~= project or project.active ~= batch then
+			return
+		end
+		project.active = nil
+		local queued = project.full or next(project.pending)
+		if not succeeded then
+			for file in pairs(batch.files) do
+				project.pending[file] = true
+			end
+		end
+		local generation = project.generation
+		finish_tag_waiters(batch.waiters, succeeded, output)
+		if queued and tag_projects[root] == project and project.generation == generation then
+			build_tags(root, false, nil, nil, nil, true)
+		end
+	end
+	run_tag_build(root, batch.full, vim.tbl_keys(batch.files), function(output)
+		finish(true, output)
+	end, function()
+		finish(false)
+	end, batch.quiet)
+end
 local function request_tags(full, after, quiet)
 	focus_editor()
 	local buf, win = vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win()
@@ -2849,8 +3076,7 @@ vim.api.nvim_create_user_command("CtagsUpdate", function()
 end, {})
 vim.api.nvim_create_user_command("CtagsClearAll", function()
 	for root, project in pairs(tag_projects) do
-		project.generation = project.generation + 1
-		cancel_command("ctags:" .. root)
+		cancel_tag_build(root, project)
 	end
 	tag_projects = {}
 	vim.fn.delete(offline_data .. "/tags", "rf")
@@ -2901,21 +3127,49 @@ vim.api.nvim_create_autocmd("BufWritePost", {
 			return
 		end
 		project.pending[file] = true
-		cancel_command("ctags:" .. root)
-		project.generation = project.generation + 1
-		local generation = project.generation
+		local version = {}
+		project.save_version = version
 		vim.defer_fn(function()
-			if project.generation == generation then
-				build_tags(root, false)
+			if tag_projects[root] == project and project.save_version == version then
+				build_tags(root, false, nil, nil, nil, true)
 			end
 		end, 750)
 	end,
 })
 
+local function definition_target_name(item)
+	local location = item.location
+	local uri = location.uri or location.targetUri
+	local range = location.targetSelectionRange or location.range
+	if not uri or not range then
+		return
+	end
+	local filename = vim.uri_to_fname(uri)
+	local row = range.start.line
+	local line
+	local target_buf = vim.fn.bufnr(filename)
+	if target_buf > 0 and vim.api.nvim_buf_is_loaded(target_buf) then
+		line = vim.api.nvim_buf_get_lines(target_buf, row, row + 1, false)[1]
+	elseif vim.fn.filereadable(filename) == 1 then
+		line = vim.fn.readfile(filename, "", row + 1)[row + 1]
+	end
+	if not line then
+		return
+	end
+	local ok_start, start_byte = pcall(vim.str_byteindex, line, item.encoding, range.start.character, false)
+	local ok_end, end_byte = pcall(vim.str_byteindex, line, item.encoding, range["end"].character, false)
+	if not ok_start or not ok_end then
+		return
+	end
+	local name = line:sub(start_byte + 1, end_byte)
+	return name:match("^[_%a][_%w]*$") and name or nil
+end
+
 -- Prefer connected providers; failed, empty or timed-out requests use saved tags.
 map("n", "gd", function()
 	focus_editor()
 	local buf, win = vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win()
+	local source_word = vim.fn.expand("<cword>")
 	if definition_requests[buf] then
 		definition_requests[buf]()
 	end
@@ -2956,6 +3210,17 @@ map("n", "gd", function()
 					for _, location in ipairs(vim.islist(result) and result or { result }) do
 						locations[#locations + 1] = { location = location, encoding = client.offset_encoding }
 					end
+				end
+			end
+			if #locations > 1 and source_word ~= "" then
+				local exact = {}
+				for _, item in ipairs(locations) do
+					if definition_target_name(item) == source_word then
+						exact[#exact + 1] = item
+					end
+				end
+				if #exact > 0 then
+					locations = exact
 				end
 			end
 			if #locations == 0 then
@@ -3305,6 +3570,91 @@ for _, server in ipairs(servers) do
 	end
 end
 map("n", "<leader>ls", "<Cmd>lsp restart<CR>", "Restart current buffer LSP clients")
+
+-- :edit opens a buffer before a file exists. Only its first successful write
+-- needs a directory refresh and recovery of ty's cached missing-module state.
+do
+	local writes, pending_files, pending_clients = {}, {}, {}
+	local scheduled = false
+	local group = vim.api.nvim_create_augroup("offline-new-file", { clear = true })
+	vim.api.nvim_create_autocmd("BufWritePre", {
+		group = group,
+		callback = function(args)
+			writes[args.buf] = nil
+			if vim.bo[args.buf].buftype ~= "" then
+				return
+			end
+			local stat, _, code = vim.uv.fs_stat(args.match)
+			if not stat and code == "ENOENT" then
+				writes[args.buf] = {
+					file = args.match,
+					clients = vim.bo[args.buf].filetype == "python"
+						and vim.lsp.get_clients({ bufnr = args.buf, name = "ty" }) or {},
+				}
+			end
+		end,
+	})
+	vim.api.nvim_create_autocmd("BufWipeout", {
+		group = group,
+		callback = function(args)
+			writes[args.buf] = nil
+		end,
+	})
+	vim.api.nvim_create_autocmd("BufWritePost", {
+		group = group,
+		callback = function(args)
+			local write = writes[args.buf]
+			writes[args.buf] = nil
+			if not write or write.file ~= args.match or not vim.uv.fs_stat(write.file) then
+				return
+			end
+			pending_files[write.file] = true
+			for _, client in ipairs(write.clients) do
+				pending_clients[client.id] = client
+			end
+			if scheduled then
+				return
+			end
+			scheduled = true
+			vim.schedule(function()
+				local files, clients = pending_files, pending_clients
+				pending_files, pending_clients, scheduled = {}, {}, false
+				-- Batch :wall into one restart per affected ty instance. Reattach
+				-- its loaded buffers without reloading files or changing their text.
+				for _, client in pairs(clients) do
+					if not client:is_stopped() then
+						local attached = vim.tbl_keys(client.attached_buffers)
+						local config = vim.deepcopy(client.config)
+						client:stop(true)
+						local id = vim.lsp.start(config, { attach = false })
+						if id then
+							for _, buf in ipairs(attached) do
+								if vim.api.nvim_buf_is_loaded(buf) and not vim.b[buf].offline_large_file then
+									vim.lsp.buf_attach_client(buf, id)
+								end
+							end
+						end
+					end
+				end
+				for _, win in ipairs(vim.api.nvim_list_wins()) do
+					local buf = vim.api.nvim_win_get_buf(win)
+					if vim.bo[buf].filetype == "netrw" then
+						local top = netrw_git_top(win, buf)
+						for file in pairs(files) do
+							if vim.startswith(file, top:gsub("/+$", "") .. "/") then
+								vim.api.nvim_win_call(win, function()
+									-- Refresh expanded subdirectories too, retaining the tree/view.
+									netrw_command("normal " .. vim.keycode("<Plug>NetrwRefresh"))
+								end)
+								break
+							end
+						end
+					end
+				end
+			end)
+		end,
+	})
+end
 -- =========================================
 -- ========== CODE OUTLINE / LSP + CTAGS ==========
 -- =========================================
@@ -3594,7 +3944,7 @@ end, "Toggle diagnostics")
 -- ========== LARGE FILE GUARDS ==========
 -- =========================================
 -- 2 MiB / 50,000줄 / 한 줄 10,000바이트 초과 시 무거운 기능을 중지합니다.
--- 최초 읽기와 편집한 줄만 검사합니다. 보호는 파일을 다시 읽을 때까지 유지합니다.
+-- on_lines에서는 검사 범위만 합칩니다. 버퍼 조회/기능 중지는 textlock 밖에서 실행합니다.
 local watched_buffers = {}
 local function protect_large_file(buf)
 	if not vim.api.nvim_buf_is_loaded(buf) then
@@ -3604,14 +3954,20 @@ local function protect_large_file(buf)
 	file = vim.uv.fs_realpath(file) or file
 	local root = file ~= "" and find_project(vim.fs.dirname(file))
 	local project = root and tag_projects[root]
-	if project and project.pending[file] then
+	if project and (project.pending[file] or (project.active and project.active.files[file])) then
+		cancel_tag_build(root, project)
 		project.pending[file] = nil
-		project.generation = project.generation + 1
-		cancel_command("ctags:" .. root)
 		if next(project.pending) then
 			build_tags(root, false)
 		end
 	end
+	stop_git_sign_timer(buf)
+	git_sign_versions[buf], git_sign_rendered[buf] = nil, nil
+	if git_diff_jobs[buf] then
+		git_diff_jobs[buf].pending = nil
+	end
+	cancel_command("git-signs:" .. buf)
+	vim.api.nvim_buf_clear_namespace(buf, git_signs, 0, -1)
 	pcall(vim.treesitter.stop, buf)
 	vim.bo[buf].syntax = "OFF"
 	vim.bo[buf].autocomplete = false
@@ -3626,29 +3982,55 @@ local function protect_large_file(buf)
 	end
 end
 local function check_large_file(buf, first, last)
-	if vim.b[buf].offline_large_file then
+	if vim.b[buf].offline_large_file or not vim.api.nvim_buf_is_loaded(buf) then
 		return
 	end
 	local count = vim.api.nvim_buf_line_count(buf)
 	local large = count > 50000 or vim.api.nvim_buf_get_offset(buf, count) > 2 * 1024 * 1024
 	if not large then
-		local offset = vim.api.nvim_buf_get_offset(buf, first)
-		for line = first + 1, last do
-			local next_offset = vim.api.nvim_buf_get_offset(buf, line)
-			if next_offset - offset > 10001 then
-				large = true
+		first, last = math.max(0, math.min(first, count)), math.max(0, math.min(last, count))
+		-- Fetch bounded batches, not a byte-offset lookup for every line.
+		for start = first, last - 1, 512 do
+			for _, line in ipairs(vim.api.nvim_buf_get_lines(buf, start, math.min(start + 512, last), false)) do
+				if #line > 10000 then
+					large = true
+					break
+				end
+			end
+			if large then
 				break
 			end
-			offset = next_offset
 		end
 	end
 	if large then
 		vim.b[buf].offline_large_file = true
-		-- Buffer-change callbacks hold textlock; detach clients and update windows afterwards.
-		vim.schedule(function()
-			protect_large_file(buf)
-		end)
+		protect_large_file(buf)
 	end
+end
+local function queue_large_file_check(buf, first, last, added)
+	local state = watched_buffers[buf]
+	if not state then
+		return
+	end
+	state.first = math.min(state.first or first, first)
+	-- Positive shifts conservatively extend the pending range; deletions are
+	-- clamped at execution time. No changed line is lost during a paste burst.
+	state.last = math.max(state.last and (state.last + math.max(0, added or 0)) or last, last)
+	if state.pending then
+		return
+	end
+	state.pending = true
+	vim.schedule(function()
+		if watched_buffers[buf] ~= state then
+			return
+		end
+		state.pending = false
+		local start, finish = state.first, state.last
+		state.first, state.last = nil, nil
+		if vim.api.nvim_buf_is_loaded(buf) then
+			check_large_file(buf, start, finish)
+		end
+	end)
 end
 vim.api.nvim_create_autocmd("BufReadPre", {
 	callback = function(args)
@@ -3663,18 +4045,23 @@ vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile", "FileType", "BufWinEn
 			return
 		end
 		if not watched_buffers[buf] then
-			watched_buffers[buf] = vim.api.nvim_buf_attach(buf, false, {
-				on_lines = function(_, changed_buf, _, first, _, last)
-					check_large_file(changed_buf, first, last)
+			watched_buffers[buf] = {}
+			local attached = vim.api.nvim_buf_attach(buf, false, {
+				on_lines = function(_, changed_buf, _, first, old_last, new_last)
+					queue_large_file_check(changed_buf, first, new_last, new_last - old_last)
 				end,
 				on_reload = function(_, reloaded_buf)
-					check_large_file(reloaded_buf, 0, vim.api.nvim_buf_line_count(reloaded_buf))
+					queue_large_file_check(reloaded_buf, 0, math.huge)
 				end,
 				on_detach = function(_, detached_buf)
 					watched_buffers[detached_buf] = nil
 				end,
 			})
-			check_large_file(buf, 0, vim.api.nvim_buf_line_count(buf))
+			if attached then
+				queue_large_file_check(buf, 0, math.huge)
+			else
+				watched_buffers[buf] = nil
+			end
 		end
 		if vim.b[buf].offline_large_file then
 			protect_large_file(buf)

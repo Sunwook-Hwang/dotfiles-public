@@ -1,5 +1,6 @@
 packer_compiled.lua
 lazy-lock.json
+nvim/.config/nvim/nvim-pack-lock.json
 
 tmux*.log
 /nvim.log

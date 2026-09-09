@@ -12,6 +12,7 @@ alias tmux='env TERM=xterm-256color tmux'
 alias tad='tmux at -d'
 
 alias lg='lazygit'
+alias vi='nvim'
 
 ZSH_THEME="robbyrussell"
 ZSH_DISABLE_COMPFIX="true"

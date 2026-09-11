@@ -1,0 +1,8 @@
+[core]
+	editor = nvim
+[credential]
+	helper = store
+[init]
+	defaultBranch = main
+[include]
+	path = ~/.gitconfig.local

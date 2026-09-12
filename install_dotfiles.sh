@@ -42,9 +42,15 @@ for folder in claude codex git herdr nvim zsh tmux; do
 done
 
 nvim_init="$TARGET/.config/nvim/init.lua"
-if [[ ! -e "$nvim_init" && ! -L "$nvim_init" ]]; then
-    mkdir -p "$(dirname "$nvim_init")"
-    ln -s init.online.lua "$nvim_init"
+for name in init.online.lua init.offline.lua; do
+    if [[ ! "$TARGET/.config/nvim/$name" -ef "$CURDIR/nvim/.config/nvim/$name" ]]; then
+        echo "Neovim configuration was not linked correctly: $TARGET/.config/nvim/$name" >&2
+        exit 1
+    fi
+done
+# -e follows symlinks: repair a dangling selector as well as a missing one.
+if [[ ! -e "$nvim_init" ]]; then
+    ln -sfn init.online.lua "$nvim_init"
     echo "Defaulting Neovim to init.online.lua"
 fi
 

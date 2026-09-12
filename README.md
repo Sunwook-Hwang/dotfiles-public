@@ -94,6 +94,19 @@ at either `init.online.lua` or `init.offline.lua`. This repository defaults to
 then start Neovim. The local `init.lua` symlink is ignored by Git, so switching
 modes does not change the working tree.
 
+When an update adds or renames configuration files, `git pull` alone does not
+create new file-level Stow links. From the repository, run:
+
+```sh
+git pull --ff-only
+./clean_dotfiles.sh
+./install_dotfiles.sh
+```
+
+The installer verifies both Neovim configuration links and repairs a missing or
+dangling `init.lua`. A clean install defaults to online mode; use `offvi` to select
+offline mode again. Custom `init.lua` files are preserved.
+
 | Feature | Offline behavior |
 | --- | --- |
 | Completion | Native LSP completion on server-defined triggers; buffer words and ctags fallback without LSP |

@@ -14,8 +14,8 @@ alias tad='tmux at -d'
 alias lg='lazygit'
 alias vi='nvim'
 
-alias offvi='ln -sfn init.offline.lua ~/.config/nvim/init.lua && nvim'
-alias onvi='ln -sfn init.online.lua ~/.config/nvim/init.lua && nvim'
+alias offvi='ln -sfn "$HOME/.config/nvim/init.offline.lua" "$HOME/.config/nvim/init.lua" && nvim'
+alias onvi='ln -sfn "$HOME/.config/nvim/init.online.lua" "$HOME/.config/nvim/init.lua" && nvim'
 
 
 ZSH_THEME="robbyrussell"

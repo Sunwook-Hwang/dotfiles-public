@@ -5,7 +5,7 @@ set -euo pipefail
 CURDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET="${STOW_TARGET:-$HOME}"
 BACKUP_DIR="${STOW_BACKUP_DIR:-$TARGET/.dotfiles-backup/$(date +%Y%m%d%H%M%S)}"
-STOW_IGNORE_ARGS=(--ignore='lazy-lock\.json')
+STOW_IGNORE_ARGS=(--ignore='lazy-lock\.json' --ignore='init\.lua')
 
 if [[ "${EUID:-$(id -u)}" -eq 0 && -z "${STOW_TARGET:-}" ]]; then
     echo "Do not run this script with sudo unless STOW_TARGET is set explicitly." >&2
@@ -40,5 +40,12 @@ for folder in claude codex git herdr nvim zsh tmux; do
     backup_conflicts "$folder"
     stow "${STOW_IGNORE_ARGS[@]}" -t "$TARGET" "$folder"
 done
+
+nvim_init="$TARGET/.config/nvim/init.lua"
+if [[ ! -e "$nvim_init" && ! -L "$nvim_init" ]]; then
+    mkdir -p "$(dirname "$nvim_init")"
+    ln -s init.online.lua "$nvim_init"
+    echo "Defaulting Neovim to init.online.lua"
+fi
 
 echo "Done."

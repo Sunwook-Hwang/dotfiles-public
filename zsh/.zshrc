@@ -14,6 +14,10 @@ alias tad='tmux at -d'
 alias lg='lazygit'
 alias vi='nvim'
 
+alias offvi='ln -sfn init.offline.lua ~/.config/nvim/init.lua && nvim'
+alias onvi='ln -sfn init.online.lua ~/.config/nvim/init.lua && nvim'
+
+
 ZSH_THEME="robbyrussell"
 ZSH_DISABLE_COMPFIX="true"
 
@@ -42,4 +46,3 @@ else
 fi
 unset __conda_setup
 # <<< conda initialize <<<
-

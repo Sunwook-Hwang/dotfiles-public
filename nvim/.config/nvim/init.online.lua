@@ -1077,6 +1077,156 @@ end
 -- -------------------------------------
 -- LSP server definitions and Mason installation
 -- -------------------------------------
+-- Python projects use the same Git-first root discovery as init.offline.lua.
+local function python_project_root(buf)
+	local file = vim.api.nvim_buf_get_name(buf)
+	local dir = file ~= "" and vim.fs.dirname(file) or vim.fn.getcwd()
+	local root = vim.fs.root(dir, ".git")
+	if root then
+		return root
+	end
+	local marker = vim.fs.find(
+		{ "CMakeLists.txt", "compile_commands.json", "Makefile", "package.json", "pyproject.toml" },
+		{ path = dir, upward = true, type = "file", limit = 1 }
+	)[1]
+	return marker and vim.fs.dirname(marker) or dir
+end
+
+-- Space lv: 현재 프로젝트의 Python LSP 분석 환경 선택. 재실행 전까지 프로젝트별로 기억합니다.
+-- 가상환경을 생성하거나 셸/포맷터 PATH를 바꾸지 않습니다. symlink 경로는 그대로 보존합니다.
+local python_paths = {}
+local function apply_python_path(client, path)
+	client.settings = vim.deepcopy(client.settings)
+	if client.name == "ty" then
+		client.settings.ty = client.settings.ty or {}
+		client.settings.ty.configuration = client.settings.ty.configuration or {}
+		local configuration = client.settings.ty.configuration
+		configuration.environment = configuration.environment or {}
+		configuration.environment.python = path
+		if not next(configuration.environment) then
+			configuration.environment = vim.empty_dict()
+		end
+	else
+		client.settings.python = client.settings.python or vim.empty_dict()
+		client.settings.python.pythonPath = path
+	end
+	client.config.settings = client.settings
+end
+vim.keymap.set("n", "<leader>lv", function()
+	if vim.bo.filetype ~= "python" then
+		vim.notify("Open a Python file to select its environment")
+		return
+	end
+	local root = python_project_root(0)
+	local choices, seen = {}, {}
+	local function add(label, path)
+		if path and path ~= "" and not seen[path] and vim.fn.executable(path) == 1 then
+			seen[path] = true
+			choices[#choices + 1] = { label = label .. ": " .. path, path = path }
+		end
+	end
+	add("Selected", python_paths[root])
+	add("Project .venv", root .. "/.venv/bin/python")
+	add("Project venv", root .. "/venv/bin/python")
+	add("Active venv", vim.env.VIRTUAL_ENV and vim.env.VIRTUAL_ENV .. "/bin/python")
+	add("Active Conda", vim.env.CONDA_PREFIX and vim.env.CONDA_PREFIX .. "/bin/python")
+	add("PATH python", vim.fn.exepath("python"))
+	add("PATH python3", vim.fn.exepath("python3"))
+	choices[#choices + 1] = { label = "Enter Python path...", manual = true }
+	choices[#choices + 1] = { label = "Automatic (project settings / inherited PATH)" }
+	local function select_path(path)
+		local changed = python_paths[root] ~= path
+		python_paths[root] = path
+		local attached, restarting = false, false
+		for _, client in ipairs(vim.lsp.get_clients()) do
+			if (client.name == "ty" or client.name == "pyright") and client.config.root_dir == root then
+				attached = true
+				if changed then
+					if client.name == "ty" then
+						-- Restart ty so versions without didChangeConfiguration also reload imports.
+						local buffers = vim.tbl_keys(client.attached_buffers)
+						local config = vim.deepcopy(client.config)
+						client:stop(true)
+						local id = vim.lsp.start(config, { attach = false })
+						if id then
+							for _, buf in ipairs(buffers) do
+								if vim.api.nvim_buf_is_loaded(buf) and not vim.b[buf].large_file then
+									vim.lsp.buf_attach_client(buf, id)
+								end
+							end
+						end
+						restarting = id ~= nil
+					else
+						apply_python_path(client, path)
+						client:notify("workspace/didChangeConfiguration", { settings = client.settings })
+					end
+				end
+			end
+		end
+		vim.notify(
+			"Python: "
+				.. (path or "automatic")
+				.. (restarting and " (restarting ty)" or (attached and "" or " (applies when Python LSP attaches)"))
+		)
+	end
+	local function choose(item)
+		if not item then
+			return
+		end
+		if not item.manual then
+			select_path(item.path)
+			return
+		end
+		vim.ui.input({ prompt = "Python executable or venv directory: ", completion = "file" }, function(path)
+			if not path or path == "" then
+				return
+			end
+			path = vim.fs.normalize(path)
+			if path:sub(1, 1) ~= "/" then
+				path = vim.fs.normalize(root .. "/" .. path)
+			end
+			if vim.fn.isdirectory(path) == 1 then
+				path = path .. "/bin/python"
+			end
+			if vim.fn.executable(path) ~= 1 then
+				vim.notify("Python executable not found: " .. path, vim.log.levels.WARN)
+				return
+			end
+			select_path(path)
+		end)
+	end
+	local function show_picker()
+		vim.ui.select(choices, {
+			prompt = "Python environment: " .. vim.fn.fnamemodify(root, ":t"),
+			format_item = function(item)
+				return item.label
+			end,
+		}, choose)
+	end
+	local conda = vim.fn.exepath("conda")
+	if conda == "" and vim.env.CONDA_EXE and vim.fn.executable(vim.env.CONDA_EXE) == 1 then
+		conda = vim.env.CONDA_EXE
+	end
+	if conda == "" then
+		show_picker()
+		return
+	end
+	vim.system({ conda, "env", "list", "--json" }, { cwd = root, text = true, timeout = 5000 }, function(result)
+		vim.schedule(function()
+			local ok, data = pcall(vim.json.decode, result.stdout or "")
+			if result.code == 0 and ok and type(data) == "table" and type(data.envs) == "table" then
+				for _, env in ipairs(data.envs) do
+					if type(env) == "string" then
+						local path = vim.fs.normalize(env)
+						add("Conda " .. vim.fs.basename(path), path .. "/bin/python")
+					end
+				end
+			end
+			show_picker()
+		end)
+	end)
+end, { desc = "Select Python environment for this project" })
+
 -- Native configs use portable launchers first; Mason remains available locally.
 require("mason").setup({ ui = {} })
 local tools_dir = vim.fn.stdpath("config") .. "/lsp/bin"
@@ -1274,6 +1424,11 @@ local servers = {
 	},
 }
 for name, config in pairs(servers) do
+	if name == "ty" or name == "pyright" then
+		config.on_init = function(client)
+			apply_python_path(client, python_paths[client.config.root_dir])
+		end
+	end
 	config.root_dir = function(buf, on_dir)
 		if vim.b[buf].large_file or vim.fn.executable(config.cmd[1]) == 0 then
 			return
@@ -1282,7 +1437,8 @@ for name, config in pairs(servers) do
 		if file == "" then
 			return
 		end
-		local root = vim.fs.root(buf, config.root_markers)
+		local root = (name == "ty" or name == "pyright") and python_project_root(buf)
+			or vim.fs.root(buf, config.root_markers)
 		if (name == "ts_ls" or name == "eslint") and vim.fs.root(buf, { "deno.json", "deno.jsonc", "deno.lock" }) then
 			return
 		end

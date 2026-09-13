@@ -90,7 +90,7 @@ nvim -u /path/to/init.offline.lua
 
 To use it by default, point `${XDG_CONFIG_HOME:-$HOME/.config}/nvim/init.lua`
 at either `init.online.lua` or `init.offline.lua`. This repository defaults to
-`init.online.lua`. The `onvi` and `offvi` shell aliases switch that symlink and
+`init.offline.lua`. The `onvi` and `offvi` shell aliases switch that symlink and
 then start Neovim. The local `init.lua` symlink is ignored by Git, so switching
 modes does not change the working tree.
 
@@ -104,8 +104,8 @@ git pull --ff-only
 ```
 
 The installer verifies both Neovim configuration links and repairs a missing or
-dangling `init.lua`. A clean install defaults to online mode; use `offvi` to select
-offline mode again. Custom `init.lua` files are preserved.
+dangling `init.lua`. A clean install defaults to offline mode; use `onvi` to select
+online mode. Custom `init.lua` files are preserved.
 
 | Feature | Offline behavior |
 | --- | --- |

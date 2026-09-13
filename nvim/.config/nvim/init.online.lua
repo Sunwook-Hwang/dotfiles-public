@@ -1816,26 +1816,60 @@ end
 -- -------------------------------------
 do
 	local lualine = require("lualine")
-	local aerial = require("aerial")
-	local scope_kinds = { Class = true, Interface = true, Module = true, Namespace = true, Struct = true }
-	local function current_function()
-		if vim.bo.buftype ~= "" or vim.b.large_file then
+	local function lsp_status()
+		local buf = vim.api.nvim_get_current_buf()
+		if vim.bo[buf].buftype ~= "" then
 			return ""
 		end
-		local path, selected = {}, nil
-		-- Reuse Aerial's cached ranges; do not request symbols while drawing the statusline.
-		for _, symbol in ipairs(aerial.get_location(true)) do
-			local callable = symbol.kind == "Function" or symbol.kind == "Method" or symbol.kind == "Constructor"
-			if callable or scope_kinds[symbol.kind] then
-				path[#path + 1] = symbol.name:gsub("[%c]", " "):gsub("%%", "%%%%")
-				if callable then
-					selected = #path
+		local names = {}
+		for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
+			if not client:is_stopped() then
+				names[client.name:gsub("[%c]", " ")] = true
+			end
+		end
+		local sorted = vim.fn.sort(vim.tbl_keys(names))
+		return #sorted > 0 and ("[LSP O: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]") or "[LSP X]"
+	end
+	local function lsp_status_color()
+		local buf = vim.api.nvim_get_current_buf()
+		if vim.bo[buf].buftype == "" and #vim.lsp.get_clients({ bufnr = buf }) == 0 then
+			return { fg = "#ffffff", bg = "#af0000", gui = "bold" }
+		end
+	end
+	local function format_status()
+		local buf = vim.api.nvim_get_current_buf()
+		if vim.bo[buf].buftype ~= "" then
+			return ""
+		end
+		if
+			not vim.bo[buf].modifiable
+			or vim.api.nvim_buf_get_offset(buf, vim.api.nvim_buf_line_count(buf)) > 2 * 1024 * 1024
+		then
+			return "[FORMAT X]"
+		end
+		local formatters, lsp = require("conform").list_formatters_to_run(buf)
+		local names = {}
+		for _, formatter in ipairs(formatters) do
+			names[vim.fn.fnamemodify(formatter.command, ":t"):gsub("[%c]", " ")] = true
+		end
+		if lsp then
+			for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf, method = "textDocument/formatting" })) do
+				if not client:is_stopped() then
+					names[client.name:gsub("[%c]", " ")] = true
 				end
 			end
 		end
-		return selected and ("[" .. table.concat(path, " > ", 1, selected) .. "]") or ""
+		local sorted = vim.fn.sort(vim.tbl_keys(names))
+		return #sorted > 0 and ("[FORMAT O: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]") or "[FORMAT X]"
 	end
-
+	vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
+		group = vim.api.nvim_create_augroup("online-lsp-status", { clear = true }),
+		callback = function()
+			vim.schedule(function()
+				lualine.refresh({ place = { "statusline" } })
+			end)
+		end,
+	})
 	lualine.setup({
 		sections = {
 			lualine_a = { "mode" },
@@ -1853,14 +1887,20 @@ do
 					},
 				},
 			},
-			lualine_c = { "filename", current_function },
+			lualine_c = { "filename" },
 			lualine_x = {
 				{ "diagnostics", sources = { "nvim_diagnostic" }, always_visible = false },
+				{ lsp_status, color = lsp_status_color },
+				format_status,
+				"filetype",
 			},
 			lualine_y = {},
 			lualine_z = { "location" },
 		},
-		inactive_sections = { lualine_c = { "filename", current_function } },
+		inactive_sections = {
+			lualine_c = { "filename" },
+			lualine_x = { { lsp_status, color = lsp_status_color }, format_status, "filetype" },
+		},
 		options = {
 			theme = "auto",
 			section_separators = "",

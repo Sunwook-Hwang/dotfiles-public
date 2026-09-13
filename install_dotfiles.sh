@@ -50,8 +50,8 @@ for name in init.online.lua init.offline.lua; do
 done
 # -e follows symlinks: repair a dangling selector as well as a missing one.
 if [[ ! -e "$nvim_init" ]]; then
-    ln -sfn init.online.lua "$nvim_init"
-    echo "Defaulting Neovim to init.online.lua"
+    ln -sfn init.offline.lua "$nvim_init"
+    echo "Defaulting Neovim to init.offline.lua"
 fi
 
 echo "Done."

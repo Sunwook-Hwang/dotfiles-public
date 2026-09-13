@@ -390,8 +390,7 @@ function _G.OfflineLspStatus()
 		end
 	end
 	local sorted = vim.fn.sort(vim.tbl_keys(names))
-	return #sorted > 0 and ("[LSP O: " .. table.concat(sorted, ", ") .. "]")
-		or "%#OfflineLspMissing#[LSP X]%*"
+	return #sorted > 0 and ("[LSP O: " .. table.concat(sorted, ", ") .. "]") or "%#OfflineLspMissing#[LSP X]%*"
 end
 vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
 	group = vim.api.nvim_create_augroup("offline-lsp-status", { clear = true }),
@@ -920,21 +919,18 @@ local function find_project(dir)
 	if git_root then
 		return git_root, true, true
 	end
-	local marker = vim.fs.find(
-		{
-			"CMakeLists.txt",
-			"compile_commands.json",
-			"Makefile",
-			"package.json",
-			"pyproject.toml",
-			"Cargo.toml",
-			"WORKSPACE",
-			"WORKSPACE.bazel",
-			"MODULE.bazel",
-			"buf.yaml",
-		},
-		{ path = dir, upward = true, type = "file", limit = 1 }
-	)[1]
+	local marker = vim.fs.find({
+		"CMakeLists.txt",
+		"compile_commands.json",
+		"Makefile",
+		"package.json",
+		"pyproject.toml",
+		"Cargo.toml",
+		"WORKSPACE",
+		"WORKSPACE.bazel",
+		"MODULE.bazel",
+		"buf.yaml",
+	}, { path = dir, upward = true, type = "file", limit = 1 })[1]
 	return marker and vim.fs.dirname(marker) or dir, false, marker ~= nil
 end
 
@@ -2396,8 +2392,6 @@ for key, revision in pairs({ gd = ":", gD = "HEAD:" }) do
 		end)
 	end, "Diff against " .. revision .. " (:diffoff! to finish)")
 end
-map("n", "<leader>gn", "]c", "Next diff hunk")
-map("n", "<leader>gp", "[c", "Previous diff hunk")
 map("n", "<leader>gB", function()
 	local file = vim.api.nvim_buf_get_name(0)
 	if vim.bo.buftype ~= "" or file == "" then
@@ -2419,6 +2413,52 @@ end, "Blame current line (saved file)")
 local git_signs = vim.api.nvim_create_namespace("offline-git-signs")
 local git_sign_versions, git_sign_timers, git_diff_jobs, git_sign_rendered = {}, {}, {}, {}
 local git_base_cache = {}
+local function git_hunk_rows(buf)
+	local rows, previous = {}, nil
+	for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(buf, git_signs, 0, -1, {})) do
+		local row = mark[2]
+		if previous == nil or row > previous + 1 then
+			rows[#rows + 1] = row
+		end
+		previous = row
+	end
+	return rows
+end
+
+local function navigate_git_hunk(next_hunk)
+	local rows = git_hunk_rows(vim.api.nvim_get_current_buf())
+	if #rows == 0 then
+		vim.notify("No Git changes in this buffer")
+		return
+	end
+	local current = vim.api.nvim_win_get_cursor(0)[1] - 1
+	local target = next_hunk and rows[1] or rows[#rows]
+	if next_hunk then
+		for _, row in ipairs(rows) do
+			if row > current then
+				target = row
+				break
+			end
+		end
+	else
+		for index = #rows, 1, -1 do
+			if rows[index] < current then
+				target = rows[index]
+				break
+			end
+		end
+	end
+	vim.api.nvim_win_set_cursor(0, { target + 1, 0 })
+	vim.cmd("normal! zv")
+end
+
+map("n", "<leader>gn", function()
+	navigate_git_hunk(true)
+end, "Next Git hunk")
+map("n", "<leader>gp", function()
+	navigate_git_hunk(false)
+end, "Previous Git hunk")
+
 local function stop_git_sign_timer(buf)
 	local timer = git_sign_timers[buf]
 	git_sign_timers[buf] = nil

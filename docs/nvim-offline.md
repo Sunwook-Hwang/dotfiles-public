@@ -4,6 +4,8 @@
 Neovim **0.12 이상**을 요구하며, 이전 버전에서는 명확한 오류를 표시합니다.
 플러그인 매니저, 외부 플러그인 파일, 패키지/파서 다운로드는 사용하지 않습니다.
 
+전체 기능과 단축키는 [한국어 기능 안내](nvim-offline-features.ko.md) 또는
+[English feature guide](nvim-offline-features.md)를 참고하세요.
 도구를 준비하려면 [LSP·포맷터 설치 위치, PATH 설정, 오프라인 서버 전송 가이드](nvim-offline-tools.md)를 참고하세요.
 
 Stow 환경:
@@ -112,8 +114,8 @@ ty에는 `ty.configuration.environment.python`으로 전달하며, 환경을 바
 패키지가 선택한 환경에 설치되어 있어야 하며, Python 소스/타입 스텁이 없는 네이티브 모듈은
 정의로 이동할 수 없는 경우가 있습니다.
 
-외부 포맷터는 Lua `stylua`, C/C++ `clang-format`, Python `ruff format`(없으면 `black`),
-JavaScript `prettier`입니다. 없으면 내장 LSP 포맷팅을 시도합니다.
+파일타입별 외부 포매터 목록은 [기능 안내의 포맷팅 표](nvim-offline-features.md#포맷팅)를 참고하세요.
+등록된 외부 포매터가 없으면 내장 LSP 포맷팅을 시도합니다.
 저장 시 자동 포맷팅과 선택 영역 포맷팅은 켜지 않습니다.
 외부 포맷팅 도중 버퍼가 바뀌거나 닫히면 결과를 버립니다. 작업은 버퍼별로 취소됩니다.
 
@@ -140,8 +142,11 @@ JavaScript `prettier`입니다. 없으면 내장 LSP 포맷팅을 시도합니�
 | `Ctrl-t` | `Space gg`와 같은 크기의 하단 split 터미널 토글 |
 | 터미널 `Esc Esc` | Terminal 모드에서 Normal 모드로 이동 |
 | `Space gd/gD` | 현재 파일과 index/HEAD를 좌우 비교 |
+| `Space gn/gp` | 다음/이전 Git 변경 hunk로 이동 |
+| `Space gb` | 현재 줄 inline blame 토글 |
 | `Space Tu` | undo 상태 목록과 코드 미리보기. `↑/↓`·`Ctrl-p/n` 선택, `Ctrl-f/b` 스크롤, Enter 적용, Esc 취소 |
-| `Space Ti` | 들여쓰기 가이드·탭·후행 공백 표시 토글 (기본 켜짐) |
+| `Space Ti/Ts` | 들여쓰기 가이드·공백 / Sticky Scroll 토글 |
+| `Space A` | 네이티브 dashboard 열기 |
 | `Space pr/pl/pS/pd` | 프로젝트 세션 복원 / 마지막 / 선택 / 저장 중지 |
 
 Git 추적 파일의 저장 전 변경은 여백에 `+`, `~`, `-`로 표시합니다.
@@ -153,8 +158,8 @@ netrw 트리의 왼쪽 여백에는 저장된 Git 상태를 두 글자로 표시
 같은 프로젝트의 파일로 이동할 때는 기존 트리를 재사용합니다. 미저장 편집과 무시된 파일은 이 Git 표시에 포함하지 않습니다.
 혼합 구간에서 수정/추가의 구분은 내용 유사도에 따른 추정입니다.
 들여쓰기 가이드는 내장 `listchars`로 파일의 `shiftwidth`에 맞춰 표시합니다. 탭도 세로선으로 표시하며, 빈 줄을 관통하는 선과 현재 범위 강조는 지원하지 않습니다.
-Which-key 팝업, 시각적 Undotree, DAP는 추가하지 않았습니다.
-0.12에서도 이들 플러그인 UI가 기본 제공되는 것은 아닙니다.
+외부 Which-key 플러그인은 사용하지 않고, Normal 모드에서 `Space`를 누르면 자체 단축키 안내를 표시합니다.
+시각적 Undotree와 DAP는 추가하지 않았습니다. Neovim 0.12에서도 이들 플러그인 UI가 기본 제공되는 것은 아닙니다.
 
 ## 코드 아웃라인
 

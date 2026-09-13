@@ -2,6 +2,20 @@
 
 macOS-focused dotfiles for zsh, git, Herdr, tmux, and Neovim.
 
+## Package-free Native Neovim
+
+This repository includes [`init.offline.lua`](nvim/.config/nvim/init.offline.lua),
+a **single-file, package-free Native Neovim configuration** for Neovim 0.12+.
+It uses no plugin manager and no external Lua plugins, and it performs no plugin
+or parser downloads. Built-in replacements provide a dashboard, fuzzy pickers,
+a file tree, a Space-key guide, Sticky Scroll, Git signs and inline blame, LSP,
+completion, formatting, sessions, an undo browser, and a reusable terminal.
+
+Optional language servers, formatters, and command-line search tools are used
+only when already installed. See the feature guide in
+[English](docs/nvim-offline-features.md) or
+[한국어](docs/nvim-offline-features.ko.md).
+
 ## Setup
 
 macOS:
@@ -133,7 +147,9 @@ Exuberant Ctags. Search uses installed `find`, `git`, and `rg` or `grep`.
 Large files disable expensive editing features. Ctags cache merging runs in a
 worker thread, and Git/tree/tabline caches avoid repeated work during editing.
 The built-in picker and outline provide a smaller feature set than Telescope
-and Aerial; Which-key popups and DAP are not included.
+and Aerial; a native Space-key guide replaces Which-key, while DAP is not included.
 
-See [the key guide, ctags setup, and limits](docs/nvim-offline.md) and
+See the offline feature overview in [English](docs/nvim-offline-features.md) or
+[한국어](docs/nvim-offline-features.ko.md),
+[implementation details, ctags setup, and limits](docs/nvim-offline.md), and
 [LSP/formatter installation and offline transfer](docs/nvim-offline-tools.md).

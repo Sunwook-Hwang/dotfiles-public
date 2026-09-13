@@ -313,7 +313,7 @@ LSP 프로세스를 직접 `--stdio`로 실행하면 입력을 기다리며 멈�
 
 - `K`, `gd`, Insert `Ctrl-Space`: LSP 도움말·정의·완성 확인
 - `Space Tr`: LSP가 제공하는 함수·클래스 아웃라인 확인
-- `Space l f`: 포맷팅. 버퍼가 바뀌며 디스크 저장은 별도로 수행합니다.
+- `Space lf`: 포맷팅. 버퍼가 바뀌며 디스크 저장은 별도로 수행합니다.
 - `:messages`: 서버 시작·포맷터 오류 확인
 - `:set filetype?`: 해당 언어 파일로 인식했는지 확인
 
@@ -322,4 +322,4 @@ LSP 프로세스를 직접 `--stdio`로 실행하면 입력을 기다리며 멈�
 언어 서버의 연결 성공과 프로젝트 환경 분석 성공은 별개이므로 Python 환경, C/C++ 컴파일 DB,
 웹 프로젝트 설정도 함께 확인하세요.
 
-[offline 기능·단축키 가이드로 돌아가기](nvim-offline.md)
+[offline 기능·단축키 한국어 가이드로 돌아가기](nvim-offline-features.ko.md)

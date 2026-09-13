@@ -124,6 +124,29 @@ for k, v in pairs(default_options) do
 	vim.opt[k] = v
 end
 
+local dashboard_window_options = {
+	"number",
+	"relativenumber",
+	"signcolumn",
+	"foldcolumn",
+	"cursorcolumn",
+	"cursorline",
+	"cursorlineopt",
+	"list",
+	"wrap",
+}
+
+local function restore_dashboard_window(win)
+	local saved = vim.w[win].offline_options_before_dashboard
+	if type(saved) ~= "table" then
+		return
+	end
+	for _, option in ipairs(dashboard_window_options) do
+		vim.wo[win][option] = saved[option]
+	end
+	vim.w[win].offline_options_before_dashboard = nil
+end
+
 -- Numbering is window-local; ordinary navigation only touches the entered window.
 local function show_line_numbers(win)
 	if not vim.api.nvim_win_is_valid(win) then
@@ -131,6 +154,7 @@ local function show_line_numbers(win)
 	end
 	local buf = vim.api.nvim_win_get_buf(win)
 	if vim.bo[buf].buftype == "" or vim.bo[buf].filetype == "netrw" then
+		restore_dashboard_window(win)
 		if not vim.wo[win].number then
 			vim.wo[win].number = true
 		end
@@ -415,11 +439,6 @@ local function update_indent_guides()
 	if vim.bo.buftype ~= "" or vim.bo.filetype == "netrw" then
 		vim.opt_local.listchars:remove("leadmultispace")
 		return
-	end
-	local dashboard_list = vim.w.offline_list_before_dashboard
-	if dashboard_list ~= nil then
-		vim.wo.list = dashboard_list
-		vim.w.offline_list_before_dashboard = nil
 	end
 	local width = vim.fn.shiftwidth()
 	vim.opt_local.listchars:append({ leadmultispace = "┊" .. string.rep(" ", width - 1) })
@@ -2111,8 +2130,14 @@ local dashboard_header = {
 local dashboard_namespace = vim.api.nvim_create_namespace("offline-dashboard")
 
 local function open_dashboard()
+	if vim.bo.filetype == "offline_dashboard" then
+		return
+	end
 	local previous = vim.api.nvim_get_current_buf()
-	local previous_list = vim.wo.list
+	local previous_options = {}
+	for _, option in ipairs(dashboard_window_options) do
+		previous_options[option] = vim.wo[option]
+	end
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_set_current_buf(buf)
 	if
@@ -2130,6 +2155,7 @@ local function open_dashboard()
 	vim.bo[buf].swapfile = false
 	vim.bo[buf].filetype = "offline_dashboard"
 	vim.bo[buf].modifiable = true
+	vim.w.offline_options_before_dashboard = previous_options
 	vim.wo.number = false
 	vim.wo.relativenumber = false
 	vim.wo.signcolumn = "no"
@@ -2137,7 +2163,6 @@ local function open_dashboard()
 	vim.wo.cursorcolumn = false
 	vim.wo.cursorline = true
 	vim.wo.cursorlineopt = "line"
-	vim.w.offline_list_before_dashboard = previous_list
 	vim.wo.list = false
 	vim.wo.wrap = false
 

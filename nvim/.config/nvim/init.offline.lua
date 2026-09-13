@@ -40,28 +40,14 @@ end
 local offline_data = vim.fn.stdpath("data") .. "/offline"
 vim.fn.mkdir(offline_data .. "/undo", "p")
 
--- Portable LSP/formatter launchers may be kept with this configuration.
--- Search this directory before PATH and Mason. Override with g:offline_tools_dir.
-local offline_tools_dir = vim.g.offline_tools_dir or (vim.fn.stdpath("config") .. "/lsp/bin")
+-- Use PATH first, then existing Mason installations; never install tools here.
 local function resolve_tool(name)
-	local bundled = offline_tools_dir .. "/" .. name
-	if vim.fn.executable(bundled) == 1 then
-		return bundled
-	end
 	local path = vim.fn.exepath(name)
 	if path ~= "" then
 		return path
 	end
-	-- Homebrew's LLVM formula is keg-only, so its MLIR/Clang tools are not always on PATH.
-	for _, prefix in ipairs({ vim.env.HOMEBREW_PREFIX, "/opt/homebrew", "/usr/local" }) do
-		if prefix and prefix ~= "" then
-			local llvm_tool = prefix .. "/opt/llvm/bin/" .. name
-			if vim.fn.executable(llvm_tool) == 1 then
-				return llvm_tool
-			end
-		end
-	end
-	return ""
+	local installed = vim.fn.stdpath("data") .. "/mason/bin/" .. name
+	return vim.fn.executable(installed) == 1 and installed or ""
 end
 
 local default_options = {
@@ -3198,7 +3184,7 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
 -- =========================================
 -- ============== FORMATTING =============
 -- =========================================
--- Conform 대체: lsp/bin → PATH에서 외부 도구를 찾아 비동기 실행, 없으면 LSP 포맷팅 시도.
+-- Conform 대체: PATH → 기존 Mason bin에서 외부 도구를 찾아 비동기 실행, 없으면 LSP 포맷팅 시도.
 -- Python은 Ruff를 우선하고, 없으면 Black을 사용합니다. 저장 시 자동 포맷팅은 없습니다.
 -- 외부 결과는 변경된 줄 구간만 적용하며 실행 중 버퍼 수정/삭제 시 버립니다.
 local prettier = { { "prettier", "--stdin-filepath", "%" } }
@@ -3944,7 +3930,7 @@ end, "Go to definition: LSP, then ctags")
 -- ======= LSP: SERVER DEFINITIONS =======
 -- =========================================
 -- Neovim 0.12 내장 클라이언트. 아래 목록의 실행 파일이 이미 설치되어 있어야 합니다.
--- stdpath(config)/lsp/bin → PATH → 기존 stdpath(data)/mason/bin 순서.
+-- PATH → 기존 stdpath(data)/mason/bin 순서.
 -- Mason 로드·자동 설치는 하지 않습니다.
 local tsserver = resolve_tool("tsserver")
 local servers = {
@@ -4194,16 +4180,6 @@ end
 -- =========================================
 -- 실행 파일 탐색 후 vim.lsp.config/enable로 해당 언어 파일에 연결합니다.
 -- 큰 파일은 연결하지 않습니다. Space ls는 현재 버퍼의 클라이언트만 재시작합니다.
-local function lsp_executable(name)
-	local executable = resolve_tool(name)
-	if executable == "" then
-		local installed = vim.fn.stdpath("data") .. "/mason/bin/" .. name
-		if vim.fn.executable(installed) == 1 then
-			executable = installed
-		end
-	end
-	return executable
-end
 -- Auxiliary servers need project evidence; primary language servers also support standalone files.
 local function project_uses_server(server, dir)
 	if not server.markers or vim.fs.root(dir, server.markers) then
@@ -4235,7 +4211,7 @@ end
 for _, server in ipairs(servers) do
 	local spec, executable
 	for _, candidate in ipairs(server.alternatives or { server.cmd }) do
-		local path = lsp_executable(candidate[1])
+		local path = resolve_tool(candidate[1])
 		if path ~= "" then
 			spec, executable = candidate, path
 			break

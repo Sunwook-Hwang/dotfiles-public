@@ -174,9 +174,8 @@ focuses on inspection and navigation without changing the worktree or index.
 Only configured servers whose executables can be found are started. Executables
 are searched in this order:
 
-1. `~/.config/nvim/lsp/bin`
-2. the current `PATH`
-3. an existing `stdpath("data")/mason/bin`
+1. the current `PATH`
+2. an existing `stdpath("data")/mason/bin`
 
 Mason is never loaded and no tool is installed automatically.
 

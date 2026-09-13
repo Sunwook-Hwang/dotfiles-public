@@ -168,9 +168,8 @@ Inline blame은 저장된 파일의 작성자, 날짜와 커밋 메시지를 현
 
 실행 파일을 찾은 서버만 Neovim 내장 LSP로 시작합니다. 검색 순서는 다음과 같습니다.
 
-1. `~/.config/nvim/lsp/bin`
-2. 현재 `PATH`
-3. 기존 `stdpath("data")/mason/bin`
+1. 현재 `PATH`
+2. 기존 `stdpath("data")/mason/bin`
 
 Mason을 로드하거나 도구를 설치하지 않습니다. 현재 등록된 서버는 다음과 같습니다.
 

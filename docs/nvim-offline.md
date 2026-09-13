@@ -94,7 +94,7 @@ Python의 여러 줄 함수 선언은 닫는 `):` 대신 `def 함수명(` 줄을
 | `Space Tr` | 현재 파일의 함수·클래스 아웃라인 사이드바 토글 |
 
 LSP는 등록 언어(C/C++, Python, Lua, JS/TS, HTML/CSS 등)의 실행 파일을
-`~/.config/nvim/lsp/bin` → PATH → 기존 `stdpath("data")/mason/bin` 순서로 찾습니다.
+PATH → 기존 `stdpath("data")/mason/bin` 순서로 찾습니다.
 어느 위치에도 실행 파일이 없으면 해당 서버를 활성화하지 않습니다.
 Mason 플러그인 로드·도구 설치·PATH 변경은 하지 않습니다. `:checkhealth vim.lsp`로 확인할 수 있습니다. 서버별 응답 내용에 따라 완성·설명·
 스니펫·자동 import의 지원 여부가 달라집니다.

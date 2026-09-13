@@ -1,7 +1,7 @@
 # Offline Neovim: LSP·포맷터 설치 가이드
 
 `init.offline.lua`는 Neovim 0.12 이상에서 동작하며 도구를 설치하지 않습니다.
-LSP와 포맷터 실행 파일은 기본적으로 `~/.config/nvim/lsp/bin/`에 놓습니다.
+LSP와 포맷터 실행 파일은 Neovim의 PATH에서 찾을 수 있도록 설정합니다.
 아래는 관리자 권한 없이 Linux 서버의 사용자 홈에 설치하는 예입니다. 필요한 언어만 설치하세요.
 macOS에서 준비해 Linux로 옮길 때는 서버용 Linux 배포 파일을 받아야 합니다.
 
@@ -9,8 +9,8 @@ macOS에서 준비해 Linux로 옮길 때는 서버용 Linux 배포 파일을 �
 
 | 종류 | 검색 순서 |
 | --- | --- |
-| LSP 서버 | `~/.config/nvim/lsp/bin` → PATH → 기존 `stdpath("data")/mason/bin` |
-| 외부 포맷터 | `~/.config/nvim/lsp/bin` → PATH |
+| LSP 서버 | PATH → 기존 `stdpath("data")/mason/bin` |
+| 외부 포맷터 | PATH → 기존 `stdpath("data")/mason/bin` |
 | Git·검색 | PATH의 `git`, `find`, `rg` 또는 `grep` |
 | Ctags fallback | `g:offline_ctags` 지정값 및 PATH 후보에서 Universal 우선, 없으면 Exuberant |
 
@@ -24,7 +24,6 @@ Ctags 준비와 명령은 [ctags fallback 가이드](nvim-offline.md#ctags-fallb
 
 ```text
 ~/.config/nvim/init.offline.lua
-~/.config/nvim/lsp/bin/               # LSP·formatter launcher, binary, symlink
 ~/.local/bin/                         # 필요한 wrapper
 ~/.local/opt/nvim-tools/
 ├── node-tools/node_modules/.bin/     # npm으로 설치한 LSP·Prettier 진입점
@@ -34,23 +33,9 @@ Ctags 준비와 명령은 [ctags fallback 가이드](nvim-offline.md#ctags-fallb
 └── llvm/bin/                         # clangd, clang-format (배포본의 lib 등도 보존)
 ```
 
-`lsp/bin`에는 실행 파일 본체, 심볼릭 링크 또는 wrapper를 놓을 수 있습니다. 예:
-
-```sh
-mkdir -p "$HOME/.config/nvim/lsp/bin"
-ln -s "$HOME/.local/opt/nvim-tools/python/bin/black" "$HOME/.config/nvim/lsp/bin/black"
-ln -s "$HOME/.local/opt/nvim-tools/llvm/bin/clangd" "$HOME/.config/nvim/lsp/bin/clangd"
-ln -s "$HOME/.local/opt/nvim-tools/llvm/bin/clang-format" "$HOME/.config/nvim/lsp/bin/clang-format"
-```
-
-전체 배포본이 필요한 LuaLS·Node 도구는 본체 폴더를 그대로 보존하고 `lsp/bin`에 launcher만 놓으세요.
-`vim.g.offline_tools_dir`를 init 파일 앞쪽에 설정하면 기본 폴더를 바꿀 수 있습니다.
-
-```lua
-vim.g.offline_tools_dir = vim.fn.expand("~/.local/opt/nvim-tools/bin")
-```
-
-PATH fallback을 쓰려면 Bash는 `~/.bashrc`, Zsh는 `~/.zshrc`에 다음을 추가합니다.
+전체 배포본이 필요한 LuaLS·Node 도구는 본체 폴더를 그대로 보존하고,
+실행 파일이 있는 디렉터리를 PATH에 추가하거나 `~/.local/bin`에 launcher를 연결하세요.
+Bash는 `~/.bashrc`, Zsh는 `~/.zshrc`에 다음을 추가합니다.
 Node.js를 별도로 압축 해제했다면 그 배포본의 `bin`도 PATH에 추가해야 합니다.
 
 ```sh
@@ -106,8 +91,7 @@ Ruff는 포맷터로만 사용하고 LSP로 실행하지 않습니다. isort는 
 
 ### Python LSP와 포맷터
 
-기본 조합은 ty와 Ruff입니다. 준비한 `ty`, `ruff` 실행 파일을 `~/.config/nvim/lsp/bin/` 또는
-PATH에 배치합니다. 아래는 이 도구들이 없을 때 사용하는 Pyright·Black의 설치 예입니다.
+기본 조합은 ty와 Ruff입니다. 준비한 `ty`, `ruff` 실행 파일을 PATH에 배치합니다. 아래는 이 도구들이 없을 때 사용하는 Pyright·Black의 설치 예입니다.
 
 Pyright의 npm 설치는 Node.js가 필요합니다. [Pyright 설치 문서](https://github.com/microsoft/pyright/blob/main/docs/installation.md)
 
@@ -125,7 +109,7 @@ Python 파일에서 `Space lv`로 프로젝트 환경을 선택하세요.
 ### JavaScript/TypeScript·HTML/CSS
 
 Node.js와 npm이 필요합니다. TypeScript 서버는 별도의 TypeScript 패키지를 요구합니다.
-`nvim/lsp/bin` 또는 PATH에 연결한 `tsserver`는 프로젝트 TypeScript가 없을 때 사용할
+PATH 또는 기존 Mason bin에서 찾은 `tsserver`는 프로젝트 TypeScript가 없을 때 사용할
 `tsserver.fallbackPath`로 전달합니다. 프로젝트·동봉 런타임 탐색은 서버가 담당합니다.
 아래 `typescript@6`은 확인 시점의 서버 안내에 맞춘 예이며, 서버 버전을 고정할 경우 해당 버전의 요구 사항을 따르세요.
 [TypeScript 서버 설치 문서](https://github.com/typescript-language-server/typescript-language-server#installing)
@@ -294,7 +278,6 @@ ruff --version
 nvim -u ~/.config/nvim/init.offline.lua example.py
 ```
 
-`lsp/bin`에만 배치했다면 해당 파일의 전체 경로로 버전을 확인하세요.
 대체 도구를 사용한다면 `node`, `pyright-langserver`, `black`의 설치를 확인합니다.
 
 LSP 프로세스를 직접 `--stdio`로 실행하면 입력을 기다리며 멈춘 것처럼 보일 수 있습니다.
@@ -303,13 +286,12 @@ LSP 프로세스를 직접 `--stdio`로 실행하면 입력을 기다리며 멈�
 ```vim
 :lua print(vim.fn.exepath('ty'))
 :lua print(vim.fn.exepath('ruff'))
-:lua print(vim.fn.stdpath('config') .. '/lsp/bin')
 :checkhealth vim.lsp
 :lua vim.print(vim.lsp.get_clients({bufnr=0}))
 :lua print(vim.fn.stdpath('data') .. '/mason/bin')
 ```
 
-`exepath()`는 PATH 확인용입니다. 빈 문자열이어도 LSP는 `lsp/bin` 또는 기존 Mason 경로에서 찾았을 수 있습니다.
+`exepath()`는 PATH 확인용입니다. 빈 문자열이어도 LSP·포맷터는 기존 Mason 경로에서 찾았을 수 있습니다.
 현재 등록 명령은 `:lua vim.print(vim.lsp.config.ty or vim.lsp.config['pyright-langserver'])`로 확인합니다.
 서버를 설치한 뒤에는 Neovim을 재실행하세요. 시작할 때 실행 파일이 없던 서버는 활성화되지 않습니다.
 

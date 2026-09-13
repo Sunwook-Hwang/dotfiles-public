@@ -1280,34 +1280,8 @@ vim.keymap.set("n", "<leader>lv", function()
 	end)
 end, { desc = "Select Python environment for this project" })
 
--- Native configs use portable launchers first; Mason remains available locally.
-require("mason").setup({ ui = {} })
-local tools_dir = vim.fn.stdpath("config") .. "/lsp/bin"
--- The directory itself marks an offline server, even when it is empty.
-local offline_tools = vim.fn.isdirectory(tools_dir) == 1
-if offline_tools then
-	-- Set this after Mason so it cannot shadow copied binaries or their runtimes.
-	local separator = vim.fn.has("win32") == 1 and ";" or ":"
-	local paths = vim.split(vim.env.PATH or "", separator, { plain = true, trimempty = true })
-	paths = vim.tbl_filter(function(path)
-		return path ~= tools_dir
-	end, paths)
-	vim.env.PATH = tools_dir .. separator .. table.concat(paths, separator)
-end
-local function homebrew_llvm_tool(name)
-	if vim.fn.executable(name) == 1 then
-		return name
-	end
-	for _, prefix in ipairs({ vim.env.HOMEBREW_PREFIX, "/opt/homebrew", "/usr/local" }) do
-		if prefix and prefix ~= "" then
-			local path = prefix .. "/opt/llvm/bin/" .. name
-			if vim.fn.executable(path) == 1 then
-				return path
-			end
-		end
-	end
-	return name
-end
+-- Prefer PATH tools; append Mason's installed executables as a fallback.
+require("mason").setup({ PATH = "append", ui = {} })
 local servers = {
 	clangd = {
 		cmd = { "clangd" },
@@ -1315,7 +1289,7 @@ local servers = {
 		root_markers = { "compile_commands.json", "compile_flags.txt", ".clangd", "CMakeLists.txt", ".git" },
 	},
 	mlir_lsp_server = {
-		cmd = { homebrew_llvm_tool("mlir-lsp-server") },
+		cmd = { "mlir-lsp-server" },
 		filetypes = { "mlir" },
 		root_markers = { "CMakeLists.txt", ".git" },
 	},
@@ -1566,7 +1540,7 @@ local function enable_servers()
 end
 require("mason-registry"):on("package:install:success", vim.schedule_wrap(enable_servers))
 require("mason-tool-installer").setup({
-	run_on_start = not offline_tools,
+	run_on_start = false,
 	integrations = { ["mason-lspconfig"] = false, ["mason-null-ls"] = false, ["mason-nvim-dap"] = false },
 	ensure_installed = {
 		"bash-language-server",

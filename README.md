@@ -137,9 +137,7 @@ online mode. Custom `init.lua` files are preserved.
 | Undo | `Space Tu` previews saved undo states before applying one |
 | Highlighting | Bundled Treesitter parsers when available, otherwise syntax highlighting; native indent guides |
 
-LSP and formatter launchers are searched in
-`${XDG_CONFIG_HOME:-$HOME/.config}/nvim/lsp/bin` before `PATH`.
-LSP also checks an existing `stdpath("data")/mason/bin` directory without loading
+LSP and formatter launchers are searched on `PATH` first, then in an existing `stdpath("data")/mason/bin` directory without loading
 Mason or installing tools. Auxiliary servers require project configuration or
 dependencies. Ctags fallback supports C/C++ and Python using Universal or
 Exuberant Ctags. Search uses installed `find`, `git`, and `rg` or `grep`.

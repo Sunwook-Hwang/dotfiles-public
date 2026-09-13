@@ -5,7 +5,7 @@
 -- Sections: runtime -> options -> base keys -> display -> completion -> tree
 --           -> buffers -> project root -> async jobs -> picker -> searches
 --           -> undo/whitespace -> terminal -> sessions -> Git -> formatting
---           -> ctags fallback -> LSP -> diagnostics -> large files -> Treesitter -> sticky scroll.
+--           -> ctags fallback -> LSP -> diagnostics -> large files -> Treesitter -> sticky scroll -> key guide.
 -- 서버/포맷터 명령은 LSP / FORMATTING의 테이블에서 수정합니다.
 -- <leader>는 Space. 각 기능의 제목 아래에 주요 키와 실행 조건을 적었습니다.
 -- =========================================
@@ -665,7 +665,7 @@ vim.api.nvim_create_autocmd("FileType", {
 		-- Give netrw's helpers keys without conflicting with Ctrl-h/l window movement.
 		vim.keymap.set("n", "<leader>nh", function()
 			netrw_command("normal " .. vim.api.nvim_replace_termcodes("<Plug>NetrwHideEdit", true, false, true))
-		end, { buf = args.buf, silent = true })
+		end, { buf = args.buf, silent = true, desc = "Edit tree hide patterns" })
 		vim.keymap.set("n", "<Plug>OfflineNetrwRefresh", "<Plug>NetrwRefresh", { buf = args.buf })
 		vim.keymap.set("n", "<leader>nr", function()
 			netrw_command("Explore " .. vim.fn.fnameescape(vim.w.netrw_treetop or vim.b.netrw_curdir))
@@ -4341,19 +4341,26 @@ vim.api.nvim_create_autocmd("FileType", {
 do
 	local enabled, queued = true, false
 	local popup, cache, rendered_config
+	local numbers, numbers_config
+	local number_hl = vim.api.nvim_create_namespace("offline-sticky-numbers")
 	local function close()
-		local win = popup
+		local windows = { popup, numbers }
 		popup = nil
+		numbers, numbers_config = nil, nil
 		rendered_config = nil
-		if win and vim.api.nvim_win_is_valid(win) then
-			vim.api.nvim_win_close(win, true)
+		for _, win in pairs(windows) do
+			if vim.api.nvim_win_is_valid(win) then
+				vim.api.nvim_win_close(win, true)
+			end
 		end
 	end
-	local function headers(buf, top)
+	local function header_reader(buf, top, bottom)
 		local first = math.max(1, top - 1000)
-		local last = math.min(vim.api.nvim_buf_line_count(buf), top + 20)
+		local last = math.min(vim.api.nvim_buf_line_count(buf), bottom + 20)
 		if vim.api.nvim_buf_get_offset(buf, last) - vim.api.nvim_buf_get_offset(buf, first - 1) > 256 * 1024 then
-			return {}
+			return function()
+				return {}
+			end
 		end
 		local lines = vim.api.nvim_buf_get_lines(buf, first - 1, last, false)
 		local python = vim.bo[buf].filetype == "python"
@@ -4379,46 +4386,49 @@ do
 			end
 			return text
 		end
-		local base = top
-		while base <= last do
-			local text = text_at(base)
-			if text and not (text:match("^%)") and text:match("[:{]$")) then
-				break
+		return function(top)
+			local base = top
+			while base <= last do
+				local text = text_at(base)
+				if text and not (text:match("^%)") and text:match("[:{]$")) then
+					break
+				end
+				base = base + 1
 			end
-			base = base + 1
-		end
-		if base > last then
-			return {}
-		end
-		local indent, result, func = vim.fn.indent(base), {}, nil
-		for line = top - 1, first, -1 do
-			local text = text_at(line)
-			if text then
-				local level = vim.fn.indent(line)
-				if level < indent then
-					-- A closing signature line such as `):` is not its declaration.
-					local keyword = text:gsub("^async%s+", ""):match("^([%a_]+)")
-					if
-						not text:match("^[%)%]%}]")
-						and not text:match("^[{%[(;]+$")
-						and (not python or blocks[keyword])
-					then
-						table.insert(result, 1, lines[line - first + 1])
+			if base > last then
+				return {}
+			end
+			local indent, result, func = vim.fn.indent(base), {}, nil
+			for line = top - 1, math.max(first, top - 1000), -1 do
+				local text = text_at(line)
+				if text then
+					local level = vim.fn.indent(line)
+					if level < indent then
+						-- A closing signature line such as `):` is not its declaration.
+						local keyword = text:gsub("^async%s+", ""):match("^([%a_]+)")
 						if
-							not func
-							and (keyword == "def" or text:match("^local%s+function%s") or keyword == "function")
+							not text:match("^[%)%]%}]")
+							and not text:match("^[{%[(;]+$")
+							and (not python or blocks[keyword])
 						then
-							func = lines[line - first + 1]
-						end
-						indent = level
-						if indent == 0 then
-							break
+							local entry = { text = lines[line - first + 1], lnum = line }
+							table.insert(result, 1, entry)
+							if
+								not func
+								and (keyword == "def" or text:match("^local%s+function%s") or keyword == "function")
+							then
+								func = entry
+							end
+							indent = level
+							if indent == 0 then
+								break
+							end
 						end
 					end
 				end
 			end
+			return result, func
 		end
-		return result, func
 	end
 	local function update()
 		local win = vim.api.nvim_get_current_win()
@@ -4435,6 +4445,32 @@ do
 			return
 		end
 		local view = vim.fn.winsaveview()
+		local cursor = vim.api.nvim_win_get_cursor(win)
+		local screen_top = vim.fn.win_screenpos(win)[1]
+		local row = vim.fn.screenpos(win, cursor[1], cursor[2] + 1).row - screen_top
+		local limit = math.min(5, math.floor(vim.api.nvim_win_get_height(win) / 3), row - 1)
+		if limit < 1 then
+			close()
+			return
+		end
+		-- Map each possible overlay height to its first uncovered source line.
+		-- Screen positions account for wrapped lines and closed folds.
+		local targets, line = {}, view.topline
+		local total = vim.api.nvim_buf_line_count(buf)
+		for height = 1, limit + 1 do
+			while line < total do
+				local next_line = math.max(line, vim.fn.foldclosedend(line)) + 1
+				if next_line > total then
+					break
+				end
+				local next_row = vim.fn.screenpos(win, next_line, 1).row
+				if next_row == 0 or next_row > screen_top + height then
+					break
+				end
+				line = next_line
+			end
+			targets[height] = line
+		end
 		local key = {
 			win,
 			buf,
@@ -4443,31 +4479,72 @@ do
 			vim.bo[buf].tabstop,
 			vim.bo[buf].vartabstop,
 			vim.bo[buf].filetype,
+			targets,
 		}
 		if not cache or not vim.deep_equal(cache.key, key) then
-			local lines, func = headers(buf, view.topline)
-			cache = { key = key, lines = lines, func = func }
+			local headers = header_reader(buf, view.topline, targets[#targets])
+			local lines, func = headers(view.topline)
+			local count = math.min(#lines, limit)
+			-- Grow the context when the overlay hides more declarations. Keep the
+			-- last complete context if its bottom reaches a closing/dedented line;
+			-- shrinking here would cover a declaration again and cause oscillation.
+			for _ = 1, limit do
+				if count == 0 then
+					break
+				end
+				local covered, enclosing = headers(targets[count + 1])
+				if enclosing and func and enclosing.lnum ~= func.lnum and enclosing.lnum >= view.topline then
+					-- Leave the next function declaration visible instead of covering
+					-- it with context from the function that just ended.
+					local boundary = vim.fn.screenpos(win, enclosing.lnum, 1).row - screen_top
+					count = math.max(0, math.min(count, boundary - 1))
+					break
+				end
+				if #covered < count then
+					break
+				end
+				lines, func = covered, enclosing
+				local next_count = math.min(#lines, limit)
+				if next_count == count then
+					break
+				end
+				count = next_count
+			end
+			local scopes = vim.list_slice(lines, #lines - count + 1)
+			-- Preserve both the outermost scope and enclosing function when space
+			-- permits; use the remaining rows for the nearest inner scopes.
+			if count > 0 and not vim.tbl_contains(scopes, lines[1]) then
+				scopes[1] = lines[1]
+			end
+			if count > 0 and func and not vim.tbl_contains(scopes, func) then
+				scopes[math.min(2, count)] = func
+			end
+			cache = { key = key, scopes = scopes }
 		end
-		local cursor = vim.api.nvim_win_get_cursor(win)
-		local row = vim.fn.screenpos(win, cursor[1], cursor[2] + 1).row - vim.fn.win_screenpos(win)[1]
-		local count = math.min(#cache.lines, 5, math.floor(vim.api.nvim_win_get_height(win) / 3), row - 1)
-		if count < 1 then
+		if #cache.scopes == 0 then
 			close()
 			return
 		end
-		local width = vim.api.nvim_win_get_width(win)
-		local lines = vim.list_slice(cache.lines, #cache.lines - count + 1)
-		-- Keep the enclosing function even when inner scopes fill the display limit.
-		local anchor = cache.func or cache.lines[1]
-		if not vim.tbl_contains(lines, anchor) then
-			lines[1] = anchor
+		-- Start after the actual number/sign/fold gutter, not at the window edge.
+		local gutter = vim.fn.getwininfo(win)[1].textoff
+		local width = vim.api.nvim_win_get_width(win) - gutter
+		if width < 1 then
+			close()
+			return
+		end
+		local lines, labels = {}, {}
+		for _, entry in ipairs(cache.scopes) do
+			lines[#lines + 1] = entry.text
+			local label = (vim.wo[win].number or vim.wo[win].relativenumber) and tostring(entry.lnum) or ""
+			labels[#labels + 1] = string.rep(" ", math.max(0, gutter - #label - 1)) .. label .. " "
 		end
 		lines[#lines + 1] = string.rep("─", width)
+		labels[#labels + 1] = string.rep("─", gutter)
 		local config = {
 			relative = "win",
 			win = win,
 			row = 0,
-			col = 0,
+			col = gutter,
 			width = width,
 			height = #lines,
 			focusable = false,
@@ -4488,10 +4565,62 @@ do
 		local scratch = vim.api.nvim_win_get_buf(popup)
 		vim.bo[scratch].tabstop = vim.bo[buf].tabstop
 		vim.bo[scratch].vartabstop = vim.bo[buf].vartabstop
+		-- Use the source window's native indent guides, including Space Ti changes.
+		for _, option in ipairs({ "list", "listchars" }) do
+			if vim.wo[popup][option] ~= vim.wo[win][option] then
+				vim.wo[popup][option] = vim.wo[win][option]
+			end
+		end
+		-- Load bundled syntax only; avoid FileType hooks and LSPs in the popup.
+		local syntax = vim.bo[buf].syntax ~= "" and vim.bo[buf].syntax or vim.bo[buf].filetype
+		if vim.bo[scratch].syntax ~= syntax then
+			vim.bo[scratch].syntax = syntax
+		end
 		if not vim.deep_equal(vim.api.nvim_buf_get_lines(scratch, 0, -1, false), lines) then
 			vim.bo[scratch].modifiable = true
 			vim.api.nvim_buf_set_lines(scratch, 0, -1, false, lines)
 			vim.bo[scratch].modifiable = false
+		end
+		if vim.fn.getwininfo(popup)[1].leftcol ~= view.leftcol then
+			vim.wo[popup].virtualedit = "all"
+			vim.api.nvim_win_call(popup, function()
+				vim.cmd("normal! " .. (view.leftcol + 1) .. "|")
+				vim.fn.winrestview({ topline = 1, leftcol = view.leftcol })
+			end)
+		end
+		-- Cover the source gutter too: its visible row numbers belong to different lines.
+		if gutter > 0 then
+			local layout = vim.tbl_extend("force", config, { col = 0, width = gutter })
+			if not numbers or not vim.api.nvim_win_is_valid(numbers) then
+				local buf = vim.api.nvim_create_buf(false, true)
+				vim.bo[buf].bufhidden = "wipe"
+				numbers = vim.api.nvim_open_win(buf, false, layout)
+				vim.wo[numbers].winhighlight = "Normal:Pmenu,EndOfBuffer:Pmenu,LineNr:LineNr"
+			elseif not vim.deep_equal(numbers_config, layout) then
+				vim.api.nvim_win_set_config(numbers, layout)
+			end
+			numbers_config = layout
+			local buf = vim.api.nvim_win_get_buf(numbers)
+			if not vim.deep_equal(vim.api.nvim_buf_get_lines(buf, 0, -1, false), labels) then
+				vim.bo[buf].modifiable = true
+				vim.api.nvim_buf_set_lines(buf, 0, -1, false, labels)
+				vim.bo[buf].modifiable = false
+				vim.api.nvim_buf_clear_namespace(buf, number_hl, 0, -1)
+				for row = 0, #labels - 2 do
+					vim.api.nvim_buf_set_extmark(
+						buf,
+						number_hl,
+						row,
+						0,
+						{ end_col = #labels[row + 1], hl_group = "LineNr" }
+					)
+				end
+			end
+		elseif numbers then
+			if vim.api.nvim_win_is_valid(numbers) then
+				vim.api.nvim_win_close(numbers, true)
+			end
+			numbers, numbers_config = nil, nil
 		end
 	end
 	local function queue()
@@ -4521,6 +4650,28 @@ do
 		group = group,
 		callback = queue,
 	})
+	vim.api.nvim_create_autocmd("OptionSet", {
+		group = group,
+		pattern = {
+			"number",
+			"relativenumber",
+			"numberwidth",
+			"signcolumn",
+			"foldcolumn",
+			"statuscolumn",
+			"list",
+			"listchars",
+			"tabstop",
+			"vartabstop",
+			"shiftwidth",
+			"wrap",
+		},
+		callback = function()
+			if vim.api.nvim_win_get_config(0).relative == "" then
+				queue()
+			end
+		end,
+	})
 	vim.api.nvim_create_autocmd({ "BufLeave", "WinLeave", "TabLeave" }, { group = group, callback = close })
 	vim.api.nvim_create_autocmd("WinClosed", {
 		group = group,
@@ -4539,4 +4690,176 @@ do
 			close()
 		end
 	end, { desc = "Toggle sticky scroll" })
+end
+
+-- =========================================
+-- ========= SPACE KEY GUIDE ============
+-- =========================================
+-- Normal mode only: inspect real mappings, then replay the selected shortcut.
+-- Complete shortcuts already in typeahead use Neovim's normal mapping path.
+do
+	local groups = {
+		s = "Search",
+		S = "Substitute",
+		b = "Buffer",
+		T = "Toggle",
+		l = "LSP & Diagnostic",
+		g = "Git",
+		p = "Project",
+		n = "File tree",
+	}
+	local active
+	local function mappings(buf)
+		local found = {}
+		for _, list in ipairs({ vim.api.nvim_get_keymap("n"), vim.api.nvim_buf_get_keymap(buf, "n") }) do
+			for _, item in ipairs(list) do
+				local lhs = item.lhsraw or vim.api.nvim_replace_termcodes(item.lhs, true, true, true)
+				if lhs:sub(1, 1) == " " and #lhs > 1 then
+					found[lhs] = item
+				end
+			end
+		end
+		return found
+	end
+	local function guide()
+		local source_win, source_buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
+		local count, register = vim.v.count, vim.v.register
+		local prefix, popup = " ", nil
+		local cancelled = false
+		local function close()
+			local win = popup
+			popup = nil
+			if win and vim.api.nvim_win_is_valid(win) then
+				vim.api.nvim_win_close(win, true)
+			end
+		end
+		local function choices(items)
+			local next_keys = {}
+			for lhs, item in pairs(items) do
+				if lhs:sub(1, #prefix) == prefix and #lhs > #prefix then
+					local rest = vim.fn.keytrans(lhs:sub(#prefix + 1))
+					local key = rest:match("^<[^>]+>") or vim.fn.strcharpart(rest, 0, 1)
+					if rest == key then
+						next_keys[key] = item.desc or item.lhs
+					elseif not next_keys[key] then
+						next_keys[key] = "+ " .. (groups[prefix:sub(2) .. key] or key)
+					end
+				end
+			end
+			local result = {}
+			for _, key in ipairs(vim.fn.sort(vim.tbl_keys(next_keys))) do
+				result[#result + 1] = key .. "  " .. next_keys[key]
+			end
+			return result
+		end
+		local function draw()
+			local entries = choices(mappings(source_buf))
+			local width = math.max(1, math.min(120, vim.o.columns - 4))
+			local columns = math.max(1, math.min(3, math.floor(width / 32)))
+			local cell = math.floor(width / columns)
+			local rows = math.max(1, math.ceil(#entries / columns))
+			local height = math.min(rows, math.max(1, vim.o.lines - 6))
+			local lines = {}
+			for row = 1, height do
+				local cells = {}
+				for col = 1, columns do
+					local text = entries[(col - 1) * rows + row] or ""
+					-- Bound by screen cells, including non-ASCII descriptions.
+					local limit = math.max(1, cell - 2)
+					if vim.fn.strdisplaywidth(text) > limit then
+						text = vim.fn.strcharpart(text, 0, limit - 1)
+						while vim.fn.strdisplaywidth(text) > limit - 1 do
+							text = vim.fn.strcharpart(text, 0, vim.fn.strchars(text) - 1)
+						end
+						text = text .. "…"
+					end
+					cells[#cells + 1] = text .. string.rep(" ", math.max(0, cell - vim.fn.strdisplaywidth(text)))
+				end
+				lines[#lines + 1] = table.concat(cells)
+			end
+			local config = {
+				relative = "editor",
+				row = math.max(0, vim.o.lines - height - vim.o.cmdheight - 3),
+				col = math.max(0, math.floor((vim.o.columns - width) / 2)),
+				width = width,
+				height = height,
+				style = "minimal",
+				border = "rounded",
+				focusable = false,
+				zindex = 80,
+				title = " " .. vim.fn.keytrans(prefix):gsub("<Space>", "Space ") .. " · Esc: cancel ",
+			}
+			if not popup or not vim.api.nvim_win_is_valid(popup) then
+				local buf = vim.api.nvim_create_buf(false, true)
+				vim.bo[buf].bufhidden = "wipe"
+				popup = vim.api.nvim_open_win(buf, false, config)
+			else
+				vim.api.nvim_win_set_config(popup, config)
+			end
+			local buf = vim.api.nvim_win_get_buf(popup)
+			vim.bo[buf].modifiable = true
+			vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+			vim.bo[buf].modifiable = false
+			vim.cmd("redraw")
+		end
+		active = {
+			draw = draw,
+			cancel = function()
+				cancelled = true
+				close()
+				-- Wake getcharstr if an external action changes the editing context.
+				vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "ni", false)
+			end,
+		}
+		local ok, err = xpcall(function()
+			while not cancelled do
+				local items = mappings(source_buf)
+				if items[prefix] then
+					close()
+					local lead = register ~= '"' and ('"' .. register) or ""
+					lead = lead .. (count > 0 and tostring(count) or "")
+					-- Remap through the original callback/RHS, without recording it twice.
+					vim.api.nvim_feedkeys(lead .. prefix, "mi", false)
+					return
+				end
+				if #choices(items) == 0 then
+					return
+				end
+				if vim.fn.getcharstr(1) == "" then
+					draw()
+				end
+				local read, key = pcall(vim.fn.getcharstr, -1, { cursor = "keep" })
+				if not read or key == vim.keycode("<Esc>") or key == "\003" or cancelled then
+					return
+				end
+				if vim.api.nvim_get_current_win() ~= source_win or vim.api.nvim_get_current_buf() ~= source_buf then
+					return
+				end
+				prefix = prefix .. key
+			end
+		end, debug.traceback)
+		active = nil
+		close()
+		if not ok then
+			vim.notify(err, vim.log.levels.ERROR)
+		end
+	end
+	vim.keymap.set("n", "<Space>", guide, { nowait = true, silent = true, desc = "Space key guide" })
+	local group = vim.api.nvim_create_augroup("offline-space-guide", { clear = true })
+	vim.api.nvim_create_autocmd({ "BufLeave", "WinLeave", "TabLeave" }, {
+		group = group,
+		callback = function()
+			if active then
+				active.cancel()
+			end
+		end,
+	})
+	vim.api.nvim_create_autocmd("VimResized", {
+		group = group,
+		callback = function()
+			if active then
+				active.draw()
+			end
+		end,
+	})
 end

@@ -36,6 +36,10 @@ keys and press `Enter`. The cursor stays on selectable rows.
 
 Passing a file argument skips the dashboard and opens that file directly.
 
+The dashboard uses a dedicated floating window. `Esc` closes it without changing
+the underlying editor's buffer, cursor, scroll position, or window options.
+Menu actions and direct `:edit` commands open files in the original editor window.
+
 ## Interface
 
 ### Status line

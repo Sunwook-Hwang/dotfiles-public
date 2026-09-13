@@ -34,6 +34,10 @@ nvim -u ~/.config/nvim/init.offline.lua
 
 파일을 인자로 넘겨 실행하면 dashboard를 건너뛰고 바로 파일을 엽니다.
 
+Dashboard는 전용 floating window를 사용합니다. `Esc`로 닫으면 기존 편집 창의
+버퍼·커서·스크롤·창 옵션이 그대로 유지됩니다. 메뉴 선택과 직접 입력한 `:edit`는
+원래 편집 창에서 파일을 엽니다.
+
 ## 화면 구성
 
 ### 상태줄

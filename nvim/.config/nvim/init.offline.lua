@@ -124,29 +124,6 @@ for k, v in pairs(default_options) do
 	vim.opt[k] = v
 end
 
-local dashboard_window_options = {
-	"number",
-	"relativenumber",
-	"signcolumn",
-	"foldcolumn",
-	"cursorcolumn",
-	"cursorline",
-	"cursorlineopt",
-	"list",
-	"wrap",
-}
-
-local function restore_dashboard_window(win)
-	local saved = vim.w[win].offline_options_before_dashboard
-	if type(saved) ~= "table" then
-		return
-	end
-	for _, option in ipairs(dashboard_window_options) do
-		vim.wo[win][option] = saved[option]
-	end
-	vim.w[win].offline_options_before_dashboard = nil
-end
-
 -- Numbering is window-local; ordinary navigation only touches the entered window.
 local function show_line_numbers(win)
 	if not vim.api.nvim_win_is_valid(win) then
@@ -154,7 +131,6 @@ local function show_line_numbers(win)
 	end
 	local buf = vim.api.nvim_win_get_buf(win)
 	if vim.bo[buf].buftype == "" or vim.bo[buf].filetype == "netrw" then
-		restore_dashboard_window(win)
 		if not vim.wo[win].number then
 			vim.wo[win].number = true
 		end
@@ -2080,7 +2056,8 @@ local function session_path(root)
 	return session_dir .. vim.fn.sha256(root or vim.fn.getcwd()) .. ".vim"
 end
 local function write_session()
-	if not save_session or vim.fn.argc() == 0 and #buffers() == 1 and vim.api.nvim_buf_get_name(0) == "" then
+	local listed = buffers()
+	if not save_session or #listed == 0 or vim.fn.argc() == 0 and #listed == 1 and vim.api.nvim_buf_get_name(listed[1]) == "" then
 		return
 	end
 	local root = vim.fn.getcwd()
@@ -2169,42 +2146,75 @@ local dashboard_header = {
 	}
 local dashboard_namespace = vim.api.nvim_create_namespace("offline-dashboard")
 
+local dashboard_win
 local function open_dashboard()
-	if vim.bo.filetype == "offline_dashboard" then
+	if dashboard_win and vim.api.nvim_win_is_valid(dashboard_win) then
+		vim.api.nvim_set_current_win(dashboard_win)
 		return
 	end
-	local previous = vim.api.nvim_get_current_buf()
-	local previous_options = {}
-	for _, option in ipairs(dashboard_window_options) do
-		previous_options[option] = vim.wo[option]
-	end
+	local source = vim.api.nvim_get_current_win()
 	local buf = vim.api.nvim_create_buf(false, true)
-	vim.api.nvim_set_current_buf(buf)
-	if
-		vim.api.nvim_buf_is_valid(previous)
-		and vim.api.nvim_buf_get_name(previous) == ""
-		and vim.bo[previous].buftype == ""
-		and vim.api.nvim_buf_line_count(previous) == 1
-		and vim.api.nvim_buf_get_lines(previous, 0, 1, false)[1] == ""
-	then
-		pcall(vim.api.nvim_buf_delete, previous, { force = true })
-	end
-
-	vim.bo[buf].buftype = "nofile"
 	vim.bo[buf].bufhidden = "wipe"
-	vim.bo[buf].swapfile = false
 	vim.bo[buf].filetype = "offline_dashboard"
-	vim.bo[buf].modifiable = true
-	vim.w.offline_options_before_dashboard = previous_options
-	vim.wo.number = false
-	vim.wo.relativenumber = false
-	vim.wo.signcolumn = "no"
-	vim.wo.foldcolumn = "0"
-	vim.wo.cursorcolumn = false
-	vim.wo.cursorline = true
-	vim.wo.cursorlineopt = "line"
-	vim.wo.list = false
-	vim.wo.wrap = false
+	local win = vim.api.nvim_open_win(buf, true, {
+		relative = "win",
+		win = source,
+		row = 0,
+		col = 0,
+		width = vim.api.nvim_win_get_width(source),
+		height = vim.api.nvim_win_get_height(source),
+		style = "minimal",
+		border = "none",
+	})
+	dashboard_win = win
+	vim.wo[win].winblend = 0
+	vim.wo[win].winhighlight = "Normal:Normal,NormalFloat:Normal,EndOfBuffer:EndOfBuffer"
+	vim.wo[win].cursorline = true
+	vim.wo[win].cursorlineopt = "line"
+	vim.wo[win].list = false
+	vim.wo[win].wrap = false
+	local group = vim.api.nvim_create_augroup("offline-dashboard-window", { clear = true })
+	local closed = false
+	local function close()
+		if closed then
+			return
+		end
+		closed = true
+		vim.api.nvim_del_augroup_by_id(group)
+		dashboard_win = nil
+		local focused = vim.api.nvim_get_current_win() == win
+		if vim.api.nvim_win_is_valid(win) then
+			vim.api.nvim_win_close(win, true)
+		end
+		if focused and vim.api.nvim_win_is_valid(source) then
+			vim.api.nvim_set_current_win(source)
+		end
+	end
+	vim.keymap.set("n", "<Esc>", close, { buf = buf, nowait = true, desc = "Close dashboard" })
+	vim.api.nvim_create_autocmd("WinClosed", {
+		group = group,
+		pattern = { tostring(win), tostring(source) },
+		callback = close,
+	})
+	vim.api.nvim_create_autocmd("WinLeave", {
+		group = group,
+		buffer = buf,
+		callback = function()
+			vim.schedule(close)
+		end,
+	})
+	-- A direct :edit belongs in the editor, never in the dashboard's float.
+	vim.api.nvim_create_autocmd("BufEnter", {
+		group = group,
+		callback = function(args)
+			if vim.api.nvim_get_current_win() == win and args.buf ~= buf then
+				close()
+				if vim.api.nvim_win_is_valid(source) then
+					vim.api.nvim_win_set_buf(source, args.buf)
+				end
+			end
+		end,
+	})
 
 	local entries = {
 		{ "f", "Find file", function()
@@ -2218,59 +2228,70 @@ local function open_dashboard()
 		end },
 		{ "p", "Select session", select_session },
 		{ "n", "New file", function()
+			vim.cmd.enew()
 			vim.cmd.startinsert()
 		end },
 		{ "c", "Config", function()
 			vim.cmd.edit(vim.fn.fnameescape(vim.fn.stdpath("config") .. "/init.lua"))
 		end },
 		{ "q", "Quit", function()
-			vim.cmd("qa!")
+			vim.cmd("qa")
 		end },
 	}
-	local width = vim.api.nvim_win_get_width(0)
-	local lines = { "", "" }
-	local header_start = #lines
-	local header_width = 0
-	for _, line in ipairs(dashboard_header) do
-		header_width = math.max(header_width, vim.fn.strdisplaywidth(line))
-	end
-	local header_left = math.max(0, math.floor((width - header_width) / 2))
-	for _, line in ipairs(dashboard_header) do
-		lines[#lines + 1] = string.rep(" ", header_left) .. line
-	end
-	lines[#lines + 1] = ""
-	lines[#lines + 1] = ""
-
 	local button_rows = {}
-	for _, entry in ipairs(entries) do
-		local button_width = math.min(50, width)
-		local gap = math.max(1, button_width - vim.fn.strdisplaywidth(entry[2]) - vim.fn.strdisplaywidth(entry[1]))
-		local text = entry[2] .. string.rep(" ", gap) .. entry[1]
-		local left = math.max(0, math.floor((width - vim.fn.strdisplaywidth(text)) / 2))
-		lines[#lines + 1] = string.rep(" ", left) .. text
-		button_rows[entry[1]] = { row = #lines, left = left }
+	local function render()
+		local width = vim.api.nvim_win_get_width(win)
+		local lines = { "", "" }
+		local header_start = #lines
+		local header_width = 0
+		for _, line in ipairs(dashboard_header) do
+			header_width = math.max(header_width, vim.fn.strdisplaywidth(line))
+		end
+		local header_left = math.max(0, math.floor((width - header_width) / 2))
+		for _, line in ipairs(dashboard_header) do
+			lines[#lines + 1] = string.rep(" ", header_left) .. line
+		end
 		lines[#lines + 1] = ""
-	end
-	local footer = "https://sunwook-hwang.github.io"
-	lines[#lines + 1] = string.rep(" ", math.max(0, math.floor((width - vim.fn.strdisplaywidth(footer)) / 2))) .. footer
-	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-	vim.bo[buf].modifiable = false
+		lines[#lines + 1] = ""
 
-	for index = 1, #dashboard_header do
-		vim.api.nvim_buf_add_highlight(buf, dashboard_namespace, "Include", header_start + index - 1, 0, -1)
+		button_rows = {}
+		for _, entry in ipairs(entries) do
+			local button_width = math.min(50, width)
+			local gap = math.max(1, button_width - vim.fn.strdisplaywidth(entry[2]) - vim.fn.strdisplaywidth(entry[1]))
+			local text = entry[2] .. string.rep(" ", gap) .. entry[1]
+			local left = math.max(0, math.floor((width - vim.fn.strdisplaywidth(text)) / 2))
+			lines[#lines + 1] = string.rep(" ", left) .. text
+			button_rows[entry[1]] = { row = #lines, left = left }
+			lines[#lines + 1] = ""
+		end
+		local footer = "https://sunwook-hwang.github.io"
+		lines[#lines + 1] = string.rep(" ", math.max(0, math.floor((width - vim.fn.strdisplaywidth(footer)) / 2))) .. footer
+		vim.bo[buf].modifiable = true
+		vim.api.nvim_buf_clear_namespace(buf, dashboard_namespace, 0, -1)
+		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+		vim.bo[buf].modifiable = false
+
+		for index = 1, #dashboard_header do
+			vim.api.nvim_buf_add_highlight(buf, dashboard_namespace, "Include", header_start + index - 1, 0, -1)
+		end
+		for _, button in pairs(button_rows) do
+			vim.api.nvim_buf_add_highlight(buf, dashboard_namespace, "Keyword", button.row - 1, button.left, -1)
+		end
+		vim.api.nvim_buf_add_highlight(buf, dashboard_namespace, "Type", #lines - 1, 0, -1)
 	end
+	render()
 	local function activate(entry)
 		if vim.api.nvim_get_current_buf() ~= buf then
 			return
 		end
-		if entry[1] ~= "q" then
-			vim.cmd.enew()
+		close()
+		if vim.api.nvim_win_is_valid(source) then
+			vim.api.nvim_set_current_win(source)
 		end
+		focus_editor()
 		entry[3]()
 	end
 	for _, entry in ipairs(entries) do
-		local button = button_rows[entry[1]]
-		vim.api.nvim_buf_add_highlight(buf, dashboard_namespace, "Keyword", button.row - 1, button.left, -1)
 		local selected = entry
 		vim.keymap.set("n", entry[1], function()
 			activate(selected)
@@ -2278,7 +2299,7 @@ local function open_dashboard()
 	end
 	local moving = false
 	local function selection_index()
-		local row = vim.api.nvim_win_get_cursor(0)[1]
+		local row = vim.api.nvim_win_get_cursor(win)[1]
 		local nearest, distance = 1, math.huge
 		for index, entry in ipairs(entries) do
 			local candidate = button_rows[entry[1]].row
@@ -2292,7 +2313,7 @@ local function open_dashboard()
 		index = (index - 1) % #entries + 1
 		local button = button_rows[entries[index][1]]
 		moving = true
-		vim.api.nvim_win_set_cursor(0, { button.row, button.left + 3 })
+		vim.api.nvim_win_set_cursor(win, { button.row, button.left + 3 })
 		moving = false
 	end
 	for _, spec in ipairs({ { "j", 1 }, { "<Down>", 1 }, { "k", -1 }, { "<Up>", -1 } }) do
@@ -2309,13 +2330,32 @@ local function open_dashboard()
 		callback = function()
 			if not moving and vim.api.nvim_get_current_buf() == buf then
 				local index = selection_index()
-				if vim.api.nvim_win_get_cursor(0)[1] ~= button_rows[entries[index][1]].row then
+				if vim.api.nvim_win_get_cursor(win)[1] ~= button_rows[entries[index][1]].row then
 					select_entry(index)
 				end
 			end
 		end,
 	})
-	vim.api.nvim_buf_add_highlight(buf, dashboard_namespace, "Type", #lines - 1, 0, -1)
+	vim.api.nvim_create_autocmd({ "VimResized", "WinResized" }, {
+		group = group,
+		callback = function()
+			if closed or not vim.api.nvim_win_is_valid(source) then
+				return
+			end
+			local selected = selection_index()
+			local width = vim.api.nvim_win_get_width(source)
+			local height = vim.api.nvim_win_get_height(source)
+			if vim.api.nvim_win_get_width(win) == width and vim.api.nvim_win_get_height(win) == height then
+				return
+			end
+			vim.api.nvim_win_set_config(win, {
+				width = width,
+				height = height,
+			})
+			render()
+			select_entry(selected)
+		end,
+	})
 	select_entry(1)
 end
 

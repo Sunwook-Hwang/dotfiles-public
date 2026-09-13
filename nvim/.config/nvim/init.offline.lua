@@ -366,10 +366,11 @@ vim.opt.wildmenu = true
 vim.opt.wildmode = "longest:full,full"
 vim.opt.wildignore:append({ "*/.git/*", "*/node_modules/*", "*/__pycache__/*" })
 vim.opt.laststatus = 2
+local language_status_visible = true
 function _G.OfflineDiagnosticStatus()
 	local counts = vim.diagnostic.count(0)
 	local parts = {}
-	for _, item in ipairs({ { "WARN", "Warn" }, { "HINT", "Hint" }, { "ERROR", "Error" } }) do
+	for _, item in ipairs({ { "WARN", "Warn:" }, { "HINT", "Hint:" }, { "ERROR", "Error:" } }) do
 		local count = counts[vim.diagnostic.severity[item[1]]] or 0
 		if count > 0 then
 			parts[#parts + 1] = item[2] .. " " .. count
@@ -378,6 +379,9 @@ function _G.OfflineDiagnosticStatus()
 	return table.concat(parts, " ")
 end
 function _G.OfflineLspStatus()
+	if not language_status_visible then
+		return ""
+	end
 	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 	local buf = vim.api.nvim_win_get_buf(win)
 	if vim.bo[buf].buftype ~= "" then
@@ -1950,6 +1954,10 @@ end
 map("n", "<leader>Tu", undo_picker, "Preview undo states (Enter to apply)")
 -- Space Ti: 내장 들여쓰기 가이드와 탭·후행 공백 표시 토글.
 map("n", "<leader>Ti", "<Cmd>set list!<CR>", "Toggle indent guides / whitespace markers")
+map("n", "<leader>Tl", function()
+	language_status_visible = not language_status_visible
+	vim.cmd("redrawstatus")
+end, "Toggle LSP / formatter status")
 
 -- =========================================
 -- ============ SPLIT TERMINAL ===========
@@ -3116,6 +3124,9 @@ local formatters = {
 	rust = { { "rustfmt", "--emit=stdout", "--edition=2021" } },
 }
 function _G.OfflineFormatStatus()
+	if not language_status_visible then
+		return ""
+	end
 	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 	local buf = vim.api.nvim_win_get_buf(win)
 	if vim.bo[buf].buftype ~= "" then

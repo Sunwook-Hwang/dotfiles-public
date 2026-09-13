@@ -52,6 +52,7 @@ fixed-width cursor position.
 - `[LSP X]` has a highlighted background when no LSP is attached.
 - `[FORMAT X]` means no formatter is currently available.
 - `[FORMAT O: name]` names the external formatter or LSP used for this buffer.
+- `Space Tl` toggles both the LSP and formatter status sections.
 
 ### Buffers, indent guides, and Sticky Scroll
 

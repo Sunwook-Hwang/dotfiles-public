@@ -146,6 +146,7 @@ ty에는 `ty.configuration.environment.python`으로 전달하며, 환경을 바
 | `Space gb` | 현재 줄 inline blame 토글 |
 | `Space Tu` | undo 상태 목록과 코드 미리보기. `↑/↓`·`Ctrl-p/n` 선택, `Ctrl-f/b` 스크롤, Enter 적용, Esc 취소 |
 | `Space Ti/Ts` | 들여쓰기 가이드·공백 / Sticky Scroll 토글 |
+| `Space Tl` | 상태줄의 LSP·포매터 정보 토글 |
 | `Space A` | 네이티브 dashboard 열기 |
 | `Space pr/pl/pS/pd` | 프로젝트 세션 복원 / 마지막 / 선택 / 저장 중지 |
 

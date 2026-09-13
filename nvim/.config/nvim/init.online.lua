@@ -280,6 +280,12 @@ do
 			vim.lsp.buf_detach_client(buf, client.id)
 		end
 		for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+			if vim.w[win].context then
+				vim.w[win].context_large_file = true
+				vim.api.nvim_win_call(win, function()
+					vim.fn["context#disable"]("window")
+				end)
+			end
 			vim.wo[win].foldmethod = "manual"
 			vim.wo[win].cursorcolumn = false
 			vim.wo[win].cursorline = false
@@ -379,7 +385,31 @@ end
 -- =========================================
 -- ============ NATIVE PACKAGES ============
 -- =========================================
+-- Sticky scope headers without language parsers; keep native scrolling keys.
+vim.g.context_add_mappings = 0
+vim.g.context_max_height = 5
+vim.g.context_max_per_indent = 1
+vim.g.context_highlight_normal = "Pmenu"
+vim.g.context_highlight_border = "Comment"
+vim.g.context_border_char = "─"
+vim.g.context_highlight_tag = "<hide>"
+vim.g.context_filetype_blacklist = { "NvimTree", "alpha" }
+vim.g.context_buftype_blacklist = { "nofile", "prompt", "terminal", "quickfix", "help" }
+vim.keymap.set("n", "<leader>Ts", "<Cmd>ContextToggle<CR>", { desc = "Toggle sticky scroll" })
+-- A window disabled for a large file must recover when opening a normal buffer.
+vim.api.nvim_create_autocmd("BufEnter", {
+	callback = function()
+		if vim.w.context_large_file and not vim.b.large_file and vim.w.context then
+			local context = vim.w.context
+			context.enabled = vim.g.context.enabled
+			context.top_line = 0
+			vim.w.context = context
+			vim.w.context_large_file = nil
+		end
+	end,
+})
 local packages = {
+	{ src = "https://github.com/wellle/context.vim" },
 	{ src = "https://github.com/nvim-lua/plenary.nvim" },
 	{ src = "https://github.com/WhoIsSethDaniel/mason-tool-installer.nvim" },
 	{ src = "https://github.com/mason-org/mason.nvim" },

@@ -5,7 +5,7 @@
 -- Sections: runtime -> options -> base keys -> display -> completion -> tree
 --           -> buffers -> project root -> async jobs -> picker -> searches
 --           -> undo/whitespace -> terminal -> sessions -> Git -> formatting
---           -> ctags fallback -> LSP -> diagnostics -> large files -> Treesitter.
+--           -> ctags fallback -> LSP -> diagnostics -> large files -> Treesitter -> sticky scroll.
 -- 서버/포맷터 명령은 LSP / FORMATTING의 테이블에서 수정합니다.
 -- <leader>는 Space. 각 기능의 제목 아래에 주요 키와 실행 조건을 적었습니다.
 -- =========================================
@@ -4332,3 +4332,211 @@ vim.api.nvim_create_autocmd("FileType", {
 		end
 	end,
 })
+
+-- =========================================
+-- =========== STICKY SCROLL =============
+-- =========================================
+-- Space Ts: 들여쓰기 기반 시작 줄 최대 5개 + 구분선. 파서/LSP 없이 동작합니다.
+-- 위쪽 1,000줄/256 KiB까지만 탐색하며, 복잡한 여러 줄 구문은 해석하지 않습니다.
+do
+	local enabled, queued = true, false
+	local popup, cache, rendered_config
+	local function close()
+		local win = popup
+		popup = nil
+		rendered_config = nil
+		if win and vim.api.nvim_win_is_valid(win) then
+			vim.api.nvim_win_close(win, true)
+		end
+	end
+	local function headers(buf, top)
+		local first = math.max(1, top - 1000)
+		local last = math.min(vim.api.nvim_buf_line_count(buf), top + 20)
+		if vim.api.nvim_buf_get_offset(buf, last) - vim.api.nvim_buf_get_offset(buf, first - 1) > 256 * 1024 then
+			return {}
+		end
+		local lines = vim.api.nvim_buf_get_lines(buf, first - 1, last, false)
+		local python = vim.bo[buf].filetype == "python"
+		local blocks = {
+			def = true,
+			class = true,
+			["if"] = true,
+			elif = true,
+			["else"] = true,
+			["for"] = true,
+			["while"] = true,
+			["try"] = true,
+			except = true,
+			finally = true,
+			with = true,
+			match = true,
+			case = true,
+		}
+		local function text_at(line)
+			local text = lines[line - first + 1]:match("^%s*(.-)%s*$")
+			if text == "" or text:match("^#") or text:match("^//") or text:match("^/%*") or text:match("^%*") then
+				return nil
+			end
+			return text
+		end
+		local base = top
+		while base <= last do
+			local text = text_at(base)
+			if text and not (text:match("^%)") and text:match("[:{]$")) then
+				break
+			end
+			base = base + 1
+		end
+		if base > last then
+			return {}
+		end
+		local indent, result, func = vim.fn.indent(base), {}, nil
+		for line = top - 1, first, -1 do
+			local text = text_at(line)
+			if text then
+				local level = vim.fn.indent(line)
+				if level < indent then
+					-- A closing signature line such as `):` is not its declaration.
+					local keyword = text:gsub("^async%s+", ""):match("^([%a_]+)")
+					if
+						not text:match("^[%)%]%}]")
+						and not text:match("^[{%[(;]+$")
+						and (not python or blocks[keyword])
+					then
+						table.insert(result, 1, lines[line - first + 1])
+						if
+							not func
+							and (keyword == "def" or text:match("^local%s+function%s") or keyword == "function")
+						then
+							func = lines[line - first + 1]
+						end
+						indent = level
+						if indent == 0 then
+							break
+						end
+					end
+				end
+			end
+		end
+		return result, func
+	end
+	local function update()
+		local win = vim.api.nvim_get_current_win()
+		local buf = vim.api.nvim_win_get_buf(win)
+		if
+			not enabled
+			or vim.api.nvim_win_get_config(win).relative ~= ""
+			or vim.bo[buf].buftype ~= ""
+			or vim.bo[buf].filetype == "netrw"
+			or vim.b[buf].offline_large_file
+			or vim.fn.getcmdwintype() ~= ""
+		then
+			close()
+			return
+		end
+		local view = vim.fn.winsaveview()
+		local key = {
+			win,
+			buf,
+			vim.api.nvim_buf_get_changedtick(buf),
+			view.topline,
+			vim.bo[buf].tabstop,
+			vim.bo[buf].vartabstop,
+			vim.bo[buf].filetype,
+		}
+		if not cache or not vim.deep_equal(cache.key, key) then
+			local lines, func = headers(buf, view.topline)
+			cache = { key = key, lines = lines, func = func }
+		end
+		local cursor = vim.api.nvim_win_get_cursor(win)
+		local row = vim.fn.screenpos(win, cursor[1], cursor[2] + 1).row - vim.fn.win_screenpos(win)[1]
+		local count = math.min(#cache.lines, 5, math.floor(vim.api.nvim_win_get_height(win) / 3), row - 1)
+		if count < 1 then
+			close()
+			return
+		end
+		local width = vim.api.nvim_win_get_width(win)
+		local lines = vim.list_slice(cache.lines, #cache.lines - count + 1)
+		-- Keep the enclosing function even when inner scopes fill the display limit.
+		local anchor = cache.func or cache.lines[1]
+		if not vim.tbl_contains(lines, anchor) then
+			lines[1] = anchor
+		end
+		lines[#lines + 1] = string.rep("─", width)
+		local config = {
+			relative = "win",
+			win = win,
+			row = 0,
+			col = 0,
+			width = width,
+			height = #lines,
+			focusable = false,
+			style = "minimal",
+			border = "none",
+			zindex = 20,
+		}
+		if not popup or not vim.api.nvim_win_is_valid(popup) then
+			local scratch = vim.api.nvim_create_buf(false, true)
+			vim.bo[scratch].bufhidden = "wipe"
+			popup = vim.api.nvim_open_win(scratch, false, config)
+			vim.wo[popup].winhighlight = "Normal:Pmenu,EndOfBuffer:Pmenu"
+			vim.wo[popup].wrap = false
+		elseif not vim.deep_equal(rendered_config, config) then
+			vim.api.nvim_win_set_config(popup, config)
+		end
+		rendered_config = config
+		local scratch = vim.api.nvim_win_get_buf(popup)
+		vim.bo[scratch].tabstop = vim.bo[buf].tabstop
+		vim.bo[scratch].vartabstop = vim.bo[buf].vartabstop
+		if not vim.deep_equal(vim.api.nvim_buf_get_lines(scratch, 0, -1, false), lines) then
+			vim.bo[scratch].modifiable = true
+			vim.api.nvim_buf_set_lines(scratch, 0, -1, false, lines)
+			vim.bo[scratch].modifiable = false
+		end
+	end
+	local function queue()
+		if queued then
+			return
+		end
+		queued = true
+		vim.schedule(function()
+			queued = false
+			update()
+		end)
+	end
+	local group = vim.api.nvim_create_augroup("offline-sticky-scroll", { clear = true })
+	vim.api.nvim_create_autocmd({
+		"VimEnter",
+		"BufEnter",
+		"WinEnter",
+		"WinScrolled",
+		"VimResized",
+		"CursorMoved",
+		"CursorMovedI",
+		"TextChanged",
+		"TextChangedI",
+		"InsertLeave",
+		"FileType",
+	}, {
+		group = group,
+		callback = queue,
+	})
+	vim.api.nvim_create_autocmd({ "BufLeave", "WinLeave", "TabLeave" }, { group = group, callback = close })
+	vim.api.nvim_create_autocmd("WinClosed", {
+		group = group,
+		callback = function(args)
+			if cache and tonumber(args.match) == cache.key[1] then
+				close()
+				cache = nil
+			end
+		end,
+	})
+	vim.keymap.set("n", "<leader>Ts", function()
+		enabled = not enabled
+		if enabled then
+			queue()
+		else
+			close()
+		end
+	end, { desc = "Toggle sticky scroll" })
+end

@@ -854,6 +854,28 @@ require("conform").setup({
 		cpp = { "clang_format" },
 		python = { "ruff_format", "black", stop_after_first = true },
 		javascript = { "prettierd", "prettier", stop_after_first = true },
+		javascriptreact = { "prettierd", "prettier", stop_after_first = true },
+		typescript = { "prettierd", "prettier", stop_after_first = true },
+		typescriptreact = { "prettierd", "prettier", stop_after_first = true },
+		html = { "prettierd", "prettier", stop_after_first = true },
+		css = { "prettierd", "prettier", stop_after_first = true },
+		scss = { "prettierd", "prettier", stop_after_first = true },
+		less = { "prettierd", "prettier", stop_after_first = true },
+		json = { "prettierd", "prettier", stop_after_first = true },
+		jsonc = { "prettierd", "prettier", stop_after_first = true },
+		yaml = { "prettierd", "prettier", stop_after_first = true },
+		markdown = { "prettierd", "prettier", stop_after_first = true },
+		["markdown.mdx"] = { "prettierd", "prettier", stop_after_first = true },
+		graphql = { "prettierd", "prettier", stop_after_first = true },
+		vue = { "prettierd", "prettier", stop_after_first = true },
+		handlebars = { "prettierd", "prettier", stop_after_first = true },
+		bzl = { "buildifier" },
+		proto = { "buf", "clang_format", stop_after_first = true },
+		sh = { "shfmt" },
+		cmake = { "cmake_format" },
+		tex = { "latexindent" },
+		plaintex = { "latexindent" },
+		rust = { "rustfmt" },
 	},
 })
 vim.keymap.set("n", "<leader>lf", function()
@@ -1271,11 +1293,66 @@ if offline_tools then
 	end, paths)
 	vim.env.PATH = tools_dir .. separator .. table.concat(paths, separator)
 end
+local function homebrew_llvm_tool(name)
+	if vim.fn.executable(name) == 1 then
+		return name
+	end
+	for _, prefix in ipairs({ vim.env.HOMEBREW_PREFIX, "/opt/homebrew", "/usr/local" }) do
+		if prefix and prefix ~= "" then
+			local path = prefix .. "/opt/llvm/bin/" .. name
+			if vim.fn.executable(path) == 1 then
+				return path
+			end
+		end
+	end
+	return name
+end
 local servers = {
 	clangd = {
 		cmd = { "clangd" },
 		filetypes = { "c", "cpp", "objc", "objcpp", "cuda" },
 		root_markers = { "compile_commands.json", "compile_flags.txt", ".clangd", "CMakeLists.txt", ".git" },
+	},
+	mlir_lsp_server = {
+		cmd = { homebrew_llvm_tool("mlir-lsp-server") },
+		filetypes = { "mlir" },
+		root_markers = { "CMakeLists.txt", ".git" },
+	},
+	starpls = {
+		cmd = { "starpls", "server" },
+		filetypes = { "bzl" },
+		root_markers = { "MODULE.bazel", "WORKSPACE.bazel", "WORKSPACE", "BUILD.bazel", "BUILD", ".git" },
+	},
+	buf_ls = {
+		cmd = { "buf", "lsp", "serve" },
+		filetypes = { "proto" },
+		root_markers = { "buf.yaml", ".git" },
+	},
+	bashls = {
+		cmd = { "bash-language-server", "start" },
+		filetypes = { "sh" },
+		root_markers = { ".git" },
+	},
+	neocmake = {
+		cmd = { "neocmakelsp", "stdio" },
+		filetypes = { "cmake" },
+		root_markers = { "CMakeLists.txt", ".git" },
+		init_options = { format = { enable = true }, lint = { enable = true } },
+	},
+	yamlls = {
+		cmd = { "yaml-language-server", "--stdio" },
+		filetypes = { "yaml" },
+		root_markers = { ".git" },
+	},
+	texlab = {
+		cmd = { "texlab" },
+		filetypes = { "tex", "plaintex" },
+		root_markers = { ".latexmkrc", "latexmkrc", ".git" },
+	},
+	rust_analyzer = {
+		cmd = { "rust-analyzer" },
+		filetypes = { "rust" },
+		root_markers = { "Cargo.toml", "rust-project.json", ".git" },
 	},
 	ty = { cmd = { "ty", "server" }, filetypes = { "python" }, root_markers = { "pyproject.toml", "ty.toml", ".git" } },
 	pyright = {
@@ -1491,6 +1568,17 @@ require("mason-tool-installer").setup({
 	run_on_start = not offline_tools,
 	integrations = { ["mason-lspconfig"] = false, ["mason-null-ls"] = false, ["mason-nvim-dap"] = false },
 	ensure_installed = {
+		"bash-language-server",
+		"buf",
+		"buildifier",
+		"cmakelang",
+		"latexindent",
+		"neocmakelsp",
+		"rust-analyzer",
+		"shfmt",
+		"starpls",
+		"texlab",
+		"yaml-language-server",
 		"typescript-language-server",
 		"html-lsp",
 		"css-lsp",

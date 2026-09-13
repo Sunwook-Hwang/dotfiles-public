@@ -48,7 +48,20 @@ local function resolve_tool(name)
 	if vim.fn.executable(bundled) == 1 then
 		return bundled
 	end
-	return vim.fn.exepath(name)
+	local path = vim.fn.exepath(name)
+	if path ~= "" then
+		return path
+	end
+	-- Homebrew's LLVM formula is keg-only, so its MLIR/Clang tools are not always on PATH.
+	for _, prefix in ipairs({ vim.env.HOMEBREW_PREFIX, "/opt/homebrew", "/usr/local" }) do
+		if prefix and prefix ~= "" then
+			local llvm_tool = prefix .. "/opt/llvm/bin/" .. name
+			if vim.fn.executable(llvm_tool) == 1 then
+				return llvm_tool
+			end
+		end
+	end
+	return ""
 end
 
 local default_options = {
@@ -908,7 +921,18 @@ local function find_project(dir)
 		return git_root, true, true
 	end
 	local marker = vim.fs.find(
-		{ "CMakeLists.txt", "compile_commands.json", "Makefile", "package.json", "pyproject.toml" },
+		{
+			"CMakeLists.txt",
+			"compile_commands.json",
+			"Makefile",
+			"package.json",
+			"pyproject.toml",
+			"Cargo.toml",
+			"WORKSPACE",
+			"WORKSPACE.bazel",
+			"MODULE.bazel",
+			"buf.yaml",
+		},
 		{ path = dir, upward = true, type = "file", limit = 1 }
 	)[1]
 	return marker and vim.fs.dirname(marker) or dir, false, marker ~= nil
@@ -2726,6 +2750,7 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
 -- Conform 대체: lsp/bin → PATH에서 외부 도구를 찾아 비동기 실행, 없으면 LSP 포맷팅 시도.
 -- Python은 Ruff를 우선하고, 없으면 Black을 사용합니다. 저장 시 자동 포맷팅은 없습니다.
 -- 외부 결과는 변경된 줄 구간만 적용하며 실행 중 버퍼 수정/삭제 시 버립니다.
+local prettier = { { "prettier", "--stdin-filepath", "%" } }
 local formatters = {
 	lua = { { "stylua", "--stdin-filepath", "%", "-" } },
 	c = { { "clang-format", "--assume-filename=%" } },
@@ -2734,7 +2759,29 @@ local formatters = {
 		{ "ruff", "format", "--stdin-filename", "%", "-" },
 		{ "black", "--quiet", "--stdin-filename", "%", "-" },
 	},
-	javascript = { { "prettier", "--stdin-filepath", "%" } },
+	javascript = prettier,
+	javascriptreact = prettier,
+	typescript = prettier,
+	typescriptreact = prettier,
+	html = prettier,
+	css = prettier,
+	scss = prettier,
+	less = prettier,
+	json = prettier,
+	jsonc = prettier,
+	yaml = prettier,
+	markdown = prettier,
+	["markdown.mdx"] = prettier,
+	graphql = prettier,
+	vue = prettier,
+	handlebars = prettier,
+	bzl = { { "buildifier", "-path", "%", "-" } },
+	proto = { { "clang-format", "--assume-filename=%" } },
+	sh = { { "shfmt", "-filename", "%" } },
+	cmake = { { "cmake-format", "-" } },
+	tex = { { "latexindent", "-" } },
+	plaintex = { { "latexindent", "-" } },
+	rust = { { "rustfmt", "--emit=stdout", "--edition=2021" } },
 }
 function _G.OfflineFormatStatus()
 	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
@@ -3446,6 +3493,17 @@ end, "Go to definition: LSP, then ctags")
 -- Mason 로드·자동 설치는 하지 않습니다.
 local servers = {
 	{ cmd = { "clangd" }, ft = { "c", "cpp", "objc", "objcpp", "cuda" } },
+	{ cmd = { "mlir-lsp-server" }, ft = { "mlir" } },
+	{ cmd = { "starpls", "server" }, ft = { "bzl" } },
+	{ cmd = { "buf", "lsp", "serve" }, ft = { "proto" } },
+	{ cmd = { "bash-language-server", "start" }, ft = { "sh" } },
+	{
+		alternatives = { { "neocmakelsp", "stdio" }, { "cmake-language-server" } },
+		ft = { "cmake" },
+	},
+	{ cmd = { "yaml-language-server", "--stdio" }, ft = { "yaml" } },
+	{ cmd = { "texlab" }, ft = { "tex", "plaintex" } },
+	{ cmd = { "rust-analyzer" }, ft = { "rust" } },
 	{ alternatives = { { "ty", "server" }, { "pyright-langserver", "--stdio" } }, ft = { "python" } },
 	{ cmd = { "lua-language-server" }, ft = { "lua" }, settings = { Lua = { diagnostics = { globals = { "vim" } } } } },
 	{

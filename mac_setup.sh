@@ -84,9 +84,14 @@ function base_setup {
     PACKAGES=(
         bear
         bat
+        bash-language-server
+        black
+        buf
+        buildifier
         ccache
         clang-format
         cmake
+        cmake-language-server
         curl
         fd
         fzf
@@ -96,23 +101,37 @@ function base_setup {
         htop
         jq
         lazygit
+        latexindent
+        llvm
+        lua-language-server
+        neocmakelsp
         neovim
         ninja
         node
         pkg-config
         prettier
+        pyright
         python3
         ripgrep
+        ruff
         rust
+        rust-analyzer
+        shfmt
         stow
         stylua
+        tailwindcss-language-server
+        texlab
         tldr
         tmux
         tree
+        ty
+        typescript-language-server
         universal-ctags
         uv
         vim
+        vscode-langservers-extracted
         wget
+        yaml-language-server
     )
     echo "Installing packages..."
     brew install "${PACKAGES[@]}"

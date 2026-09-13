@@ -3946,6 +3946,7 @@ end, "Go to definition: LSP, then ctags")
 -- Neovim 0.12 내장 클라이언트. 아래 목록의 실행 파일이 이미 설치되어 있어야 합니다.
 -- stdpath(config)/lsp/bin → PATH → 기존 stdpath(data)/mason/bin 순서.
 -- Mason 로드·자동 설치는 하지 않습니다.
+local tsserver = resolve_tool("tsserver")
 local servers = {
 	{ cmd = { "clangd" }, ft = { "c", "cpp", "objc", "objcpp", "cuda" } },
 	{ cmd = { "mlir-lsp-server" }, ft = { "mlir" } },
@@ -3963,6 +3964,7 @@ local servers = {
 	{ cmd = { "lua-language-server" }, ft = { "lua" }, settings = { Lua = { diagnostics = { globals = { "vim" } } } } },
 	{
 		cmd = { "typescript-language-server", "--stdio" },
+		init_options = tsserver ~= "" and { tsserver = { fallbackPath = tsserver } } or nil,
 		ft = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
 	},
 	{ cmd = { "vscode-html-language-server", "--stdio" }, ft = { "html" } },
@@ -4247,6 +4249,7 @@ for _, server in ipairs(servers) do
 			cmd = command,
 			filetypes = server.ft,
 			settings = server.settings,
+			init_options = server.init_options,
 			on_init = function(client)
 				if client.name == "ty" or client.name == "pyright-langserver" then
 					-- Apply once before workspace/configuration and didOpen, including pending starts.

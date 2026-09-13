@@ -125,6 +125,8 @@ Python 파일에서 `Space lv`로 프로젝트 환경을 선택하세요.
 ### JavaScript/TypeScript·HTML/CSS
 
 Node.js와 npm이 필요합니다. TypeScript 서버는 별도의 TypeScript 패키지를 요구합니다.
+`nvim/lsp/bin` 또는 PATH에 연결한 `tsserver`는 프로젝트 TypeScript가 없을 때 사용할
+`tsserver.fallbackPath`로 전달합니다. 프로젝트·동봉 런타임 탐색은 서버가 담당합니다.
 아래 `typescript@6`은 확인 시점의 서버 안내에 맞춘 예이며, 서버 버전을 고정할 경우 해당 버전의 요구 사항을 따르세요.
 [TypeScript 서버 설치 문서](https://github.com/typescript-language-server/typescript-language-server#installing)
 

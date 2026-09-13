@@ -416,6 +416,11 @@ local function update_indent_guides()
 		vim.opt_local.listchars:remove("leadmultispace")
 		return
 	end
+	local dashboard_list = vim.w.offline_list_before_dashboard
+	if dashboard_list ~= nil then
+		vim.wo.list = dashboard_list
+		vim.w.offline_list_before_dashboard = nil
+	end
 	local width = vim.fn.shiftwidth()
 	vim.opt_local.listchars:append({ leadmultispace = "┊" .. string.rep(" ", width - 1) })
 end
@@ -2107,6 +2112,7 @@ local dashboard_namespace = vim.api.nvim_create_namespace("offline-dashboard")
 
 local function open_dashboard()
 	local previous = vim.api.nvim_get_current_buf()
+	local previous_list = vim.wo.list
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.api.nvim_set_current_buf(buf)
 	if
@@ -2131,6 +2137,7 @@ local function open_dashboard()
 	vim.wo.cursorcolumn = false
 	vim.wo.cursorline = true
 	vim.wo.cursorlineopt = "line"
+	vim.w.offline_list_before_dashboard = previous_list
 	vim.wo.list = false
 	vim.wo.wrap = false
 

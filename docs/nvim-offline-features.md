@@ -49,13 +49,13 @@ right side shows diagnostics, LSP and formatter availability, filetype, and a
 fixed-width cursor position.
 
 ```text
-[git:master .M] file.lua [+]    Warn 2 Error 1 [LSP O: lua_ls] [FORMAT O: stylua] lua |  123:  8 |  42%
+[git:master .M] file.lua [+]    Warn 2 Error 1 [LSP: lua_ls] [FORMAT: stylua] lua |  123:  8 |  42%
 ```
 
 - Diagnostic groups with a count of zero are hidden.
 - `[LSP X]` has a highlighted background when no LSP is attached.
 - `[FORMAT X]` means no formatter is currently available.
-- `[FORMAT O: name]` names the external formatter or LSP used for this buffer.
+- `[FORMAT: name]` names the external formatter or LSP used for this buffer.
 - `Space Tl` toggles both the LSP and formatter status sections.
 
 ### Buffers, indent guides, and Sticky Scroll

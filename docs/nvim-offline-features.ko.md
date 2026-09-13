@@ -46,13 +46,13 @@ Dashboard는 전용 floating window를 사용합니다. `Esc`로 닫으면 기�
 LSP·포매터 상태, 파일타입과 고정 폭 위치 정보를 표시합니다.
 
 ```text
-[git:master .M] file.lua [+]    Warn 2 Error 1 [LSP O: lua_ls] [FORMAT O: stylua] lua |  123:  8 |  42%
+[git:master .M] file.lua [+]    Warn 2 Error 1 [LSP: lua_ls] [FORMAT: stylua] lua |  123:  8 |  42%
 ```
 
 - 진단 개수가 0이면 해당 항목을 숨깁니다.
 - 연결된 LSP가 없으면 빨간 배경의 `[LSP X]`를 표시합니다.
 - 사용할 포매터가 없으면 `[FORMAT X]`를 표시합니다.
-- `[FORMAT O: 이름]`은 현재 버퍼에서 실제 사용할 외부 도구 또는 LSP 이름입니다.
+- `[FORMAT: 이름]`은 현재 버퍼에서 실제 사용할 외부 도구 또는 LSP 이름입니다.
 - `Space Tl`로 LSP와 포매터 상태 영역을 함께 숨기거나 다시 표시합니다.
 
 ### 버퍼·들여쓰기·Sticky Scroll

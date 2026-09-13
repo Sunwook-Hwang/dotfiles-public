@@ -419,7 +419,7 @@ function _G.OfflineLspStatus()
 		end
 	end
 	local sorted = vim.fn.sort(vim.tbl_keys(names))
-	return #sorted > 0 and ("[LSP O: " .. table.concat(sorted, ", ") .. "]") or "%#OfflineLspMissing#[LSP X]%*"
+	return #sorted > 0 and ("[LSP: " .. table.concat(sorted, ", ") .. "]") or "%#OfflineLspMissing#[LSP X]%*"
 end
 vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
 	group = vim.api.nvim_create_augroup("offline-lsp-status", { clear = true }),
@@ -3238,7 +3238,7 @@ function _G.OfflineFormatStatus()
 	end
 	for _, candidate in ipairs(formatters[vim.bo[buf].filetype] or {}) do
 		if resolve_tool(candidate[1]) ~= "" then
-			return "[FORMAT O: " .. candidate[1] .. "]"
+			return "[FORMAT: " .. candidate[1] .. "]"
 		end
 	end
 	local names = {}
@@ -3248,7 +3248,7 @@ function _G.OfflineFormatStatus()
 		end
 	end
 	local sorted = vim.fn.sort(vim.tbl_keys(names))
-	return #sorted > 0 and ("[FORMAT O: " .. table.concat(sorted, ", ") .. "]") or "[FORMAT X]"
+	return #sorted > 0 and ("[FORMAT: " .. table.concat(sorted, ", ") .. "]") or "[FORMAT X]"
 end
 map("n", "<leader>lf", function()
 	if vim.bo.buftype ~= "" or not vim.bo.modifiable then

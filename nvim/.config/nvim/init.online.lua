@@ -1891,7 +1891,7 @@ do
 			end
 		end
 		local sorted = vim.fn.sort(vim.tbl_keys(names))
-		return #sorted > 0 and ("[LSP O: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]") or "[LSP X]"
+		return #sorted > 0 and ("[LSP: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]") or "[LSP X]"
 	end
 	local function lsp_status_color()
 		local buf = vim.api.nvim_get_current_buf()
@@ -1923,7 +1923,7 @@ do
 			end
 		end
 		local sorted = vim.fn.sort(vim.tbl_keys(names))
-		return #sorted > 0 and ("[FORMAT O: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]") or "[FORMAT X]"
+		return #sorted > 0 and ("[FORMAT: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]") or "[FORMAT X]"
 	end
 	vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
 		group = vim.api.nvim_create_augroup("online-lsp-status", { clear = true }),

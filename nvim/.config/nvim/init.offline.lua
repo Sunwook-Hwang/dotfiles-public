@@ -374,8 +374,47 @@ end
 vim.cmd("filetype plugin indent on")
 vim.cmd("syntax enable")
 vim.cmd("colorscheme retrobox")
+local function picker_selection_highlight()
+	local normal = vim.api.nvim_get_hl(0, { name = "NormalFloat", link = false })
+	if normal.bg == nil then
+		normal = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
+	end
+	local selected = vim.api.nvim_get_hl(0, { name = "PmenuSel", link = false })
+	local background = normal.bg or (vim.o.background == "dark" and 0x000000 or 0xffffff)
+	local selected_background = selected.bg
+	local function channels(color)
+		return math.floor(color / 0x10000) % 0x100, math.floor(color / 0x100) % 0x100, color % 0x100
+	end
+	local red, green, blue = channels(background)
+	if selected_background ~= nil then
+		local selected_red, selected_green, selected_blue = channels(selected_background)
+		local distance = math.max(
+			math.abs(red - selected_red),
+			math.abs(green - selected_green),
+			math.abs(blue - selected_blue)
+		)
+		if distance >= 32 then
+			vim.api.nvim_set_hl(0, "OfflinePickerSelection", selected)
+			return
+		end
+	end
+	local luminance = (red * 299 + green * 587 + blue * 114) / 1000
+	local offset = luminance < 128 and 48 or -48
+	local function shift(value)
+		return math.max(0, math.min(255, value + offset))
+	end
+	local generated_red, generated_green, generated_blue = shift(red), shift(green), shift(blue)
+	local generated = generated_red * 0x10000 + generated_green * 0x100 + generated_blue
+	local generated_luminance = (generated_red * 299 + generated_green * 587 + generated_blue * 114) / 1000
+	vim.api.nvim_set_hl(0, "OfflinePickerSelection", {
+		fg = generated_luminance < 128 and 0xffffff or 0x000000,
+		bg = generated,
+		bold = true,
+	})
+end
 local function set_offline_status_highlights()
 	vim.api.nvim_set_hl(0, "OfflineLspMissing", { fg = "#ffffff", bg = "#af0000", bold = true })
+	picker_selection_highlight()
 end
 set_offline_status_highlights()
 vim.api.nvim_create_autocmd("ColorScheme", {
@@ -1274,6 +1313,7 @@ open_picker = function(title, opts)
 	local query_buf, query_win = pane("query", row, col, width, 1, true)
 	vim.wo[list_win].cursorline = true
 	vim.wo[list_win].cursorlineopt = "line"
+	vim.wo[list_win].winhighlight = "CursorLine:OfflinePickerSelection,CursorLineNr:OfflinePickerSelection"
 	local group = vim.api.nvim_create_augroup("offline-picker", { clear = true })
 	local function fill(buf, lines)
 		if not vim.api.nvim_buf_is_valid(buf) then

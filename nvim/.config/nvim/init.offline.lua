@@ -2024,17 +2024,7 @@ local function restore_session(path)
 		vim.notify("No saved session")
 	end
 end
-map("n", "<leader>pr", function()
-	restore_session(session_path())
-end, "Restore directory session")
-map("n", "<leader>pl", function()
-	local last = session_dir .. "last"
-	restore_session(vim.fn.filereadable(last) == 1 and vim.fn.readfile(last)[1] or nil)
-end, "Restore last session")
-map("n", "<leader>pd", function()
-	save_session = false
-end, "Stop saving session")
-map("n", "<leader>pS", function()
+local function select_session()
 	vim.ui.select(vim.fn.glob(session_dir .. "*.vim", false, true), {
 		prompt = "Sessions:",
 		format_item = function(path)
@@ -2056,10 +2046,211 @@ map("n", "<leader>pS", function()
 			return directory or path
 		end,
 	}, restore_session)
-end, "Select session")
+end
+map("n", "<leader>pr", function()
+	restore_session(session_path())
+end, "Restore directory session")
+map("n", "<leader>pl", function()
+	local last = session_dir .. "last"
+	restore_session(vim.fn.filereadable(last) == 1 and vim.fn.readfile(last)[1] or nil)
+end, "Restore last session")
+map("n", "<leader>pd", function()
+	save_session = false
+end, "Stop saving session")
+map("n", "<leader>pS", select_session, "Select session")
 vim.api.nvim_create_autocmd("VimLeavePre", {
 	callback = function()
 		pcall(write_session)
+	end,
+})
+
+-- =========================================
+-- =========== NATIVE DASHBOARD ==========
+-- =========================================
+local dashboard_header = {
+		"",
+		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⠀⠀⠀⠀⡀⢀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠼⠤⠤⠤⠤⠤⣧⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡸⢸⠀⠀⠀⠀⠀⠀⡟⠀⣾⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⠃⢸⠘⢏⠉⠉⠉⡽⡇⠀⢹⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⠃⠀⢸⢠⠘⡆⠀⡸⠁⡇⡀⢸⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡰⠃⠀⡖⡞⣚⣆⣹⣼⣁⣀⢳⠓⠚⢹⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡴⠁⠀⠀⡇⣧⠀⢀⡜⢳⡀⠀⢸⠀⠀⠀⢣⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠜⠁⠀⠀⠀⡇⡟⢲⡞⠒⠒⢳⣺⢸⠀⠀⠀⠈⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡠⠋⠀⠀⠀⠀⠀⡇⡷⠃⡇⠀⠀⠀⢹⣸⠀⠀⠀⠀⠘⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⠁⠀⠀⠀⠀⠀⣠⢿⢓⣒⣓⣀⣀⣀⡞⠛⡖⠒⠢⠀⠀⡟⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⠁⠀⠀⠀⠀⠀⣠⠞⢹⢸⢸⠀⠀⠀⠀⠀⡇⠀⠘⢦⢰⠀⠀⡇⠘⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⠀⠀⠀⢀⡤⠊⠁⠀⠀⠀⠀⠀⣠⠞⠁⠀⢸⢸⠘⠒⠲⠒⠒⠒⡇⠀⠀⠀⠳⡄⠀⡇⠀⠈⢆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠀⢀⣠⠴⠊⠁⠀⠀⠀⠀⠀⢀⡤⡎⠁⠀⠀⠀⢸⢸⠀⠀⢀⠀⠀⠀⡇⠀⠀⠀⢀⠈⢦⡗⠀⠀⠈⢣⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡗⠒⡁⠀⠀⠀⠀⠀⠀⠀",
+		"⠈⠁⠀⠀⠀⠀⠀⠀⢀⡠⠖⠁⠀⡇⠀⠀⠀⠀⠚⣾⠒⣒⠚⣢⠀⢰⠓⠒⠒⠒⠺⠀⠀⣟⢆⠀⠀⠀⡟⣄⠀⠀⠀⠀⠀⠀⠀⠀⢀⣾⣑⡞⣹⡄⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⠀⠀⢀⣀⡤⠚⠁⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⢰⠀⠀⠀⠀⢸⢰⠀⠀⠀⠀⡇⠀⡇⠀⠙⠢⣄⡇⠈⠣⡀⠀⠀⠀⠀⣀⡴⣋⢼⡏⠠⢻⠘⢄⠀⠀⠀⠀⠀",
+		"⢀⠤⠔⠊⠉⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⠘⠒⠒⢲⠒⢺⢸⠀⠀⠀⠀⡇⠀⡇⠀⠀⠀⠀⡏⠑⠒⢺⠓⠲⠶⡟⠓⠉⡇⢸⣇⣠⢸⠀⠀⡗⠦⣀⠀⠀",
+		"⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⠀⠀⠀⢸⠀⢸⢸⠀⠀⠀⠀⡅⠀⣇⣀⣀⣀⠀⡇⠀⠠⢼⠤⠤⣤⣧⣤⣤⣧⣼⣧⣼⢸⠤⠤⠇⣀⣈⣉⡁",
+		"⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⢀⣀⣿⠀⠤⠤⠼⠔⢺⢸⠀⠀⠀⠀⣏⣀⠧⡤⡤⣖⢒⣷⣚⡻⠭⠯⠭⠗⠒⠓⠒⠛⢻⣏⣹⢸⠉⠉⠁⠀⠐⠒⠂",
+		"⠀⠀⠀⠀⠀⠀⡇⠀⠀⣀⡀⠤⠤⡗⠒⠈⠉⠁⠀⢸⠀⠀⠀⣀⣠⣼⢸⠀⠀⠀⠀⣇⠦⠽⠚⠒⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣸⡟⢻⢸⣀⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⢀⣀⠤⠔⡗⠉⠁⠀⠀⠀⠀⡇⠀⠀⠀⢀⡠⣼⠖⡘⢍⠰⡡⢺⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⢀⠁⠀⠸⠇⠸⠼⠀⠈⠆⠢⠄⠀⠀",
+		"⠐⠉⠁⠀⠀⠀⡇⠀⠀⠀⠀⠀⢀⣧⠤⠖⠋⢽⣠⢃⠞⣈⡶⠜⠒⢹⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠔⡠⠌⢁⡐⠒⢒⡠⠀⢓⡈⠄⠀⠀⠀",
+		"⠀⠀⠀⠀⠀⠀⡇⠀⢀⡠⠔⠚⡍⠰⠎⣠⠒⣢⡥⢾⠋⠁⠀⠀⠀⢸⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠈⠉⢦⡀⠀⣀⠧⠚⠉⠒⠒⠒⠃⢀⣴⠗⠋⠁⡇⢸⠀⠐⠂⠢⠤⢼⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⠀⢣⠈⠉⠉⠉⠉⠻⣉⡶⠖⠋⠀⠀⠀⠀⡇⢸⠀⠸⡉⠏⢐⣾⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣖⠒⠒⠠⡀⠀⠀⡇⢸⠀⠀⡱⠈⠁⣼⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	}
+local dashboard_namespace = vim.api.nvim_create_namespace("offline-dashboard")
+
+local function open_dashboard()
+	local previous = vim.api.nvim_get_current_buf()
+	local buf = vim.api.nvim_create_buf(false, true)
+	vim.api.nvim_set_current_buf(buf)
+	if
+		vim.api.nvim_buf_is_valid(previous)
+		and vim.api.nvim_buf_get_name(previous) == ""
+		and vim.bo[previous].buftype == ""
+		and vim.api.nvim_buf_line_count(previous) == 1
+		and vim.api.nvim_buf_get_lines(previous, 0, 1, false)[1] == ""
+	then
+		pcall(vim.api.nvim_buf_delete, previous, { force = true })
+	end
+
+	vim.bo[buf].buftype = "nofile"
+	vim.bo[buf].bufhidden = "wipe"
+	vim.bo[buf].swapfile = false
+	vim.bo[buf].filetype = "offline_dashboard"
+	vim.bo[buf].modifiable = true
+	vim.wo.number = false
+	vim.wo.relativenumber = false
+	vim.wo.signcolumn = "no"
+	vim.wo.foldcolumn = "0"
+	vim.wo.cursorcolumn = false
+	vim.wo.cursorline = true
+	vim.wo.cursorlineopt = "line"
+	vim.wo.list = false
+	vim.wo.wrap = false
+
+	local entries = {
+		{ "f", "Find file", function()
+			find_files(project_root(), "Find files")
+		end },
+		{ "r", "Recent files", function()
+			local files = vim.tbl_filter(function(file)
+				return file ~= "" and vim.fn.filereadable(file) == 1
+			end, vim.v.oldfiles)
+			open_picker("Recent files", { items = file_items(files) })
+		end },
+		{ "p", "Select session", select_session },
+		{ "n", "New file", function()
+			vim.cmd.startinsert()
+		end },
+		{ "c", "Config", function()
+			vim.cmd.edit(vim.fn.fnameescape(vim.fn.stdpath("config") .. "/init.lua"))
+		end },
+		{ "q", "Quit", function()
+			vim.cmd("qa!")
+		end },
+	}
+	local width = vim.api.nvim_win_get_width(0)
+	local lines = { "", "" }
+	local header_start = #lines
+	local header_width = 0
+	for _, line in ipairs(dashboard_header) do
+		header_width = math.max(header_width, vim.fn.strdisplaywidth(line))
+	end
+	local header_left = math.max(0, math.floor((width - header_width) / 2))
+	for _, line in ipairs(dashboard_header) do
+		lines[#lines + 1] = string.rep(" ", header_left) .. line
+	end
+	lines[#lines + 1] = ""
+	lines[#lines + 1] = ""
+
+	local button_rows = {}
+	for _, entry in ipairs(entries) do
+		local button_width = math.min(50, width)
+		local gap = math.max(1, button_width - vim.fn.strdisplaywidth(entry[2]) - vim.fn.strdisplaywidth(entry[1]))
+		local text = entry[2] .. string.rep(" ", gap) .. entry[1]
+		local left = math.max(0, math.floor((width - vim.fn.strdisplaywidth(text)) / 2))
+		lines[#lines + 1] = string.rep(" ", left) .. text
+		button_rows[entry[1]] = { row = #lines, left = left }
+		lines[#lines + 1] = ""
+	end
+	local footer = "https://sunwook-hwang.github.io"
+	lines[#lines + 1] = string.rep(" ", math.max(0, math.floor((width - vim.fn.strdisplaywidth(footer)) / 2))) .. footer
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+	vim.bo[buf].modifiable = false
+
+	for index = 1, #dashboard_header do
+		vim.api.nvim_buf_add_highlight(buf, dashboard_namespace, "Include", header_start + index - 1, 0, -1)
+	end
+	local function activate(entry)
+		if vim.api.nvim_get_current_buf() ~= buf then
+			return
+		end
+		if entry[1] ~= "q" then
+			vim.cmd.enew()
+		end
+		entry[3]()
+	end
+	for _, entry in ipairs(entries) do
+		local button = button_rows[entry[1]]
+		vim.api.nvim_buf_add_highlight(buf, dashboard_namespace, "Keyword", button.row - 1, button.left, -1)
+		local selected = entry
+		vim.keymap.set("n", entry[1], function()
+			activate(selected)
+		end, { buf = buf, nowait = true, silent = true, desc = selected[2] })
+	end
+	local moving = false
+	local function selection_index()
+		local row = vim.api.nvim_win_get_cursor(0)[1]
+		local nearest, distance = 1, math.huge
+		for index, entry in ipairs(entries) do
+			local candidate = button_rows[entry[1]].row
+			if math.abs(candidate - row) < distance then
+				nearest, distance = index, math.abs(candidate - row)
+			end
+		end
+		return nearest
+	end
+	local function select_entry(index)
+		index = (index - 1) % #entries + 1
+		local button = button_rows[entries[index][1]]
+		moving = true
+		vim.api.nvim_win_set_cursor(0, { button.row, button.left + 3 })
+		moving = false
+	end
+	for _, spec in ipairs({ { "j", 1 }, { "<Down>", 1 }, { "k", -1 }, { "<Up>", -1 } }) do
+		local key, delta = spec[1], spec[2]
+		vim.keymap.set("n", key, function()
+			select_entry(selection_index() + delta)
+		end, { buf = buf, nowait = true, silent = true, desc = delta > 0 and "Next dashboard item" or "Previous dashboard item" })
+	end
+	vim.keymap.set("n", "<CR>", function()
+		activate(entries[selection_index()])
+	end, { buf = buf, nowait = true, silent = true, desc = "Open dashboard item" })
+	vim.api.nvim_create_autocmd("CursorMoved", {
+		buffer = buf,
+		callback = function()
+			if not moving and vim.api.nvim_get_current_buf() == buf then
+				local index = selection_index()
+				if vim.api.nvim_win_get_cursor(0)[1] ~= button_rows[entries[index][1]].row then
+					select_entry(index)
+				end
+			end
+		end,
+	})
+	vim.api.nvim_buf_add_highlight(buf, dashboard_namespace, "Type", #lines - 1, 0, -1)
+	select_entry(1)
+end
+
+map("n", "<leader>A", open_dashboard, "Open dashboard")
+vim.api.nvim_create_autocmd("VimEnter", {
+	callback = function()
+		if
+			vim.fn.argc() == 0
+			and vim.api.nvim_buf_get_name(0) == ""
+			and vim.bo.buftype == ""
+			and vim.api.nvim_buf_line_count(0) == 1
+			and vim.api.nvim_buf_get_lines(0, 0, 1, false)[1] == ""
+		then
+			open_dashboard()
+		end
 	end,
 })
 
@@ -2068,7 +2259,7 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
 -- =========================================
 -- 설치된 git으로 현재 프로젝트를 조회합니다. 네트워크 명령은 실행하지 않습니다.
 -- Space Enter: 추적 파일 picker; sg/gg: 로그/상태; gd/gD: index/HEAD 좌우 diff.
--- Space gn/gp: diff 이동; gB: 저장된 파일의 현재 줄 blame.
+-- Space gn/gp: diff 이동; gb: 현재 줄 inline blame 토글.
 -- 상태줄: 브랜치와 현재 파일의 index/worktree 상태(XY). 미저장 편집은 기존 %m으로 표시.
 -- 화면을 그릴 때는 버퍼 캐시만 읽고, 파일 진입·저장·터미널 복귀 시 비동기로 갱신합니다.
 -- netrw Git signs: XY is index/worktree status; ** aggregates mixed children.
@@ -2392,18 +2583,6 @@ for key, revision in pairs({ gd = ":", gD = "HEAD:" }) do
 		end)
 	end, "Diff against " .. revision .. " (:diffoff! to finish)")
 end
-map("n", "<leader>gB", function()
-	local file = vim.api.nvim_buf_get_name(0)
-	if vim.bo.buftype ~= "" or file == "" then
-		vim.notify("Open a tracked file first")
-		return
-	end
-	local line = tostring(vim.fn.line("."))
-	git({ "blame", "-L", line .. "," .. line, "--", file }, function(output)
-		show_output(records(output, "\n"), "git")
-	end)
-end, "Blame current line (saved file)")
-
 -- =========================================
 -- ======== GIT: LINE CHANGE SIGNS =======
 -- =========================================
@@ -2458,6 +2637,118 @@ end, "Next Git hunk")
 map("n", "<leader>gp", function()
 	navigate_git_hunk(false)
 end, "Previous Git hunk")
+
+local inline_blame = {
+	enabled = false,
+	namespace = vim.api.nvim_create_namespace("offline-inline-blame"),
+	timer = -1,
+	version = 0,
+}
+local function clear_inline_blame(buf)
+	if vim.api.nvim_buf_is_valid(buf) then
+		vim.api.nvim_buf_clear_namespace(buf, inline_blame.namespace, 0, -1)
+	end
+end
+local function stop_inline_blame()
+	if inline_blame.timer ~= -1 then
+		vim.fn.timer_stop(inline_blame.timer)
+		inline_blame.timer = -1
+	end
+	cancel_command("git-inline-blame")
+end
+local function refresh_inline_blame()
+	inline_blame.timer = -1
+	local buf = vim.api.nvim_get_current_buf()
+	clear_inline_blame(buf)
+	if
+		not inline_blame.enabled
+		or vim.bo[buf].buftype ~= ""
+		or vim.bo[buf].modified
+		or vim.b[buf].offline_large_file
+	then
+		return
+	end
+	local file = vim.api.nvim_buf_get_name(buf)
+	local root = file ~= "" and vim.fs.root(vim.fs.dirname(file), ".git")
+	if not root or vim.fn.executable("git") == 0 then
+		return
+	end
+	local line = vim.api.nvim_win_get_cursor(0)[1]
+	inline_blame.version = inline_blame.version + 1
+	local version = inline_blame.version
+	run_command("git-inline-blame", {
+		"git",
+		"--no-pager",
+		"blame",
+		"--porcelain",
+		"-L",
+		line .. "," .. line,
+		"--",
+		file,
+	}, { cwd = root, quiet = true }, function(output)
+		if
+			not inline_blame.enabled
+			or inline_blame.version ~= version
+			or vim.api.nvim_get_current_buf() ~= buf
+			or vim.bo[buf].modified
+			or vim.api.nvim_win_get_cursor(0)[1] ~= line
+		then
+			return
+		end
+		local hash = output:match("^(%x+)") or ""
+		local author = output:match("\nauthor ([^\n]+)") or "Unknown"
+		local timestamp = tonumber(output:match("\nauthor%-time (%d+)"))
+		local date = timestamp and os.date("%Y-%m-%d", timestamp) or ""
+		local summary = output:match("\nsummary ([^\n]+)") or ""
+		if hash:match("^0+$") then
+			author, date, summary = "Not committed", "", ""
+		end
+		local parts = { author }
+		if date ~= "" then
+			parts[#parts + 1] = date
+		end
+		if summary ~= "" then
+			parts[#parts + 1] = summary
+		end
+		vim.api.nvim_buf_set_extmark(buf, inline_blame.namespace, line - 1, 0, {
+			virt_text = { { "  " .. table.concat(parts, " • "), "Comment" } },
+			virt_text_pos = "eol",
+			priority = 10,
+		})
+	end)
+end
+local function queue_inline_blame(delay)
+	stop_inline_blame()
+	if not inline_blame.enabled then
+		return
+	end
+	inline_blame.timer = vim.fn.timer_start(delay or 150, refresh_inline_blame)
+end
+map("n", "<leader>gb", function()
+	inline_blame.enabled = not inline_blame.enabled
+	if inline_blame.enabled then
+		queue_inline_blame(0)
+	else
+		stop_inline_blame()
+		for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+			clear_inline_blame(buf)
+		end
+	end
+	vim.notify("Inline blame: " .. (inline_blame.enabled and "on" or "off"))
+end, "Toggle inline blame")
+vim.api.nvim_create_autocmd({ "CursorMoved", "BufEnter", "BufWritePost" }, {
+	group = vim.api.nvim_create_augroup("offline-inline-blame", { clear = true }),
+	callback = function()
+		queue_inline_blame()
+	end,
+})
+vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "BufLeave" }, {
+	group = "offline-inline-blame",
+	callback = function(args)
+		stop_inline_blame()
+		clear_inline_blame(args.buf)
+	end,
+})
 
 local function stop_git_sign_timer(buf)
 	local timer = git_sign_timers[buf]
@@ -2795,6 +3086,7 @@ local formatters = {
 	lua = { { "stylua", "--stdin-filepath", "%", "-" } },
 	c = { { "clang-format", "--assume-filename=%" } },
 	cpp = { { "clang-format", "--assume-filename=%" } },
+	cuda = { { "clang-format", "--assume-filename=%" } },
 	python = {
 		{ "ruff", "format", "--stdin-filename", "%", "-" },
 		{ "black", "--quiet", "--stdin-filename", "%", "-" },

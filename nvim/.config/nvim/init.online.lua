@@ -852,6 +852,7 @@ require("conform").setup({
 		lua = { "stylua" },
 		c = { "clang_format" },
 		cpp = { "clang_format" },
+		cuda = { "clang_format" },
 		python = { "ruff_format", "black", stop_after_first = true },
 		javascript = { "prettierd", "prettier", stop_after_first = true },
 		javascriptreact = { "prettierd", "prettier", stop_after_first = true },

@@ -2185,6 +2185,50 @@ map("n", "<leader>Tl", function()
 	vim.cmd("redrawstatus")
 end, "Toggle LSP / formatter status")
 
+-- Space TS: Ctrl-d/u를 짧게 보간합니다. 특수 창과 화면 행 계산이 달라지는 모드는 기본 동작을 유지합니다.
+local smooth_scroll_enabled = true
+local function half_page_scroll(key)
+	local count = vim.v.count
+	local keys = (count > 0 and tostring(count) or "") .. vim.keycode(key)
+	local win, buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
+	local config = vim.api.nvim_win_get_config(win)
+	if not smooth_scroll_enabled
+		or config.relative ~= ""
+		or vim.wo[win].diff
+		or vim.wo[win].wrap
+		or vim.bo[buf].buftype ~= ""
+		or vim.b[buf].offline_large_file
+	then
+		vim.cmd.normal({ keys, bang = true })
+		return
+	end
+
+	local first = vim.fn.winsaveview()
+	vim.cmd.normal({ keys, bang = true })
+	local last = vim.fn.winsaveview()
+	vim.fn.winrestview(first)
+	for step = 1, 5 do
+		local view = vim.deepcopy(first)
+		for _, field in ipairs({ "lnum", "topline" }) do
+			view[field] = math.floor(first[field] + (last[field] - first[field]) * step / 5 + 0.5)
+		end
+		vim.fn.winrestview(view)
+		vim.cmd("redraw")
+		vim.wait(10)
+	end
+	vim.fn.winrestview(last)
+end
+map("n", "<C-d>", function()
+	half_page_scroll("<C-d>")
+end, "Scroll down half a page")
+map("n", "<C-u>", function()
+	half_page_scroll("<C-u>")
+end, "Scroll up half a page")
+map("n", "<leader>TS", function()
+	smooth_scroll_enabled = not smooth_scroll_enabled
+	vim.notify("Smooth scroll " .. (smooth_scroll_enabled and "enabled" or "disabled"))
+end, "Toggle smooth scroll")
+
 -- =========================================
 -- ============ SPLIT TERMINAL ===========
 -- =========================================

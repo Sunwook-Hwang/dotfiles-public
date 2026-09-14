@@ -2666,13 +2666,15 @@ local function open_git_diff(source_buf, source_win, base_lines, filetype)
 	local windows = {}
 	local state = { closed = false }
 	active_git_diff = state
-	local function pane(lines, col, pane_width, enter)
-		local buf = vim.api.nvim_create_buf(false, true)
-		vim.bo[buf].bufhidden = "wipe"
-		vim.bo[buf].swapfile = false
-		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-		vim.bo[buf].filetype = filetype
-		vim.bo[buf].modifiable = false
+	local function pane(lines, col, pane_width, enter, existing_buf)
+		local buf = existing_buf or vim.api.nvim_create_buf(false, true)
+		if not existing_buf then
+			vim.bo[buf].bufhidden = "wipe"
+			vim.bo[buf].swapfile = false
+			vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+			vim.bo[buf].filetype = filetype
+			vim.bo[buf].modifiable = false
+		end
 		local win = vim.api.nvim_open_win(buf, enter, {
 			relative = "win",
 			win = source_win,
@@ -2696,7 +2698,7 @@ local function open_git_diff(source_buf, source_win, base_lines, filetype)
 		return buf, win
 	end
 	local working_lines = vim.api.nvim_buf_get_lines(source_buf, 0, -1, false)
-	local working_buf, working_win = pane(working_lines, 0, left_width, true)
+	local working_buf, working_win = pane(nil, 0, left_width, true, source_buf)
 	local base_buf = pane(base_lines, left_width + 1, width - left_width - 1, false)
 	local cursor = vim.api.nvim_win_get_cursor(source_win)
 	vim.api.nvim_win_set_cursor(working_win, { math.min(cursor[1], math.max(1, #working_lines)), cursor[2] })

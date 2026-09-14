@@ -63,7 +63,7 @@ fixed-width cursor position.
 - The native tabline displays open buffers and modified state.
 - `Alt-1..8` selects that numbered buffer; `Alt-9` selects the last buffer.
 - Indent guides use `┊` and follow the file's `shiftwidth`.
-- Sticky Scroll keeps up to five enclosing function, conditional, and loop lines.
+- Sticky Scroll keeps up to eight enclosing function, conditional, and loop lines.
 - Sticky rows preserve real line numbers, indentation, syntax highlighting, and a separator.
 - `Space Ti` toggles indent/whitespace markers; `Space Ts` toggles Sticky Scroll.
 
@@ -156,8 +156,8 @@ index and shown as `+`, `~`, and `-` signs in the margin.
 | --- | --- |
 | `Space gg` | Show Git status in a read-only bottom window |
 | `Space sg` | Browse recent commits |
-| `Space gd` | Side-by-side diff of the current file and index |
-| `Space gD` | Side-by-side diff of the current file and HEAD |
+| `Space gd` | Isolated side-by-side diff of the current file and index; `q`/`Esc` closes it |
+| `Space gD` | Isolated side-by-side diff of the current file and HEAD; `q`/`Esc` closes it |
 | `Space gn/gp` | Move to the next/previous change hunk, wrapping at the ends |
 | `Space gb` | Toggle inline blame for the current line |
 

@@ -387,7 +387,7 @@ end
 -- =========================================
 -- Sticky scope headers without language parsers; keep native scrolling keys.
 vim.g.context_add_mappings = 0
-vim.g.context_max_height = 5
+vim.g.context_max_height = 8
 vim.g.context_max_per_indent = 1
 vim.g.context_highlight_normal = "Pmenu"
 vim.g.context_highlight_border = "Comment"

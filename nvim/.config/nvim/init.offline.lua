@@ -2639,8 +2639,8 @@ local function git(args, callback, opts)
 	opts.cwd = root
 	run_command(opts.key or "git", vim.list_extend({ "git", "--no-pager" }, args), opts, callback)
 end
-local function show_output(lines, filetype, vertical)
-	vim.cmd(vertical and "rightbelow vnew" or "botright new")
+local function show_output(lines, filetype)
+	vim.cmd("botright new")
 	vim.bo.buftype = "nofile"
 	vim.bo.buflisted = false
 	vim.bo.bufhidden = "wipe"
@@ -2648,6 +2648,85 @@ local function show_output(lines, filetype, vertical)
 	vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
 	vim.bo.filetype = filetype
 	vim.bo.modifiable = false
+end
+local active_git_diff
+local function open_git_diff(source_buf, source_win, base_lines, filetype)
+	if active_git_diff then
+		active_git_diff.close()
+	end
+	if not vim.api.nvim_win_is_valid(source_win) or vim.api.nvim_win_get_buf(source_win) ~= source_buf then
+		return
+	end
+	local width, height = vim.api.nvim_win_get_width(source_win), vim.api.nvim_win_get_height(source_win)
+	if width < 24 or height < 3 then
+		vim.notify("Window is too small for Git diff", vim.log.levels.WARN)
+		return
+	end
+	local left_width = math.floor((width - 1) / 2)
+	local windows = {}
+	local state = { closed = false }
+	active_git_diff = state
+	local function pane(lines, col, pane_width, enter)
+		local buf = vim.api.nvim_create_buf(false, true)
+		vim.bo[buf].bufhidden = "wipe"
+		vim.bo[buf].swapfile = false
+		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+		vim.bo[buf].filetype = filetype
+		vim.bo[buf].modifiable = false
+		local win = vim.api.nvim_open_win(buf, enter, {
+			relative = "win",
+			win = source_win,
+			row = 0,
+			col = col,
+			width = pane_width,
+			height = height,
+			style = "minimal",
+			border = "none",
+		})
+		vim.wo[win].number = true
+		vim.wo[win].relativenumber = false
+		vim.wo[win].signcolumn = "no"
+		vim.wo[win].foldcolumn = "0"
+		vim.wo[win].list = vim.wo[source_win].list
+		vim.wo[win].winhighlight = "Normal:Normal,NormalFloat:Normal,EndOfBuffer:EndOfBuffer"
+		vim.api.nvim_win_call(win, function()
+			vim.cmd("diffthis")
+		end)
+		windows[#windows + 1] = win
+		return buf, win
+	end
+	local working_lines = vim.api.nvim_buf_get_lines(source_buf, 0, -1, false)
+	local working_buf, working_win = pane(working_lines, 0, left_width, true)
+	local base_buf = pane(base_lines, left_width + 1, width - left_width - 1, false)
+	local cursor = vim.api.nvim_win_get_cursor(source_win)
+	vim.api.nvim_win_set_cursor(working_win, { math.min(cursor[1], math.max(1, #working_lines)), cursor[2] })
+	local group = vim.api.nvim_create_augroup("offline-git-diff-window", { clear = true })
+	function state.close()
+		if state.closed then
+			return
+		end
+		state.closed, active_git_diff = true, nil
+		pcall(vim.api.nvim_del_augroup_by_id, group)
+		for _, win in ipairs(windows) do
+			if vim.api.nvim_win_is_valid(win) then
+				vim.api.nvim_win_close(win, true)
+			end
+		end
+		if vim.api.nvim_win_is_valid(source_win) then
+			vim.api.nvim_set_current_win(source_win)
+		end
+	end
+	for _, buf in ipairs({ working_buf, base_buf }) do
+		vim.keymap.set("n", "q", state.close, { buf = buf, nowait = true, desc = "Close Git diff" })
+		vim.keymap.set("n", "<Esc>", state.close, { buf = buf, nowait = true, desc = "Close Git diff" })
+	end
+	vim.api.nvim_create_autocmd("WinClosed", {
+		group = group,
+		pattern = { tostring(source_win), tostring(windows[1]), tostring(windows[2]) },
+		callback = function()
+			vim.schedule(state.close)
+		end,
+	})
 end
 map("n", "<leader><CR>", function()
 	local root, is_git = project_root()
@@ -2679,15 +2758,9 @@ for key, revision in pairs({ gd = ":", gD = "HEAD:" }) do
 		local relative = file:sub(#root + 2)
 		local ft = vim.bo.filetype
 		git({ "show", revision .. relative }, function(output)
-			if not vim.api.nvim_win_is_valid(win) or vim.api.nvim_win_get_buf(win) ~= buf then
-				return
-			end
-			vim.api.nvim_set_current_win(win)
-			vim.cmd("diffthis")
-			show_output(records(output, "\n"), ft, true)
-			vim.cmd("diffthis")
+			open_git_diff(buf, win, records(output, "\n"), ft)
 		end)
-	end, "Diff against " .. revision .. " (:diffoff! to finish)")
+	end, "Diff against " .. revision .. " (q/Esc to close)")
 end
 -- =========================================
 -- ======== GIT: LINE CHANGE SIGNS =======
@@ -4880,7 +4953,7 @@ do
 		local cursor = vim.api.nvim_win_get_cursor(win)
 		local screen_top = vim.fn.win_screenpos(win)[1]
 		local row = vim.fn.screenpos(win, cursor[1], cursor[2] + 1).row - screen_top
-		local limit = math.min(5, math.floor(vim.api.nvim_win_get_height(win) / 3), row - 1)
+		local limit = math.min(8, math.floor(vim.api.nvim_win_get_height(win) / 3), row - 1)
 		if limit < 1 then
 			close()
 			return

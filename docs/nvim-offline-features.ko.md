@@ -60,7 +60,7 @@ LSP·포매터 상태, 파일타입과 고정 폭 위치 정보를 표시합니�
 - 상단 tabline에 열린 버퍼와 수정 상태를 표시합니다.
 - `Alt-1..8`은 해당 번호 버퍼, `Alt-9`는 마지막 버퍼로 이동합니다.
 - 들여쓰기 선은 파일의 `shiftwidth`에 맞춰 `┊`로 표시합니다.
-- Sticky Scroll은 함수·조건·반복문의 상위 문맥을 최대 5줄까지 고정합니다.
+- Sticky Scroll은 함수·조건·반복문의 상위 문맥을 최대 8줄까지 고정합니다.
 - Sticky 영역은 실제 줄 번호, 들여쓰기 위치, syntax highlight와 구분선을 유지합니다.
 - `Space Ti`로 들여쓰기/공백 표시, `Space Ts`로 Sticky Scroll을 토글합니다.
 
@@ -151,8 +151,8 @@ Git 기능은 네트워크 명령을 실행하지 않습니다. 현재 버퍼의
 | --- | --- |
 | `Space gg` | Git 상태를 아래 읽기 전용 창에 표시 |
 | `Space sg` | 최근 커밋 목록 |
-| `Space gd` | 현재 파일과 index를 좌우 diff |
-| `Space gD` | 현재 파일과 HEAD를 좌우 diff |
+| `Space gd` | 원본 창과 분리된 현재 파일/index 좌우 diff; `q`/`Esc`로 닫기 |
+| `Space gD` | 원본 창과 분리된 현재 파일/HEAD 좌우 diff; `q`/`Esc`로 닫기 |
 | `Space gn/gp` | 다음/이전 변경 hunk로 이동; 끝에서 순환 |
 | `Space gb` | 현재 줄 inline blame 토글 |
 

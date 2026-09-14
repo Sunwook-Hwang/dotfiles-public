@@ -141,7 +141,7 @@ ty에는 `ty.configuration.environment.python`으로 전달하며, 환경을 바
 | `Space c` / `bw` | 강제 닫기(미저장 변경 버림) / 미저장 파일 보호하며 닫기 |
 | `Ctrl-t` | `Space gg`와 같은 크기의 하단 split 터미널 토글 |
 | 터미널 `Esc Esc` | Terminal 모드에서 Normal 모드로 이동 |
-| `Space gd/gD` | 현재 파일과 index/HEAD를 좌우 비교 |
+| `Space gd/gD` | 원본 창과 분리된 현재 파일/index·HEAD 좌우 비교; `q`/`Esc`로 닫기 |
 | `Space gn/gp` | 다음/이전 Git 변경 hunk로 이동 |
 | `Space gb` | 현재 줄 inline blame 토글 |
 | `Space Tu` | undo 상태 목록과 코드 미리보기. `↑/↓`·`Ctrl-p/n` 선택, `Ctrl-f/b` 스크롤, Enter 적용, Esc 취소 |

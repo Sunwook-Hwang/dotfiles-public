@@ -541,9 +541,16 @@ local function netrw_cursor_paths()
 	if vim.w.netrw_liststyle == 3 and vim.w.netrw_treetop then
 		local ok, tree_path = pcall(vim.fn["netrw#Call"], "NetrwTreePath", vim.w.netrw_treetop)
 		if ok and type(tree_path) == "string" and tree_path ~= "" then
+			tree_path = vim.fs.normalize(tree_path)
+			local stat = vim.uv.fs_lstat(tree_path)
+			local target = stat and stat.type == "link" and vim.uv.fs_stat(tree_path)
+			local parent_directory = (stat or {}).type == "directory"
+				or ((target or {}).type == "directory" and not vim.fn.getline("."):find("\t -->", 1, true))
 			if vim.fn.getline("."):sub(-1) == "/" then
-				directory = tree_path:gsub("/+$", "")
+				directory = tree_path
 				parent = vim.fs.dirname(directory)
+			elseif not parent_directory then
+				parent, directory = vim.fs.dirname(tree_path), vim.fs.dirname(tree_path)
 			else
 				parent, directory = tree_path, tree_path
 			end
@@ -564,6 +571,104 @@ local function netrw_at_cursor(function_name, use_directory, append_path, ...)
 		encoded[#encoded + 1] = vim.fn.string(path)
 	end
 	netrw_command("call netrw#Call(" .. table.concat(encoded, ", ") .. ")")
+end
+local function netrw_cursor_path()
+	local parent = netrw_cursor_paths()
+	local word = vim.fn["netrw#Call"]("NetrwGetWord")
+	if type(word) ~= "string" or word == "" or word == "./" or word == "../" then
+		return
+	end
+	local path = vim.fs.joinpath(parent, (word:gsub("/+$", "")))
+	if word:sub(-1) == "/" then
+		return vim.uv.fs_lstat(path) and path or nil
+	end
+	local display = vim.fn.getline("."):match("^[^\t]*")
+	local suffix
+	for _, candidate in ipairs({ "*@", "@", "*" }) do
+		if vim.endswith(display, word .. candidate) then
+			suffix = candidate
+			break
+		end
+	end
+	local paths = vim.tbl_filter(function(candidate)
+		return vim.uv.fs_lstat(candidate) ~= nil
+	end, suffix and { path, path .. suffix } or { path })
+	if #paths > 1 then
+		vim.notify("Ambiguous Netrw name; use the terminal:\n" .. table.concat(paths, "\n"), vim.log.levels.ERROR)
+		return nil, true
+	end
+	return paths[1]
+end
+local function netrw_selected_paths(first, last)
+	local marked = vim.fn["netrw#Expose"]("netrwmarkfilelist")
+	local paths = type(marked) == "table" and vim.deepcopy(marked) or {}
+	local blocked = false
+	if #paths == 0 then
+		local cursor = vim.api.nvim_win_get_cursor(0)
+		for row = first, last do
+			vim.api.nvim_win_set_cursor(0, { row, 0 })
+			local path, ambiguous = netrw_cursor_path()
+			blocked = blocked or ambiguous
+			if path then
+				paths[#paths + 1] = path
+			end
+		end
+		vim.api.nvim_win_set_cursor(0, cursor)
+	end
+	return vim.tbl_filter(function(path)
+		return vim.uv.fs_lstat(path) ~= nil
+	end, vim.fn.uniq(vim.fn.sort(paths))), blocked, type(marked) == "table"
+end
+local function netrw_delete(first, last)
+	local paths, blocked, marked = netrw_selected_paths(first, last)
+	if #paths == 0 then
+		if not blocked then
+			vim.notify("No local file selected", vim.log.levels.ERROR)
+		end
+		return
+	end
+	local label = #paths == 1 and paths[1] or ("these " .. #paths .. " items")
+	if vim.fn.confirm("Delete " .. label .. "?", "&Yes\n&No", 2) ~= 1 then
+		return
+	end
+	local failed = {}
+	for _, path in ipairs(paths) do
+		local stat = vim.uv.fs_lstat(path)
+		if not stat or vim.fn.delete(path, stat.type == "directory" and "rf" or "") ~= 0 then
+			failed[#failed + 1] = path
+		end
+	end
+	if marked then
+		vim.fn["netrw#Call"]("NetrwUnMarkFile", 1)
+	end
+	netrw_command("normal " .. vim.keycode("<Plug>NetrwRefresh"))
+	if #failed > 0 then
+		vim.notify("Delete failed:\n" .. table.concat(failed, "\n"), vim.log.levels.ERROR)
+	end
+end
+local function netrw_rename(first, last)
+	local paths, blocked, marked = netrw_selected_paths(first, last)
+	if #paths == 0 then
+		if not blocked then
+			vim.notify("No local file selected", vim.log.levels.ERROR)
+		end
+		return
+	end
+	for _, old in ipairs(paths) do
+		local new = vim.fn.input("Moving " .. old .. " to: ", old, "file")
+		if new == "" then
+			break
+		end
+		if new ~= old and (not vim.uv.fs_lstat(new) or vim.fn.confirm("Overwrite " .. new .. "?", "&Yes\n&No", 2) == 1) then
+			if vim.fn.rename(old, new) ~= 0 then
+				vim.notify("Rename failed: " .. old, vim.log.levels.ERROR)
+			end
+		end
+	end
+	if marked then
+		vim.fn["netrw#Call"]("NetrwUnMarkFile", 1)
+	end
+	netrw_command("normal " .. vim.keycode("<Plug>NetrwRefresh"))
 end
 local function netrw_transfer(command)
 	local files = vim.fn["netrw#Expose"]("netrwmarkfilelist")
@@ -635,18 +740,37 @@ vim.api.nvim_create_autocmd("FileType", {
 				netrw_at_cursor(function_name, use_directory, append_path, unpack(call_args))
 			end, { buf = args.buf, silent = true, nowait = true, desc = desc })
 		end
-		file_operation("D", "NetrwLocalRm", false, true, "Delete file")
-		file_operation("<Del>", "NetrwLocalRm", false, true, "Delete file")
-		file_operation("R", "NetrwLocalRename", false, true, "Rename file")
+		vim.keymap.set("n", "D", function()
+			netrw_delete(vim.fn.line("."), vim.fn.line("."))
+		end, { buf = args.buf, silent = true, nowait = true, desc = "Delete file" })
+		vim.keymap.set("n", "<Del>", function()
+			netrw_delete(vim.fn.line("."), vim.fn.line("."))
+		end, { buf = args.buf, silent = true, nowait = true, desc = "Delete file" })
+		vim.keymap.set("x", "D", function()
+			local first, last = vim.fn.line("v"), vim.fn.line(".")
+			vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+			netrw_delete(math.min(first, last), math.max(first, last))
+		end, { buf = args.buf, silent = true, nowait = true, desc = "Delete selected files" })
+		vim.keymap.set("n", "R", function()
+			netrw_rename(vim.fn.line("."), vim.fn.line("."))
+		end, { buf = args.buf, silent = true, nowait = true, desc = "Rename file" })
+		vim.keymap.set("x", "R", function()
+			local first, last = vim.fn.line("v"), vim.fn.line(".")
+			vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
+			netrw_rename(math.min(first, last), math.max(first, last))
+		end, { buf = args.buf, silent = true, nowait = true, desc = "Rename selected files" })
 		file_operation("%", "NetrwOpenFile", true, false, "Create file", 1)
 		file_operation("d", "NetrwMakeDir", true, false, "Create directory", "")
 		vim.keymap.set("n", "mf", function()
 			local parent = netrw_cursor_paths()
-			local word = vim.fn["netrw#Call"]("NetrwGetWord")
+			local path = netrw_cursor_path()
+			if not path then
+				return
+			end
 			local liststyle = vim.w.netrw_liststyle
 			vim.b.netrw_curdir = parent
 			vim.w.netrw_liststyle = 0
-			vim.fn["netrw#Call"]("NetrwMarkFile", 1, word)
+			vim.fn["netrw#Call"]("NetrwMarkFile", 1, vim.fs.basename(path))
 			vim.w.netrw_liststyle = liststyle
 		end, { buf = args.buf, silent = true, nowait = true, desc = "Toggle file mark" })
 		vim.keymap.set("n", "mc", function()
@@ -4460,7 +4584,9 @@ do
 					local buf = vim.api.nvim_win_get_buf(win)
 					if vim.bo[buf].filetype == "netrw" then
 						local top = netrw_git_top(win, buf)
+						top = vim.uv.fs_realpath(top) or vim.fs.normalize(top)
 						for file in pairs(files) do
+							file = vim.uv.fs_realpath(file) or vim.fs.normalize(file)
 							if vim.startswith(file, top:gsub("/+$", "") .. "/") then
 								vim.api.nvim_win_call(win, function()
 									-- Refresh expanded subdirectories too, retaining the tree/view.
@@ -4909,7 +5035,7 @@ vim.api.nvim_create_autocmd("FileType", {
 -- =========================================
 -- =========== STICKY SCROLL =============
 -- =========================================
--- Space Ts: 들여쓰기 기반 시작 줄 최대 5개 + 구분선. 파서/LSP 없이 동작합니다.
+-- Space Ts: 들여쓰기 기반 시작 줄 최대 8개 + 구분선. 파서/LSP 없이 동작합니다.
 -- 위쪽 1,000줄/256 KiB까지만 탐색하며, 복잡한 여러 줄 구문은 해석하지 않습니다.
 do
 	local enabled, queued = true, false

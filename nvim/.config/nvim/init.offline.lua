@@ -536,6 +536,56 @@ local function netrw_help()
 		end,
 	})
 end
+local function netrw_cursor_paths()
+	local parent, directory = vim.b.netrw_curdir, vim.b.netrw_curdir
+	if vim.w.netrw_liststyle == 3 and vim.w.netrw_treetop then
+		local ok, tree_path = pcall(vim.fn["netrw#Call"], "NetrwTreePath", vim.w.netrw_treetop)
+		if ok and type(tree_path) == "string" and tree_path ~= "" then
+			if vim.fn.getline("."):sub(-1) == "/" then
+				directory = tree_path:gsub("/+$", "")
+				parent = vim.fs.dirname(directory)
+			else
+				parent, directory = tree_path, tree_path
+			end
+		end
+	end
+	return parent, directory
+end
+local function netrw_at_cursor(function_name, use_directory, append_path, ...)
+	local parent, directory = netrw_cursor_paths()
+	local path = use_directory and directory or parent
+	vim.b.netrw_curdir = path
+	local args = { ... }
+	local encoded = { vim.fn.string(function_name) }
+	for _, arg in ipairs(args) do
+		encoded[#encoded + 1] = vim.fn.string(arg)
+	end
+	if append_path then
+		encoded[#encoded + 1] = vim.fn.string(path)
+	end
+	netrw_command("call netrw#Call(" .. table.concat(encoded, ", ") .. ")")
+end
+local function netrw_transfer(command)
+	local files = vim.fn["netrw#Expose"]("netrwmarkfilelist")
+	local target = vim.fn["netrw#Expose"]("netrwmftgt")
+	if type(files) ~= "table" or #files == 0 or type(target) ~= "string" or vim.fn.isdirectory(target) == 0 then
+		vim.notify("Mark files with mf and set a target with mt", vim.log.levels.ERROR)
+		return
+	end
+	local argv = { command }
+	if command == "cp" then
+		argv[#argv + 1] = "-R"
+	end
+	vim.list_extend(argv, files)
+	argv[#argv + 1] = target
+	local result = vim.system(argv, { text = true }):wait()
+	if result.code ~= 0 then
+		vim.notify(vim.trim(result.stderr ~= "" and result.stderr or result.stdout), vim.log.levels.ERROR)
+		return
+	end
+	vim.fn["netrw#Call"]("NetrwUnMarkFile", 1)
+	netrw_command("normal " .. vim.api.nvim_replace_termcodes("<Plug>NetrwRefresh", true, false, true))
+end
 vim.g.netrw_banner = 0
 vim.g.netrw_liststyle = 3
 vim.g.netrw_winsize = 25
@@ -579,6 +629,32 @@ vim.api.nvim_create_autocmd("FileType", {
 		vim.opt_local.relativenumber = false
 		vim.opt_local.wrap = false
 		vim.keymap.set("n", "g?", netrw_help, { buf = args.buf, silent = true, desc = "Show netrw help" })
+		local function file_operation(key, function_name, use_directory, append_path, desc, ...)
+			local call_args = { ... }
+			vim.keymap.set("n", key, function()
+				netrw_at_cursor(function_name, use_directory, append_path, unpack(call_args))
+			end, { buf = args.buf, silent = true, nowait = true, desc = desc })
+		end
+		file_operation("D", "NetrwLocalRm", false, true, "Delete file")
+		file_operation("<Del>", "NetrwLocalRm", false, true, "Delete file")
+		file_operation("R", "NetrwLocalRename", false, true, "Rename file")
+		file_operation("%", "NetrwOpenFile", true, false, "Create file", 1)
+		file_operation("d", "NetrwMakeDir", true, false, "Create directory", "")
+		vim.keymap.set("n", "mf", function()
+			local parent = netrw_cursor_paths()
+			local word = vim.fn["netrw#Call"]("NetrwGetWord")
+			local liststyle = vim.w.netrw_liststyle
+			vim.b.netrw_curdir = parent
+			vim.w.netrw_liststyle = 0
+			vim.fn["netrw#Call"]("NetrwMarkFile", 1, word)
+			vim.w.netrw_liststyle = liststyle
+		end, { buf = args.buf, silent = true, nowait = true, desc = "Toggle file mark" })
+		vim.keymap.set("n", "mc", function()
+			netrw_transfer("cp")
+		end, { buf = args.buf, silent = true, nowait = true, desc = "Copy marked files" })
+		vim.keymap.set("n", "mm", function()
+			netrw_transfer("mv")
+		end, { buf = args.buf, silent = true, nowait = true, desc = "Move marked files" })
 		-- Give netrw's helpers keys without conflicting with Ctrl-h/l window movement.
 		vim.keymap.set("n", "<leader>nh", function()
 			netrw_command("normal " .. vim.api.nvim_replace_termcodes("<Plug>NetrwHideEdit", true, false, true))

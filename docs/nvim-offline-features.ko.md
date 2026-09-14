@@ -151,8 +151,8 @@ Git 기능은 네트워크 명령을 실행하지 않습니다. 현재 버퍼의
 | --- | --- |
 | `Space gg` | Git 상태를 아래 읽기 전용 창에 표시 |
 | `Space sg` | 최근 커밋 목록 |
-| `Space gd` | 원본 창과 분리된 현재 파일/index 좌우 diff; `q`/`Esc`로 닫기 |
-| `Space gD` | 원본 창과 분리된 현재 파일/HEAD 좌우 diff; `q`/`Esc`로 닫기 |
+| `Space gd` | 편집 가능한 현재 파일과 index 좌우 diff; 어느 창에서든 `:q`로 닫기 |
+| `Space gD` | 편집 가능한 현재 파일과 HEAD 좌우 diff; 어느 창에서든 `:q`로 닫기 |
 | `Space gn/gp` | 다음/이전 변경 hunk로 이동; 끝에서 순환 |
 | `Space gb` | 현재 줄 inline blame 토글 |
 

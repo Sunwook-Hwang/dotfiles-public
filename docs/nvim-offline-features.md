@@ -156,8 +156,8 @@ index and shown as `+`, `~`, and `-` signs in the margin.
 | --- | --- |
 | `Space gg` | Show Git status in a read-only bottom window |
 | `Space sg` | Browse recent commits |
-| `Space gd` | Isolated side-by-side diff of the current file and index; `q`/`Esc` closes it |
-| `Space gD` | Isolated side-by-side diff of the current file and HEAD; `q`/`Esc` closes it |
+| `Space gd` | Editable current file beside the index; `:q` in either pane closes the diff |
+| `Space gD` | Editable current file beside HEAD; `:q` in either pane closes the diff |
 | `Space gn/gp` | Move to the next/previous change hunk, wrapping at the ends |
 | `Space gb` | Toggle inline blame for the current line |
 

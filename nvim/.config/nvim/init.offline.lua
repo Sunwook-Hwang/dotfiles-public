@@ -2215,6 +2215,7 @@ local function open_dashboard()
 		return
 	end
 	local source = vim.api.nvim_get_current_win()
+	local source_buf = vim.api.nvim_win_get_buf(source)
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.bo[buf].bufhidden = "wipe"
 	vim.bo[buf].filetype = "offline_dashboard"
@@ -2237,6 +2238,15 @@ local function open_dashboard()
 	vim.wo[win].wrap = false
 	local group = vim.api.nvim_create_augroup("offline-dashboard-window", { clear = true })
 	local closed = false
+	local function source_is_empty()
+		return vim.api.nvim_win_is_valid(source)
+			and vim.api.nvim_win_get_buf(source) == source_buf
+			and #vim.fn.getbufinfo({ buflisted = 1 }) == 1
+			and vim.api.nvim_buf_get_name(source_buf) == ""
+			and not vim.bo[source_buf].modified
+			and vim.api.nvim_buf_line_count(source_buf) == 1
+			and vim.api.nvim_buf_get_lines(source_buf, 0, 1, false)[1] == ""
+	end
 	local function close()
 		if closed then
 			return
@@ -2253,6 +2263,19 @@ local function open_dashboard()
 		end
 	end
 	vim.keymap.set("n", "<Esc>", close, { buf = buf, nowait = true, desc = "Close dashboard" })
+	vim.api.nvim_create_autocmd("QuitPre", {
+		group = group,
+		buffer = buf,
+		callback = function()
+			if vim.api.nvim_get_current_win() == win and source_is_empty() then
+				vim.schedule(function()
+					if not vim.api.nvim_win_is_valid(win) and source_is_empty() then
+						vim.cmd("quit")
+					end
+				end)
+			end
+		end,
+	})
 	vim.api.nvim_create_autocmd("WinClosed", {
 		group = group,
 		pattern = { tostring(win), tostring(source) },

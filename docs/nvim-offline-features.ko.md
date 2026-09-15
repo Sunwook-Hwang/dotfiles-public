@@ -104,6 +104,14 @@ LSP나 netrw처럼 버퍼에만 붙는 매핑도 현재 상태에 맞춰 반영�
 프로젝트 루트는 Git 루트를 우선합니다. Git이 없으면 CMake, Make, package.json,
 Python, Cargo, Bazel, Buf 프로젝트 marker를 위쪽으로 찾습니다. 편집창 cwd, 파일 트리,
 검색, LSP와 ctags가 같은 루트를 사용합니다.
+설치된 Python 라이브러리는 `site-packages` 또는 `dist-packages` 바로 아래의
+패키지 폴더를 루트로 사용합니다(예: `site-packages/tvm`). Git 탐색도 이 경계를
+넘지 않아 상위 Homebrew나 프로젝트 저장소가 대신 선택되지 않습니다. 패키지 내부의
+Git 저장소는 계속 인식합니다. 패키지 폴더 없이 바로 설치된 단일 모듈은
+`site-packages` 또는 `dist-packages` 자체를 루트로 사용합니다.
+Python 표준 라이브러리는 `os.py`와 `importlib/__init__.py`가 함께 있는 디렉터리
+(예: `lib/python3.13`)를 루트로 사용합니다. 설치 패키지의 루트가 바깥쪽 표준
+라이브러리 루트보다 우선하며, 어느 쪽도 상위 저장소까지 탐색하지 않습니다.
 
 ### netrw 트리
 

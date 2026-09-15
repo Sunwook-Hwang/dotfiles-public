@@ -108,6 +108,15 @@ key mappings. Buffer-local LSP and netrw mappings appear only when applicable.
 The Git root is the preferred project root. Without Git, the configuration
 searches upward for CMake, Make, package.json, Python, Cargo, Bazel, and Buf
 project markers. The editor cwd, tree, search, LSP, and ctags share this root.
+For installed Python libraries, the top-level package under `site-packages` or
+`dist-packages` is the root (for example, `site-packages/tvm`). Git discovery
+stops at that package boundary, so a parent Homebrew or project repository is
+not used. Git repositories inside the package are still recognized. A standalone
+module directly in `site-packages` or `dist-packages` uses that directory instead.
+Python standard-library files use the directory containing both `os.py` and
+`importlib/__init__.py` (for example, `lib/python3.13`). Installed packages take
+precedence over this enclosing standard-library root; neither crosses into a
+parent repository.
 
 ### netrw tree
 

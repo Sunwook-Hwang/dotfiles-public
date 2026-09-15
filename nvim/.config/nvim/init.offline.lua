@@ -1154,12 +1154,44 @@ end
 -- =========================================
 -- ======= PROJECT ROOT / CWD SYNC =======
 -- =========================================
--- Git 루트 우선, 없으면 가장 가까운 프로젝트 마커, 없으면 현재 파일 폴더.
+-- Python 패키지·표준 라이브러리 경계 안에서 Git을 찾고, 일반 파일은 Git을 우선합니다.
 -- 트리·검색·LSP가 같은 기준을 쓰며 BufEnter에서 편집 창의 lcd와 트리를 맞춥니다.
+local function find_git_root(dir)
+	local path = dir:gsub("/+$", "") .. "/"
+	local packages, relative = path:match("^(.-/site%-packages/)(.*)$")
+	if not packages then
+		packages, relative = path:match("^(.-/dist%-packages/)(.*)$")
+	end
+	-- The first package directory is a browsing boundary, not evidence of Git ownership.
+	-- A module directly in site-packages uses that directory as its boundary.
+	local library_root = packages and (packages .. (relative:match("^[^/]+") or "")):gsub("/+$", "")
+	local stop = library_root and vim.fs.dirname(library_root)
+	local current = vim.fs.normalize(dir)
+	local next_parent = vim.fs.parents(current)
+	while current and current ~= stop do
+		if vim.uv.fs_stat(current .. "/.git") then
+			return current, library_root
+		end
+		-- Recognize the standard library by its contents, independent of Python version/layout.
+		if
+			not library_root
+			and vim.fn.filereadable(current .. "/os.py") == 1
+			and vim.fn.filereadable(current .. "/importlib/__init__.py") == 1
+		then
+			return nil, current
+		end
+		current = next_parent(nil, current)
+	end
+	return nil, library_root
+end
+
 local function find_project(dir)
-	local git_root = vim.fs.root(dir, ".git")
+	local git_root, library_root = find_git_root(dir)
 	if git_root then
 		return git_root, true, true
+	end
+	if library_root then
+		return library_root, false, true
 	end
 	local marker = vim.fs.find({
 		"CMakeLists.txt",
@@ -1176,7 +1208,7 @@ local function find_project(dir)
 	return marker and vim.fs.dirname(marker) or dir, false, marker ~= nil
 end
 
--- Use the current file/tree's Git root, independent of where Neovim was launched.
+-- Use the current file/tree's project or package, independent of the startup cwd.
 project_root = function()
 	local dir = vim.bo.filetype == "netrw" and (vim.w.netrw_treetop or vim.b.netrw_curdir)
 		or (vim.bo.buftype == "" and vim.api.nvim_buf_get_name(0) ~= "" and vim.fn.expand("%:p:h"))
@@ -2801,7 +2833,7 @@ local function refresh_netrw_git()
 		local buf = vim.api.nvim_win_get_buf(win)
 		if vim.bo[buf].filetype == "netrw" then
 			local top = netrw_git_top(win, buf)
-			local root = vim.fs.root(top, ".git")
+			local root = find_git_root(top)
 			if not root or vim.fn.isdirectory(top) == 0 then
 				draw_netrw_git(win, buf, top, {})
 			else
@@ -2822,7 +2854,7 @@ local function refresh_netrw_git()
 					local buf = vim.api.nvim_win_get_buf(win)
 					if vim.bo[buf].filetype == "netrw" then
 						local top = netrw_git_top(win, buf)
-						if vim.fs.root(top, ".git") == root then
+						if find_git_root(top) == root then
 							draw_netrw_git(win, buf, top, statuses)
 						end
 					end
@@ -2907,7 +2939,7 @@ local function refresh_git_status(buf)
 	local key = "git-status:" .. buf
 	cancel_command(key)
 	local file = vim.api.nvim_buf_get_name(buf)
-	local root = vim.bo[buf].buftype == "" and file ~= "" and vim.fs.root(vim.fs.dirname(file), ".git")
+	local root = vim.bo[buf].buftype == "" and file ~= "" and find_git_root(vim.fs.dirname(file))
 	if not root or vim.fn.executable("git") == 0 then
 		vim.b[buf].offline_git_status = nil
 		return
@@ -3145,7 +3177,7 @@ local function refresh_inline_blame()
 		return
 	end
 	local file = vim.api.nvim_buf_get_name(buf)
-	local root = file ~= "" and vim.fs.root(vim.fs.dirname(file), ".git")
+	local root = file ~= "" and find_git_root(vim.fs.dirname(file))
 	if not root or vim.fn.executable("git") == 0 then
 		return
 	end
@@ -3427,7 +3459,7 @@ local function queue_git_signs(buf, invalidate)
 			return
 		end
 		-- No temporary buffer/window switch and no BufEnter side effects.
-		local root = vim.fs.root(vim.fs.dirname(file), ".git")
+		local root = find_git_root(vim.fs.dirname(file))
 		if not root then
 			clear_signs()
 			return
@@ -5674,4 +5706,48 @@ do
 			end
 		end,
 	})
+end
+
+-- =========================================
+-- ============ NEOVIDE SETTINGS ===========
+-- =========================================
+if vim.g.neovide then
+	vim.o.guifont = "JetBrainsMono Nerd Font:h18"
+
+	-- Disable cursor animations/effects
+	vim.g.neovide_cursor_animation_length = 0
+	vim.g.neovide_cursor_trail_size = 0
+	vim.g.neovide_cursor_vfx_mode = nil
+
+	vim.g.neovide_scale_factor = 1.0
+
+	local function change_scale(delta)
+		local new = vim.g.neovide_scale_factor * (1 + delta)
+		if new < 0.3 then
+			new = 0.3
+		end
+		vim.g.neovide_scale_factor = new
+	end
+
+	-- Windows/Linux
+	vim.keymap.set({ "n", "i", "v" }, "<C-=>", function()
+		change_scale(0.10)
+	end, { desc = "Zoom In (Neovide)" })
+	vim.keymap.set({ "n", "i", "v" }, "<C-->", function()
+		change_scale(-0.10)
+	end, { desc = "Zoom Out (Neovide)" })
+	vim.keymap.set({ "n", "i", "v" }, "<C-0>", function()
+		vim.g.neovide_scale_factor = 1.0
+	end, { desc = "Zoom Reset (Neovide)" })
+
+	-- macOS
+	vim.keymap.set({ "n", "i", "v" }, "<D-=>", function()
+		change_scale(0.10)
+	end, { desc = "Zoom In (Neovide macOS)" })
+	vim.keymap.set({ "n", "i", "v" }, "<D-->", function()
+		change_scale(-0.10)
+	end, { desc = "Zoom Out (Neovide macOS)" })
+	vim.keymap.set({ "n", "i", "v" }, "<D-0>", function()
+		vim.g.neovide_scale_factor = 1.0
+	end, { desc = "Zoom Reset (Neovide macOS)" })
 end

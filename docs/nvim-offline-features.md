@@ -230,7 +230,7 @@ language is not attached automatically.
 | `[d`, `]d` | Previous/next diagnostic |
 | `Space ld/lD/sd` | Line/buffer/all diagnostics |
 | `Space lt` | Toggle diagnostic display |
-| `Space Tr` | LSP or ctags code outline |
+| `Space o` | LSP or ctags code outline |
 
 Without LSP, built-in completion uses words from the current and open buffers
 plus ctags symbols. When supported ctags is installed, `gd` and the outline fall
@@ -265,7 +265,7 @@ Zsh. Format-on-save and range formatting are disabled.
 
 | Key | Action |
 | --- | --- |
-| `Space Tu` | Preview undo states and apply the selected state |
+| `Space u` | Preview undo states and apply the selected state |
 | `Space pr` | Restore the current project session |
 | `Space pl` | Restore the last session |
 | `Space pS` | Select a saved session |

@@ -222,7 +222,7 @@ Tailwind·ESLint는 프로젝트 설정이나 dependency가 있을 때만 연결
 | `[d`, `]d` | 이전/다음 진단 |
 | `Space ld/lD/sd` | 현재 줄/버퍼/전체 진단 보기 |
 | `Space lt` | 진단 표시 토글 |
-| `Space Tr` | LSP 또는 ctags 코드 아웃라인 |
+| `Space o` | LSP 또는 ctags 코드 아웃라인 |
 
 LSP가 없으면 현재·열린 버퍼 단어와 ctags 심볼을 내장 완성에 사용합니다. `gd`와 코드
 아웃라인도 지원되는 ctags가 있으면 저장된 C/C++·Python 소스를 대상으로 fallback합니다.
@@ -257,7 +257,7 @@ LSP가 없으면 현재·열린 버퍼 단어와 ctags 심볼을 내장 완성�
 
 | 키 | 동작 |
 | --- | --- |
-| `Space Tu` | undo 상태 목록과 코드 미리보기; `Enter`로 선택 상태 적용 |
+| `Space u` | undo 상태 목록과 코드 미리보기; `Enter`로 선택 상태 적용 |
 | `Space pr` | 현재 프로젝트 세션 복원 |
 | `Space pl` | 마지막 세션 복원 |
 | `Space pS` | 저장된 세션 선택 |

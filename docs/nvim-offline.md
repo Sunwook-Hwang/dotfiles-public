@@ -91,7 +91,7 @@ Python의 여러 줄 함수 선언은 닫는 `):` 대신 `def 함수명(` 줄을
 | `Space ld/lD/sd` | 현재 줄 진단 / 버퍼 진단 picker / 전체 진단 picker |
 | `[d`, `]d`, `Space lt` | 진단 이전·다음 / 진단 표시 토글 |
 | `Space lf` | 수동 비동기 파일 전체 포맷팅 |
-| `Space Tr` | 현재 파일의 함수·클래스 아웃라인 사이드바 토글 |
+| `Space o` | 현재 파일의 함수·클래스 아웃라인 사이드바 토글 |
 
 LSP는 등록 언어(C/C++, Python, Lua, JS/TS, HTML/CSS 등)의 실행 파일을
 PATH → 기존 `stdpath("data")/mason/bin` 순서로 찾습니다.
@@ -144,7 +144,7 @@ ty에는 `ty.configuration.environment.python`으로 전달하며, 환경을 바
 | `Space gd/gD` | 원본 창과 분리된 현재 파일/index·HEAD 좌우 비교; `q`/`Esc`로 닫기 |
 | `Space gn/gp` | 다음/이전 Git 변경 hunk로 이동 |
 | `Space gb` | 현재 줄 inline blame 토글 |
-| `Space Tu` | undo 상태 목록과 코드 미리보기. `↑/↓`·`Ctrl-p/n` 선택, `Ctrl-f/b` 스크롤, Enter 적용, Esc 취소 |
+| `Space u` | undo 상태 목록과 코드 미리보기. `↑/↓`·`Ctrl-p/n` 선택, `Ctrl-f/b` 스크롤, Enter 적용, Esc 취소 |
 | `Space Ti/Ts` | 들여쓰기 가이드·공백 / Sticky Scroll 토글 |
 | `Space Tl` | 상태줄의 LSP·포매터 정보 토글 |
 | `Space A` | 네이티브 dashboard 열기 |
@@ -164,14 +164,14 @@ netrw 트리의 왼쪽 여백에는 저장된 Git 상태를 두 글자로 표시
 
 ## 코드 아웃라인
 
-`Space Tr`로 오른쪽 아웃라인을 열고 닫습니다. LSP 문서 심볼을 우선 사용하고,
+`Space o`로 오른쪽 아웃라인을 열고 닫습니다. LSP 문서 심볼을 우선 사용하고,
 서버가 없거나 요청이 실패·시간 초과·빈 결과이면 ctags로 저장된 파일의 심볼을 표시합니다.
 함수·클래스·메서드 등을 종류와 이름으로 표시하고, 서버가 제공한 자식 심볼은 들여쓰기로 구분합니다.
 계층 없는 목록을 반환하는 서버는 평면 목록으로 표시합니다.
 
 - `j/k`로 항목 선택, `Enter`로 편집 창의 해당 위치로 이동
 - `Ctrl-h/j/k/l`로 일반 창 이동
-- `r`로 수동 새로고침, `q` 또는 `Space Tr`로 닫기
+- `r`로 수동 새로고침, `q` 또는 `Space o`로 닫기
 - 열린 동안 파일 전환·저장·LSP 연결 변경 시 갱신; 매 키 입력마다 요청하지 않음
 
 현재 커서가 속한 심볼을 열기/갱신 시 선택합니다. Aerial의 전체 기능을 구현한 것은 아니며,

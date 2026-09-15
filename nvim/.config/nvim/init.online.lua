@@ -734,7 +734,7 @@ require("undotree").setup({
 	window = { winblend = 0 },
 })
 
-vim.keymap.set("n", "<leader>Tu", function()
+vim.keymap.set("n", "<leader>u", function()
 	require("undotree").toggle()
 end, { desc = "Toggle Undotree" })
 
@@ -748,7 +748,7 @@ require("aerial").setup({
 	nerd_font = false,
 })
 
-vim.keymap.set("n", "<leader>Tr", "<Cmd>AerialToggle<CR>", { desc = "Aerial: Toggle" })
+vim.keymap.set("n", "<leader>o", "<Cmd>AerialToggle<CR>", { desc = "Aerial: Toggle" })
 
 -- Bound Git status output as in init.offline.lua.
 local function bounded_system(command, opts, callback)

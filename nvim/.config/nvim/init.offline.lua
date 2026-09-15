@@ -2222,7 +2222,7 @@ local function undo_picker()
 		vim.notify("Unable to preview undo history: " .. tostring(err), vim.log.levels.ERROR)
 	end
 end
-map("n", "<leader>Tu", undo_picker, "Preview undo states (Enter to apply)")
+map("n", "<leader>u", undo_picker, "Preview undo states (Enter to apply)")
 -- Space Ti: 내장 들여쓰기 가이드와 탭·후행 공백 표시 토글.
 map("n", "<leader>Ti", "<Cmd>set list!<CR>", "Toggle indent guides / whitespace markers")
 map("n", "<leader>Tl", function()
@@ -4741,8 +4741,8 @@ end
 -- =========================================
 -- ========== CODE OUTLINE / LSP + CTAGS ==========
 -- =========================================
--- Space Tr: 현재 파일의 함수·클래스 계층을 오른쪽 사이드바로 토글합니다.
--- Enter: 해당 위치 이동, r: 새로고침, q/Space Tr: 닫기, Ctrl-h/j/k/l: 창 이동.
+-- Space o: 현재 파일의 함수·클래스 계층을 오른쪽 사이드바로 토글합니다.
+-- Enter: 해당 위치 이동, r: 새로고침, q/Space o: 닫기, Ctrl-h/j/k/l: 창 이동.
 -- 열린 동안 파일 전환·저장·LSP 연결 시만 갱신합니다. 매 키 입력마다 요청하지 않습니다.
 local function outline_text(state, lines)
 	if not vim.api.nvim_buf_is_valid(state.buf) then
@@ -4902,7 +4902,7 @@ local function refresh_outline(state)
 		end
 	end, 5000)
 end
-map("n", "<leader>Tr", function()
+map("n", "<leader>o", function()
 	if outline then
 		vim.api.nvim_win_close(outline.win, true)
 		return

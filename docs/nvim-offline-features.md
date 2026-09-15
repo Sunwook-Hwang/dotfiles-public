@@ -67,6 +67,11 @@ fixed-width cursor position.
 - Sticky rows preserve real line numbers, indentation, syntax highlighting, and a separator.
 - `Space Ti` toggles indent/whitespace markers; `Space Ts` toggles Sticky Scroll.
 
+`Ctrl-d` / `Ctrl-u` animate half-page scrolling in roughly 120 ms, including
+wrapped lines and folds. `Space TS` (uppercase `S`) toggles the animation; it is
+enabled by default. Diff, floating/special buffers, large files, bound windows,
+and macro recording/playback use native scrolling immediately.
+
 Sticky Scroll is a syntax-and-indentation heuristic. It scans at most 1,000
 lines or 256 KiB above the viewport. Unusual language syntax and complex
 multiline declarations can still be missed.

@@ -73,7 +73,7 @@ local default_options = {
 	showmode = true, -- show the active input mode
 	showtabline = 2, -- always show tabs
 	smartcase = true, -- smart case
-	smartindent = true, -- make indenting smarter again
+	smartindent = false, -- let filetype indent rules handle '#' lines normally
 	splitbelow = true, -- force all horizontal splits to go below current window
 	splitright = true, -- force all vertical splits to go to the right current window
 	swapfile = false, -- do not create swap files
@@ -110,6 +110,7 @@ for k, v in pairs(default_options) do
 	vim.opt[k] = v
 end
 
+-- Runtime UI changes use vim.wo[win][0] / vim.opt_local, never window defaults.
 -- Numbering is window-local; ordinary navigation only touches the entered window.
 local function show_line_numbers(win)
 	if not vim.api.nvim_win_is_valid(win) then
@@ -118,13 +119,13 @@ local function show_line_numbers(win)
 	local buf = vim.api.nvim_win_get_buf(win)
 	if vim.bo[buf].buftype == "" or vim.bo[buf].filetype == "netrw" then
 		if not vim.wo[win].number then
-			vim.wo[win].number = true
+			vim.wo[win][0].number = true
 		end
 		if vim.wo[win].relativenumber then
-			vim.wo[win].relativenumber = false
+			vim.wo[win][0].relativenumber = false
 		end
 		if vim.wo[win].statuscolumn ~= "" then
-			vim.wo[win].statuscolumn = ""
+			vim.wo[win][0].statuscolumn = ""
 		end
 	end
 end
@@ -473,6 +474,23 @@ end
 local function sidebar_width()
 	return math.max(20, math.min(40, math.floor(vim.o.columns * 0.25)))
 end
+-- winfixwidth belongs to the window itself, so release it when its sidebar leaves.
+local function fix_sidebar_width(win)
+	local saved = vim.w[win].offline_sidebar_width or { value = vim.wo[win].winfixwidth }
+	saved.buf = vim.api.nvim_win_get_buf(win)
+	vim.w[win].offline_sidebar_width = saved
+	vim.wo[win][0].winfixwidth = true
+end
+vim.api.nvim_create_autocmd("BufWinEnter", {
+	group = vim.api.nvim_create_augroup("offline-sidebar-width", { clear = true }),
+	callback = function(args)
+		local saved = vim.w.offline_sidebar_width
+		if saved and saved.buf ~= args.buf then
+			vim.opt_local.winfixwidth = saved.value
+			vim.w.offline_sidebar_width = nil
+		end
+	end,
+})
 local function netrw_help()
 	local lines = {
 		"netrw file explorer · Offline configuration",
@@ -519,7 +537,7 @@ local function netrw_help()
 		border = "rounded",
 		title = " netrw help ",
 	})
-	vim.wo[win].wrap = true
+	vim.wo[win][0].wrap = true
 	local function close()
 		if vim.api.nvim_win_is_valid(win) then
 			vim.api.nvim_win_close(win, true)
@@ -709,13 +727,9 @@ vim.api.nvim_create_autocmd("Syntax", {
 vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter", "WinEnter" }, {
 	group = netrw_lines_group,
 	callback = function()
-		local saved = vim.w.offline_netrw_conceal
 		if vim.bo.filetype == "netrw" then
-			vim.w.offline_netrw_conceal = saved or { vim.wo.conceallevel, vim.wo.concealcursor }
-			vim.wo.conceallevel, vim.wo.concealcursor = 2, "nvic"
-		elseif saved then
-			vim.wo.conceallevel, vim.wo.concealcursor = saved[1], saved[2]
-			vim.w.offline_netrw_conceal = nil
+			vim.opt_local.conceallevel, vim.opt_local.concealcursor = 2, "nvic"
+			fix_sidebar_width(vim.api.nvim_get_current_win())
 		end
 	end,
 })
@@ -726,7 +740,6 @@ vim.api.nvim_create_autocmd("FileType", {
 		vim.schedule(function()
 			if vim.api.nvim_win_is_valid(win) and vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "netrw" then
 				set_window_width(win, sidebar_width())
-				vim.api.nvim_set_option_value("winfixwidth", true, { win = win })
 			end
 		end)
 		vim.w.netrw_liststyle = 3
@@ -914,7 +927,7 @@ vim.keymap.set("n", "<leader>e", function()
 				-- Starting with `nvim .` leaves only netrw: make it a sidebar.
 				vim.cmd("botright vnew")
 				set_window_width(win, sidebar_width())
-				vim.api.nvim_set_option_value("winfixwidth", true, { win = win })
+				fix_sidebar_width(win)
 				vim.g.netrw_chgwin = vim.fn.winnr()
 			end
 			return
@@ -1462,7 +1475,7 @@ open_picker = function(title, opts)
 			border = "rounded",
 			title = role == "query" and title or role,
 		})
-		vim.wo[win].wrap = false
+		vim.wo[win][0].wrap = false
 		state.windows[#state.windows + 1] = win
 		state.buffers[#state.buffers + 1] = buf
 		return buf, win
@@ -1473,9 +1486,9 @@ open_picker = function(title, opts)
 		preview_buf, preview_win = pane("preview", row + 3, col + list_width + 2, width - list_width - 2, height, false)
 	end
 	local query_buf, query_win = pane("query", row, col, width, 1, true)
-	vim.wo[list_win].cursorline = true
-	vim.wo[list_win].cursorlineopt = "line"
-	vim.wo[list_win].winhighlight = "CursorLine:OfflinePickerSelection,CursorLineNr:OfflinePickerSelection"
+	vim.wo[list_win][0].cursorline = true
+	vim.wo[list_win][0].cursorlineopt = "line"
+	vim.wo[list_win][0].winhighlight = "CursorLine:OfflinePickerSelection,CursorLineNr:OfflinePickerSelection"
 	local group = vim.api.nvim_create_augroup("offline-picker", { clear = true })
 	local function fill(buf, lines)
 		if not vim.api.nvim_buf_is_valid(buf) then
@@ -1504,9 +1517,9 @@ open_picker = function(title, opts)
 		end
 		vim.api.nvim_buf_clear_namespace(preview_buf, preview_ns, 0, -1)
 		fill(preview_buf, { "" })
-		vim.wo[preview_win].number = false
-		vim.wo[preview_win].signcolumn = "no"
-		vim.wo[preview_win].statuscolumn = ""
+		vim.wo[preview_win][0].number = false
+		vim.wo[preview_win][0].signcolumn = "no"
+		vim.wo[preview_win][0].statuscolumn = ""
 		if not item then
 			vim.bo[preview_buf].syntax = ""
 			return
@@ -1523,11 +1536,11 @@ open_picker = function(title, opts)
 			end
 			fill(preview_buf, chunk)
 			vim.b[preview_buf].offline_preview_first = first or start
-			vim.wo[preview_win].number = true
-			vim.wo[preview_win].statuscolumn = "%s%{v:lnum + b:offline_preview_first - 1}  "
+			vim.wo[preview_win][0].number = true
+			vim.wo[preview_win][0].statuscolumn = "%s%{v:lnum + b:offline_preview_first - 1}  "
 			local selected = line - (first or start)
 			if selected >= 0 and selected < #chunk then
-				vim.wo[preview_win].signcolumn = "yes:1"
+				vim.wo[preview_win][0].signcolumn = "yes:1"
 				vim.api.nvim_buf_set_extmark(preview_buf, preview_ns, selected, 0, {
 					sign_text = ">",
 					sign_hl_group = "Search",
@@ -2153,7 +2166,7 @@ local function undo_picker()
 						vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 						vim.cmd("silent rundo " .. vim.fn.fnameescape(path))
 						vim.bo[buf].syntax = syntax
-						vim.wo[win].number = true
+						vim.wo[win][0].number = true
 						ready = true
 					end
 					if shown ~= item.seq then
@@ -2185,49 +2198,97 @@ map("n", "<leader>Tl", function()
 	vim.cmd("redrawstatus")
 end, "Toggle LSP / formatter status")
 
--- Space TS: Ctrl-d/u를 짧게 보간합니다. 특수 창과 화면 행 계산이 달라지는 모드는 기본 동작을 유지합니다.
-local smooth_scroll_enabled = true
-local function half_page_scroll(key)
-	local count = vim.v.count
-	local keys = (count > 0 and tostring(count) or "") .. vim.keycode(key)
-	local win, buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
-	local config = vim.api.nvim_win_get_config(win)
-	if not smooth_scroll_enabled
-		or config.relative ~= ""
-		or vim.wo[win].diff
-		or vim.wo[win].wrap
-		or vim.bo[buf].buftype ~= ""
-		or vim.b[buf].offline_large_file
-	then
-		vim.cmd.normal({ keys, bang = true })
-		return
-	end
-
-	local first = vim.fn.winsaveview()
-	vim.cmd.normal({ keys, bang = true })
-	local last = vim.fn.winsaveview()
-	vim.fn.winrestview(first)
-	for step = 1, 5 do
-		local view = vim.deepcopy(first)
-		for _, field in ipairs({ "lnum", "topline" }) do
-			view[field] = math.floor(first[field] + (last[field] - first[field]) * step / 5 + 0.5)
+-- Space TS: animate native Ctrl-d/u views, including wrapped lines and folds.
+do
+	local enabled, animation = true, nil
+	local keys_ns = vim.api.nvim_create_namespace("offline-smooth-scroll")
+	local function stop(finish)
+		local state = animation
+		animation = nil
+		vim.on_key(nil, keys_ns)
+		if finish and state
+			and vim.api.nvim_get_current_win() == state.win
+			and vim.api.nvim_get_current_buf() == state.buf
+			and vim.api.nvim_buf_get_changedtick(state.buf) == state.tick
+			and (not state.view or vim.deep_equal(state.view, vim.fn.winsaveview()))
+		then
+			vim.fn.winrestview(state.target)
 		end
-		vim.fn.winrestview(view)
-		vim.cmd("redraw")
-		vim.wait(10)
 	end
-	vim.fn.winrestview(last)
+	local function scroll(key)
+		stop(true)
+		local count = vim.v.count
+		local keys = (count > 0 and tostring(count) or "") .. vim.keycode(key)
+		local win, buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
+		if not enabled
+			or vim.api.nvim_win_get_config(win).relative ~= ""
+			or vim.wo[win].diff or vim.wo[win].scrollbind or vim.wo[win].cursorbind
+			or vim.bo[buf].buftype ~= "" or vim.bo[buf].filetype == "netrw"
+			or vim.b[buf].offline_large_file
+			or vim.fn.reg_executing() ~= "" or vim.fn.reg_recording() ~= ""
+		then
+			vim.cmd.normal({ keys, bang = true })
+			return
+		end
+		local first = vim.fn.winsaveview()
+		vim.cmd.normal({ keys, bang = true })
+		local target, amount = vim.fn.winsaveview(), vim.wo[win].scroll
+		if vim.deep_equal(first, target) then
+			return
+		end
+		local frames, steps = {}, math.min(8, amount)
+		-- Ask Neovim for intermediate views instead of guessing screen rows.
+		for step = 1, steps - 1 do
+			vim.fn.winrestview(first)
+			vim.cmd.normal({ math.floor(amount * step / steps) .. vim.keycode(key), bang = true })
+			frames[step] = vim.fn.winsaveview()
+		end
+		frames[steps] = target
+		vim.wo[win][0].scroll = amount -- retain the native count / 'scroll' behavior
+		vim.fn.winrestview(first)
+		local state = { win = win, buf = buf, tick = vim.api.nvim_buf_get_changedtick(buf), target = target }
+		local width, height = vim.api.nvim_win_get_width(win), vim.api.nvim_win_get_height(win)
+		animation = state
+		local step = 0
+		local function advance()
+			if animation ~= state then
+				return
+			end
+			if vim.api.nvim_get_current_win() ~= win or vim.api.nvim_get_current_buf() ~= buf
+				or vim.api.nvim_buf_get_changedtick(buf) ~= state.tick
+				or vim.fn.mode() ~= "n"
+				or vim.api.nvim_win_get_width(win) ~= width or vim.api.nvim_win_get_height(win) ~= height
+				or state.view and not vim.deep_equal(state.view, vim.fn.winsaveview())
+			then
+				stop(false)
+				return
+			end
+			step = step + 1
+			vim.fn.winrestview(frames[step])
+			vim.cmd("redraw")
+			state.view = vim.fn.winsaveview()
+			if step < steps then
+				vim.defer_fn(advance, 16)
+			else
+				stop(false)
+			end
+		end
+		-- Complete the pending move before processing the next key; never queue animations.
+		vim.on_key(function() stop(true) end, keys_ns)
+		advance()
+	end
+	map("n", "<C-d>", function() scroll("<C-d>") end, "Scroll down half a page")
+	map("n", "<C-u>", function() scroll("<C-u>") end, "Scroll up half a page")
+	map("n", "<leader>TS", function()
+		stop(true)
+		enabled = not enabled
+		vim.notify("Smooth scroll " .. (enabled and "enabled" or "disabled"))
+	end, "Toggle smooth scroll")
+	vim.api.nvim_create_autocmd({ "BufLeave", "WinLeave", "ModeChanged", "VimResized" }, {
+		group = vim.api.nvim_create_augroup("offline-smooth-scroll", { clear = true }),
+		callback = function() stop(false) end,
+	})
 end
-map("n", "<C-d>", function()
-	half_page_scroll("<C-d>")
-end, "Scroll down half a page")
-map("n", "<C-u>", function()
-	half_page_scroll("<C-u>")
-end, "Scroll up half a page")
-map("n", "<leader>TS", function()
-	smooth_scroll_enabled = not smooth_scroll_enabled
-	vim.notify("Smooth scroll " .. (smooth_scroll_enabled and "enabled" or "disabled"))
-end, "Toggle smooth scroll")
 
 -- =========================================
 -- ============ SPLIT TERMINAL ===========
@@ -2398,12 +2459,12 @@ local function open_dashboard()
 		border = "none",
 	})
 	dashboard_win = win
-	vim.wo[win].winblend = 0
-	vim.wo[win].winhighlight = "Normal:Normal,NormalFloat:Normal,EndOfBuffer:EndOfBuffer"
-	vim.wo[win].cursorline = true
-	vim.wo[win].cursorlineopt = "line"
-	vim.wo[win].list = false
-	vim.wo[win].wrap = false
+	vim.wo[win][0].winblend = 0
+	vim.wo[win][0].winhighlight = "Normal:Normal,NormalFloat:Normal,EndOfBuffer:EndOfBuffer"
+	vim.wo[win][0].cursorline = true
+	vim.wo[win][0].cursorlineopt = "line"
+	vim.wo[win][0].list = false
+	vim.wo[win][0].wrap = false
 	local group = vim.api.nvim_create_augroup("offline-dashboard-window", { clear = true })
 	local closed = false
 	local function source_is_empty()
@@ -4834,15 +4895,16 @@ map("n", "<leader>Tr", function()
 		width = sidebar_width(),
 	})
 	outline = state
-	vim.wo[state.win].winfixwidth = true
-	vim.wo[state.win].number = false
-	vim.wo[state.win].relativenumber = false
-	vim.wo[state.win].signcolumn = "no"
-	vim.wo[state.win].wrap = false
-	vim.wo[state.win].cursorline = true
-	vim.wo[state.win].cursorlineopt = "line"
-	vim.wo[state.win].cursorcolumn = false
-	vim.wo[state.win].winbar = " Outline: "
+	fix_sidebar_width(state.win)
+	-- Buffer-local window options must not become defaults for files opened here.
+	vim.wo[state.win][0].number = false
+	vim.wo[state.win][0].relativenumber = false
+	vim.wo[state.win][0].signcolumn = "no"
+	vim.wo[state.win][0].wrap = false
+	vim.wo[state.win][0].cursorline = true
+	vim.wo[state.win][0].cursorlineopt = "line"
+	vim.wo[state.win][0].cursorcolumn = false
+	vim.wo[state.win][0].winbar = " Outline: "
 		.. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(state.source), ":t"):gsub("%%", "%%%%")
 	vim.keymap.set("n", "q", function()
 		vim.api.nvim_win_close(state.win, true)
@@ -4884,6 +4946,12 @@ end, "Toggle code outline")
 vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "LspAttach", "LspDetach" }, {
 	callback = function(args)
 		local state = outline
+		-- Reusing the sidebar window ends its outline, even if a split still shows the old buffer.
+		if state and vim.api.nvim_win_get_buf(state.win) ~= state.buf then
+			cancel_outline(state)
+			outline = nil
+			return
+		end
 		if
 			not state
 			or vim.bo[args.buf].buftype ~= ""
@@ -4894,7 +4962,7 @@ vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "LspAttach", "LspDetac
 		end
 		if args.event == "BufEnter" then
 			state.source, state.source_win = args.buf, vim.api.nvim_get_current_win()
-			vim.wo[state.win].winbar = " Outline: "
+			vim.wo[state.win][0].winbar = " Outline: "
 				.. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(args.buf), ":t"):gsub("%%", "%%%%")
 		end
 		if args.buf == state.source then
@@ -4965,10 +5033,11 @@ local function protect_large_file(buf)
 		vim.lsp.buf_detach_client(buf, client.id)
 	end
 	for _, win in ipairs(vim.fn.win_findbuf(buf)) do
-		vim.wo[win].foldmethod = "manual"
-		vim.wo[win].cursorcolumn = false
-		vim.wo[win].cursorline = false
-		vim.wo[win].wrap = false
+		-- Like :setlocal: limit the guard to this buffer, preserving window defaults.
+		vim.wo[win][0].foldmethod = "manual"
+		vim.wo[win][0].cursorcolumn = false
+		vim.wo[win][0].cursorline = false
+		vim.wo[win][0].wrap = false
 	end
 end
 local function check_large_file(buf, first, last)
@@ -5299,8 +5368,8 @@ do
 			local scratch = vim.api.nvim_create_buf(false, true)
 			vim.bo[scratch].bufhidden = "wipe"
 			popup = vim.api.nvim_open_win(scratch, false, config)
-			vim.wo[popup].winhighlight = "Normal:Pmenu,EndOfBuffer:Pmenu"
-			vim.wo[popup].wrap = false
+			vim.wo[popup][0].winhighlight = "Normal:Pmenu,EndOfBuffer:Pmenu"
+			vim.wo[popup][0].wrap = false
 		elseif not vim.deep_equal(rendered_config, config) then
 			vim.api.nvim_win_set_config(popup, config)
 		end
@@ -5311,7 +5380,7 @@ do
 		-- Use the source window's native indent guides, including Space Ti changes.
 		for _, option in ipairs({ "list", "listchars" }) do
 			if vim.wo[popup][option] ~= vim.wo[win][option] then
-				vim.wo[popup][option] = vim.wo[win][option]
+				vim.wo[popup][0][option] = vim.wo[win][option]
 			end
 		end
 		-- Load bundled syntax only; avoid FileType hooks and LSPs in the popup.
@@ -5325,7 +5394,7 @@ do
 			vim.bo[scratch].modifiable = false
 		end
 		if vim.fn.getwininfo(popup)[1].leftcol ~= view.leftcol then
-			vim.wo[popup].virtualedit = "all"
+			vim.wo[popup][0].virtualedit = "all"
 			vim.api.nvim_win_call(popup, function()
 				vim.cmd("normal! " .. (view.leftcol + 1) .. "|")
 				vim.fn.winrestview({ topline = 1, leftcol = view.leftcol })
@@ -5338,7 +5407,7 @@ do
 				local buf = vim.api.nvim_create_buf(false, true)
 				vim.bo[buf].bufhidden = "wipe"
 				numbers = vim.api.nvim_open_win(buf, false, layout)
-				vim.wo[numbers].winhighlight = "Normal:Pmenu,EndOfBuffer:Pmenu,LineNr:LineNr"
+				vim.wo[numbers][0].winhighlight = "Normal:Pmenu,EndOfBuffer:Pmenu,LineNr:LineNr"
 			elseif not vim.deep_equal(numbers_config, layout) then
 				vim.api.nvim_win_set_config(numbers, layout)
 			end

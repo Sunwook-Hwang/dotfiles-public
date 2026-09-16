@@ -471,6 +471,31 @@ local function netrw_command(command)
 	end
 end
 
+local function netrw_refresh()
+	local root = vim.w.netrw_treetop or vim.b.netrw_curdir
+	-- Drop deleted/renamed branches before netrw rereads expanded directories.
+	local tree = vim.w.netrw_treedict
+	if tree then
+		for path in pairs(tree) do
+			if vim.fn.isdirectory(path) == 0 then
+				tree[path] = nil
+			end
+		end
+		vim.w.netrw_treedict = tree
+	end
+	-- The refresh plug routes through BrowseChgDir, which can treat an absolute
+	-- tree root as a file and open it in the editor window. Refresh in place.
+	netrw_command("call netrw#Call('NetrwRefresh', 1, " .. vim.fn.string(root) .. ")")
+end
+
+local function netrw_set_tree_root(path)
+	if path == "" then
+		path = vim.fn["netrw#Call"]("NetrwTreePath", vim.w.netrw_treetop)
+	end
+	-- Explicit directory syntax avoids BrowseChgDir's absolute-path file branch.
+	netrw_command("call netrw#SetTreetop(1, " .. vim.fn.string(path:gsub("/+$", "") .. "/") .. ")")
+end
+
 local function sidebar_width()
 	return math.max(20, math.min(40, math.floor(vim.o.columns * 0.25)))
 end
@@ -659,7 +684,7 @@ local function netrw_delete(first, last)
 	if marked then
 		vim.fn["netrw#Call"]("NetrwUnMarkFile", 1)
 	end
-	netrw_command("normal " .. vim.keycode("<Plug>NetrwRefresh"))
+	netrw_refresh()
 	if #failed > 0 then
 		vim.notify("Delete failed:\n" .. table.concat(failed, "\n"), vim.log.levels.ERROR)
 	end
@@ -686,7 +711,7 @@ local function netrw_rename(first, last)
 	if marked then
 		vim.fn["netrw#Call"]("NetrwUnMarkFile", 1)
 	end
-	netrw_command("normal " .. vim.keycode("<Plug>NetrwRefresh"))
+	netrw_refresh()
 end
 local function netrw_transfer(command)
 	local files = vim.fn["netrw#Expose"]("netrwmarkfilelist")
@@ -707,7 +732,7 @@ local function netrw_transfer(command)
 		return
 	end
 	vim.fn["netrw#Call"]("NetrwUnMarkFile", 1)
-	netrw_command("normal " .. vim.api.nvim_replace_termcodes("<Plug>NetrwRefresh", true, false, true))
+	netrw_refresh()
 end
 vim.g.netrw_banner = 0
 vim.g.netrw_liststyle = 3
@@ -716,6 +741,10 @@ vim.g.netrw_browse_split = 4
 vim.g.netrw_keepdir = 1
 -- netrw reapplies these after drawing, overriding FileType window options.
 vim.g.netrw_bufsettings = "noma nomod nu nobl nowrap ro nornu"
+-- Reserve native helper mappings before netrw initializes any new buffer;
+-- otherwise it tries to install Ctrl-h/l over the global window shortcuts.
+vim.keymap.set("n", "<Plug>OfflineNetrwHideEdit", "<Plug>NetrwHideEdit")
+vim.keymap.set("n", "<Plug>OfflineNetrwRefresh", "<Plug>NetrwRefresh")
 local netrw_lines_group = vim.api.nvim_create_augroup("offline-netrw-lines", { clear = true })
 vim.api.nvim_create_autocmd("Syntax", {
 	group = netrw_lines_group,
@@ -746,6 +775,12 @@ vim.api.nvim_create_autocmd("FileType", {
 		vim.opt_local.number = true
 		vim.opt_local.relativenumber = false
 		vim.opt_local.wrap = false
+		vim.api.nvim_buf_create_user_command(args.buf, "Ntree", function(opts)
+			netrw_set_tree_root(vim.fn.expandcmd(opts.args))
+		end, { nargs = "?", complete = "dir" })
+		vim.keymap.set("n", "gn", function()
+			netrw_set_tree_root("")
+		end, { buf = args.buf, silent = true, desc = "Set tree root to cursor directory" })
 		vim.keymap.set("n", "g?", netrw_help, { buf = args.buf, silent = true, desc = "Show netrw help" })
 		local function file_operation(key, function_name, use_directory, append_path, desc, ...)
 			local call_args = { ... }
@@ -764,6 +799,12 @@ vim.api.nvim_create_autocmd("FileType", {
 			vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
 			netrw_delete(math.min(first, last), math.max(first, last))
 		end, { buf = args.buf, silent = true, nowait = true, desc = "Delete selected files" })
+		vim.keymap.set("x", "<Del>", "D", { buf = args.buf, remap = true, silent = true })
+		vim.keymap.set({ "n", "x" }, "<RightMouse>", "<Cmd>normal! <LeftMouse><CR>D", {
+			buf = args.buf,
+			remap = true,
+			silent = true,
+		})
 		vim.keymap.set("n", "R", function()
 			netrw_rename(vim.fn.line("."), vim.fn.line("."))
 		end, { buf = args.buf, silent = true, nowait = true, desc = "Rename file" })
@@ -786,6 +827,20 @@ vim.api.nvim_create_autocmd("FileType", {
 			vim.fn["netrw#Call"]("NetrwMarkFile", 1, vim.fs.basename(path))
 			vim.w.netrw_liststyle = liststyle
 		end, { buf = args.buf, silent = true, nowait = true, desc = "Toggle file mark" })
+		local function set_target()
+			local _, directory = netrw_cursor_paths()
+			netrw_command("call netrw#MakeTgt(" .. vim.fn.string(directory) .. ")")
+		end
+		vim.keymap.set(
+			"n",
+			"mt",
+			set_target,
+			{ buf = args.buf, silent = true, nowait = true, desc = "Set copy/move target" }
+		)
+		vim.keymap.set("n", "<Plug>NetrwCLeftmouse", function()
+			vim.cmd("normal! " .. vim.keycode("<LeftMouse>"))
+			set_target()
+		end, { buf = args.buf, silent = true })
 		vim.keymap.set("n", "mc", function()
 			netrw_transfer("cp")
 		end, { buf = args.buf, silent = true, nowait = true, desc = "Copy marked files" })
@@ -796,10 +851,10 @@ vim.api.nvim_create_autocmd("FileType", {
 		vim.keymap.set("n", "<leader>nh", function()
 			netrw_command("normal " .. vim.api.nvim_replace_termcodes("<Plug>NetrwHideEdit", true, false, true))
 		end, { buf = args.buf, silent = true, desc = "Edit tree hide patterns" })
-		vim.keymap.set("n", "<Plug>OfflineNetrwRefresh", "<Plug>NetrwRefresh", { buf = args.buf })
-		vim.keymap.set("n", "<leader>nr", function()
-			netrw_command("Explore " .. vim.fn.fnameescape(vim.w.netrw_treetop or vim.b.netrw_curdir))
-		end, { buf = args.buf, silent = true, desc = "Refresh tree" })
+		vim.keymap.set("n", "<Plug>NetrwRefresh", netrw_refresh, { buf = args.buf, silent = true })
+		-- netrw's substring hasmapto() check also matches the HideEdit alias.
+		vim.keymap.set("n", "a", "<Plug>NetrwHide_a", { buf = args.buf, silent = true })
+		vim.keymap.set("n", "<leader>nr", netrw_refresh, { buf = args.buf, silent = true, desc = "Refresh tree" })
 		for _, direction in ipairs({ "h", "j", "k", "l" }) do
 			vim.keymap.set("n", "<C-" .. direction .. ">", "<C-w>" .. direction, {
 				buf = args.buf,
@@ -4727,7 +4782,7 @@ do
 							if vim.startswith(file, top:gsub("/+$", "") .. "/") then
 								vim.api.nvim_win_call(win, function()
 									-- Refresh expanded subdirectories too, retaining the tree/view.
-									netrw_command("normal " .. vim.keycode("<Plug>NetrwRefresh"))
+									netrw_refresh()
 								end)
 								break
 							end

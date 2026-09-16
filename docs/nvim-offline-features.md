@@ -143,6 +143,9 @@ parent repository.
 | `mt`, `mc`, `mm` | Set a target, then copy/move |
 | `g?` | Show complete netrw help |
 
+`%` opens the new file in the first editor pane of the current tab and keeps the
+tree open. If only the tree is open, an editor pane is created next to it.
+
 The tree margin displays the two-character Git index/worktree state. `.M` is a
 saved modification, `M.` is a staged modification, `??` is untracked, and `**`
 marks a directory containing mixed states.

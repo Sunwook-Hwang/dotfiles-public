@@ -460,6 +460,7 @@ vim.api.nvim_create_autocmd("OptionSet", {
 -- =========================================
 -- NvimTree 대체: 기본 netrw의 트리 모드와 버퍼 전용 키를 설정합니다.
 -- Enter/l: 열기·접기, h: 상위 가지 접기, Space nr: 새로고침, g?: 조작 도움말.
+local focus_editor
 local function netrw_command(command)
 	local saved_lazyredraw = vim.o.lazyredraw
 	vim.o.lazyredraw = true
@@ -813,7 +814,19 @@ vim.api.nvim_create_autocmd("FileType", {
 			vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
 			netrw_rename(math.min(first, last), math.max(first, last))
 		end, { buf = args.buf, silent = true, nowait = true, desc = "Rename selected files" })
-		file_operation("%", "NetrwOpenFile", true, false, "Create file", 1)
+		vim.keymap.set("n", "%", function()
+			local _, directory = netrw_cursor_paths()
+			vim.fn.inputsave()
+			local name = vim.fn.input("Enter filename: ")
+			vim.fn.inputrestore()
+			if name == "" then
+				return
+			end
+			local path = vim.fn.isabsolutepath(name) == 1 and name or vim.fs.joinpath(directory, name)
+			-- NetrwOpenFile always edits in the tree window, ignoring browse_split.
+			focus_editor()
+			vim.cmd("edit " .. vim.fn.fnameescape(path))
+		end, { buf = args.buf, silent = true, nowait = true, desc = "Create file in first editor window" })
 		file_operation("d", "NetrwMakeDir", true, false, "Create directory", "")
 		vim.keymap.set("n", "mf", function()
 			local parent = netrw_cursor_paths()
@@ -1018,13 +1031,18 @@ end, { silent = true, nowait = true, desc = "Toggle file explorer" })
 -- ========= EDITOR WINDOW TARGET ========
 -- =========================================
 -- 트리에서 파일/버퍼를 선택할 때 결과를 표시할 편집 창을 확보합니다.
-local function focus_editor()
+focus_editor = function()
 	if vim.bo.filetype ~= "netrw" and vim.bo.filetype ~= "offline_outline" then
 		return
 	end
 	for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
 		local buf = vim.api.nvim_win_get_buf(win)
-		if vim.bo[buf].buftype == "" and vim.bo[buf].filetype ~= "netrw" then
+		if
+			vim.bo[buf].buftype == ""
+			and vim.bo[buf].filetype ~= "netrw"
+			and vim.api.nvim_win_get_config(win).relative == ""
+			and not vim.wo[win].previewwindow
+		then
 			vim.api.nvim_set_current_win(win)
 			return
 		end

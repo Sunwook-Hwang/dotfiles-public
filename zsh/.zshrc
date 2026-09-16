@@ -17,6 +17,7 @@ alias vi='nvim'
 alias offvi='ln -sfn "$HOME/.config/nvim/init.offline.lua" "$HOME/.config/nvim/init.lua" && nvim'
 alias onvi='ln -sfn "$HOME/.config/nvim/init.online.lua" "$HOME/.config/nvim/init.lua" && nvim'
 
+alias neovide='neovide -- -u $HOME/.config/nvim/neovide-terminal.lua'
 
 ZSH_THEME="robbyrussell"
 ZSH_DISABLE_COMPFIX="true"

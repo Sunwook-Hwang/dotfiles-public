@@ -12,9 +12,9 @@ vim.o.signcolumn = "no"
 -- vim.o.guifont = "JetBrainsMono Nerd Font:h18"
 
 -- Disable cursor animations/effects
-vim.g.neovide_cursor_animation_length = 0
-vim.g.neovide_cursor_trail_size = 0
-vim.g.neovide_cursor_vfx_mode = nil
+vim.g.neovide_cursor_animation_length = 0.05
+vim.g.neovide_cursor_trail_size = 0.1
+vim.g.neovide_cursor_vfx_mode = ""
 
 vim.g.neovide_scale_factor = 1.0
 
@@ -27,26 +27,28 @@ local function change_scale(delta)
 end
 
 -- Windows/Linux
-vim.keymap.set({ "n", "i", "v" }, "<C-=>", function()
+vim.keymap.set({ "n", "i", "v", "t" }, "<C-=>", function()
     change_scale(0.10)
 end, { desc = "Zoom In (Neovide)" })
-vim.keymap.set({ "n", "i", "v" }, "<C-->", function()
+vim.keymap.set({ "n", "i", "v", "t" }, "<C-->", function()
     change_scale(-0.10)
 end, { desc = "Zoom Out (Neovide)" })
-vim.keymap.set({ "n", "i", "v" }, "<C-0>", function()
+vim.keymap.set({ "n", "i", "v", "t" }, "<C-0>", function()
     vim.g.neovide_scale_factor = 1.0
 end, { desc = "Zoom Reset (Neovide)" })
 
 -- macOS
-vim.keymap.set({ "n", "i", "v" }, "<D-=>", function()
+vim.keymap.set({ "n", "i", "v", "t" }, "<D-=>", function()
     change_scale(0.10)
 end, { desc = "Zoom In (Neovide macOS)" })
-vim.keymap.set({ "n", "i", "v" }, "<D-->", function()
+vim.keymap.set({ "n", "i", "v", "t" }, "<D-->", function()
     change_scale(-0.10)
 end, { desc = "Zoom Out (Neovide macOS)" })
-vim.keymap.set({ "n", "i", "v" }, "<D-0>", function()
+vim.keymap.set({ "n", "i", "v", "t" }, "<D-0>", function()
     vim.g.neovide_scale_factor = 1.0
 end, { desc = "Zoom Reset (Neovide macOS)" })
+
+vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Terminal normal mode" })
 
 -- terminal 열기
 vim.cmd("terminal")

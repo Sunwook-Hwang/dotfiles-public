@@ -1162,13 +1162,53 @@ for key, field in pairs({ bD = "directory", bL = "language" }) do
 		vim.cmd("redrawtabline")
 	end, "Order buffers by " .. field)
 end
+local function delete_buffer(buf, force, replacement)
+	local listed = vim.bo[buf].buflisted
+	-- Wiping a displayed buffer closes its splits. Replace it in-place first.
+	for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+		if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_config(win).relative == "" then
+			if not replacement then
+				for _, candidate in ipairs(buffers()) do
+					if candidate ~= buf then
+						replacement = candidate
+						break
+					end
+				end
+				replacement = replacement or vim.api.nvim_create_buf(true, false)
+			end
+			vim.api.nvim_win_call(win, function()
+				vim.cmd.buffer({ replacement, bang = force })
+			end)
+		end
+	end
+	-- Leaving the last window can already wipe a buffer with bufhidden=wipe.
+	if vim.api.nvim_buf_is_valid(buf) then
+		vim.api.nvim_buf_delete(buf, { force = force })
+	end
+	local remaining = buffers()
+	if listed and #remaining == 1 then
+		-- Merge duplicate editor panes only in this tab; preserve auxiliary windows.
+		local keep = vim.api.nvim_get_current_buf() == remaining[1]
+			and vim.api.nvim_win_get_config(0).relative == ""
+			and vim.api.nvim_get_current_win() or nil
+		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+			if vim.api.nvim_win_get_buf(win) == remaining[1] and vim.api.nvim_win_get_config(win).relative == "" then
+				if not keep then
+					keep = win
+				elseif win ~= keep then
+					vim.api.nvim_win_close(win, false)
+				end
+			end
+		end
+	end
+end
 local function close_current_buffer(force)
 	local is_terminal = vim.bo.buftype == "terminal"
 	if vim.bo.modified and not is_terminal and not force then
 		vim.notify("Unsaved changes: save the buffer before closing")
 		return
 	end
-	vim.api.nvim_buf_delete(0, { force = force or is_terminal })
+	delete_buffer(vim.api.nvim_get_current_buf(), force or is_terminal)
 end
 map("n", "<leader>c", function()
 	close_current_buffer(true)
@@ -1199,7 +1239,7 @@ for key, side in pairs({ be = "all", bm = "all", bh = "left", bl = "right" }) do
 			then
 				local is_terminal = vim.bo[b].buftype == "terminal"
 				if is_terminal or not vim.bo[b].modified then
-					vim.api.nvim_buf_delete(b, { force = is_terminal })
+					delete_buffer(b, is_terminal, current)
 				end
 			end
 		end

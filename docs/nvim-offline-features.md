@@ -105,6 +105,11 @@ key mappings. Buffer-local LSP and netrw mappings appear only when applicable.
 | `Space bm`, `Space be` | Close other safe buffers |
 | `Space bh/bl` | Close safe buffers to the left/right |
 
+These buffer-close mappings preserve split windows and their sizes while multiple
+buffers remain. When only one buffer remains, its duplicate editor panes in the
+current tab merge into one; sidebars, floats, and other tabs are preserved.
+Closing the last buffer leaves an empty buffer.
+
 The Git root is the preferred project root. Without Git, the configuration
 searches upward for CMake, Make, package.json, Python, Cargo, Bazel, and Buf
 project markers. The editor cwd, tree, search, LSP, and ctags share this root.

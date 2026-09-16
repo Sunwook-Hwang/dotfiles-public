@@ -39,6 +39,7 @@ end
 -- =========================================
 local offline_data = vim.fn.stdpath("data") .. "/offline"
 vim.fn.mkdir(offline_data .. "/undo", "p")
+local is_macos = vim.uv.os_uname().sysname == "Darwin"
 
 -- Use PATH first, then existing Mason installations; never install tools here.
 local function resolve_tool(name)
@@ -52,7 +53,7 @@ end
 
 local default_options = {
 	backup = false, -- do not retain a backup after writing
-	clipboard = "", -- use local registers on headless servers
+	clipboard = is_macos and "unnamedplus" or "", -- macOS system clipboard; local registers on servers
 	lazyredraw = false, -- keep normal redraws; do not defer display updates
 	cmdheight = 1, -- more space in the neovim command line for displaying messages
 	completeopt = { "menu", "menuone", "noselect", "popup", "fuzzy" },
@@ -396,7 +397,7 @@ local language_status_visible = true
 function _G.OfflineDiagnosticStatus()
 	local counts = vim.diagnostic.count(0)
 	local parts = {}
-	for _, item in ipairs({ { "WARN", "Warn:" }, { "HINT", "Hint:" }, { "ERROR", "Error:" } }) do
+	for _, item in ipairs({ { "WARN", "W:" }, { "HINT", "H:" }, { "ERROR", "E:" } }) do
 		local count = counts[vim.diagnostic.severity[item[1]]] or 0
 		if count > 0 then
 			parts[#parts + 1] = item[2] .. " " .. count

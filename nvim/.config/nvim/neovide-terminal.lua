@@ -3,6 +3,8 @@ vim.o.cmdheight = 0
 vim.o.showtabline = 0
 vim.o.showmode = false
 vim.o.ruler = false
+-- Neovim selects pbcopy (macOS), wl-copy/xclip (Linux), or clip (Windows).
+vim.o.clipboard = "unnamedplus"
 
 vim.o.number = false
 vim.o.relativenumber = false

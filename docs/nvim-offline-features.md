@@ -298,6 +298,12 @@ are not backups of unsaved file contents.
 - `Ctrl-t` reuses its terminal buffer
 - Yank highlighting and OSC52 copy over SSH
 
+Local Windows, macOS, and Linux sessions use `unnamedplus` with Neovim's desktop
+clipboard provider. Over SSH, `yy` and Visual `y` send text to the client terminal
+via OSC52 (which the terminal must support and allow); `p` uses the local register
+without requesting clipboard access. Paste text from other applications using
+the terminal's paste shortcut.
+
 ## Performance and safety limits
 
 | Area | Limit |
@@ -310,6 +316,7 @@ are not backups of unsaved file contents.
 | Formatting | Files up to 2 MiB |
 | Sticky Scroll | 1,000 preceding lines, 256 KiB |
 | Large-file protection | Over 2 MiB, 50,000 lines, or a 10,000-byte line |
+| SSH OSC52 copy | Over 100,000 bytes is skipped with a warning |
 
 Large files disable LSP, syntax, completion, ctags, Git signs, Sticky Scroll,
 formatting, wrapping, and cursor crosshair highlighting. `:OfflineCancel` cancels
@@ -324,7 +331,6 @@ running search, Git, and ctags jobs plus scheduled refreshes.
 - Neovide-specific font and zoom controls
 - Debug Adapter Protocol (DAP)
 - Automatic Treesitter parser installation
-- Default `unnamedplus` system clipboard integration
 
 These are outside the offline configuration's scope because they add network
 dependencies, platform-specific behavior, worktree mutation, or maintenance cost.

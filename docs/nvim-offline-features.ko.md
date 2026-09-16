@@ -289,6 +289,12 @@ LSP가 없으면 현재·열린 버퍼 단어와 ctags 심볼을 내장 완성�
 - `Ctrl-t` terminal 버퍼 재사용
 - yank highlight와 SSH 환경의 OSC52 복사
 
+로컬 Windows·macOS·Linux에서는 `unnamedplus`로 Neovim의 시스템 clipboard provider를
+사용합니다. SSH에서는 `yy`와 Visual `y`의 내용을 OSC52로 접속한 PC의 터미널에 전송하며,
+터미널이 OSC52를 지원하고 허용해야 합니다. `p`는 PC의 clipboard를 조회하지 않고
+Neovim 내부 레지스터를 사용합니다. 다른 앱에서 복사한 내용은 터미널의 붙여넣기 단축키로
+입력합니다.
+
 ## 성능과 안전 제한
 
 | 대상 | 제한 |
@@ -301,6 +307,7 @@ LSP가 없으면 현재·열린 버퍼 단어와 ctags 심볼을 내장 완성�
 | 포맷팅 | 2 MiB 이하 파일 |
 | Sticky Scroll | 위쪽 1,000줄, 256 KiB |
 | 큰 파일 보호 | 2 MiB, 50,000줄 또는 한 줄 10,000바이트 초과 |
+| SSH OSC52 복사 | 100,000바이트 초과 시 경고 후 전송 생략 |
 
 큰 파일에서는 LSP, syntax, 자동완성, ctags, Git sign, Sticky Scroll과 포맷팅을 중지하고
 wrap과 커서 십자 강조도 끕니다. `:OfflineCancel`은 실행 중인 검색·Git·ctags 작업과 예약된
@@ -315,7 +322,6 @@ wrap과 커서 십자 강조도 끕니다. `:OfflineCancel`은 실행 중인 검
 - Neovide 전용 글꼴·확대/축소 설정
 - Debug Adapter Protocol(DAP)
 - Treesitter parser 자동 설치
-- 시스템 clipboard의 기본 `unnamedplus` 연결
 
 이 기능들은 네트워크 의존성, 플랫폼 차이, 작업 내용 변경 위험 또는 유지 비용 때문에
 offline 설정의 기본 범위에서 제외합니다.

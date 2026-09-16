@@ -39,7 +39,7 @@ end
 -- =========================================
 local offline_data = vim.fn.stdpath("data") .. "/offline"
 vim.fn.mkdir(offline_data .. "/undo", "p")
-local is_macos = vim.uv.os_uname().sysname == "Darwin"
+local is_ssh = vim.env.SSH_CONNECTION ~= nil or vim.env.SSH_TTY ~= nil
 
 -- Use PATH first, then existing Mason installations; never install tools here.
 local function resolve_tool(name)
@@ -53,7 +53,7 @@ end
 
 local default_options = {
 	backup = false, -- do not retain a backup after writing
-	clipboard = is_macos and "unnamedplus" or "", -- macOS system clipboard; local registers on servers
+	clipboard = is_ssh and "" or "unnamedplus", -- SSH copies through the yank hook below; local desktops use their provider
 	lazyredraw = false, -- keep normal redraws; do not defer display updates
 	cmdheight = 1, -- more space in the neovim command line for displaying messages
 	completeopt = { "menu", "menuone", "noselect", "popup", "fuzzy" },
@@ -313,19 +313,21 @@ vim.api.nvim_create_autocmd("TextYankPost", {
 	end,
 })
 
--- The original OSCYank integration copied default yanks to the SSH client's clipboard.
-if vim.env.SSH_CONNECTION or vim.env.SSH_TTY then
+-- Send SSH yanks to the client clipboard; keep p local without OSC52 read requests.
+if is_ssh then
 	vim.api.nvim_create_autocmd("TextYankPost", {
 		group = vim.api.nvim_create_augroup("offline-ssh-yank", { clear = true }),
 		callback = function()
 			if vim.v.event.operator == "y" and vim.v.event.regname == "" then
-				local payload = table.concat(vim.v.event.regcontents, "\n")
-					.. (vim.v.event.regtype == "V" and "\n" or "")
-				if #payload > 100000 then
+				local lines = vim.deepcopy(vim.v.event.regcontents)
+				if vim.v.event.regtype == "V" then
+					lines[#lines + 1] = ""
+				end
+				if #table.concat(lines, "\n") > 100000 then
 					vim.notify("OSC52 yank skipped: selection exceeds 100 KB", vim.log.levels.WARN)
 					return
 				end
-				require("vim.ui.clipboard.osc52").copy("+")(vim.v.event.regcontents)
+				require("vim.ui.clipboard.osc52").copy("+")(lines)
 			end
 		end,
 	})

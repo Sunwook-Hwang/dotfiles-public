@@ -378,14 +378,58 @@ local function picker_selection_highlight()
 		bold = true,
 	})
 end
+local function set_git_mode_highlight()
+	local mode = vim.fn.mode():sub(1, 1)
+	local bg, ctermbg = "#3b4261", 60
+	if mode == "i" then
+		bg, ctermbg = "#2f6f4e", 29
+	elseif mode == "v" or mode == "V" or mode == "\22" then
+		bg, ctermbg = "#704b8f", 96
+	end
+	vim.api.nvim_set_hl(0, "OfflineGitBranch", {
+		fg = "#ffffff", bg = bg, ctermfg = 15, ctermbg = ctermbg,
+		bold = true, reverse = false, nocombine = true,
+	})
+end
 local function set_offline_status_highlights()
+	local inactive = vim.api.nvim_get_hl(0, { name = "StatusLineNC", link = false })
+	inactive.bold = false
+	if inactive.cterm then
+		inactive.cterm.bold = false
+	end
+	vim.api.nvim_set_hl(0, "StatusLineNC", inactive)
 	vim.api.nvim_set_hl(0, "OfflineLspMissing", { fg = "#ffffff", bg = "#af0000", bold = true })
+	vim.api.nvim_set_hl(0, "OfflineLspMissingNC", { fg = "#ffffff", bg = "#af0000", bold = false, nocombine = true })
+	set_git_mode_highlight()
+	for _, suffix in ipairs({ "", "NC" }) do
+		local error_hl = vim.api.nvim_get_hl(0, { name = "StatusLine" .. suffix, link = false })
+		if error_hl.reverse then
+			error_hl.bg = error_hl.fg
+		end
+		if error_hl.cterm and error_hl.cterm.reverse then
+			error_hl.ctermbg = error_hl.ctermfg
+			error_hl.cterm.reverse = false
+		end
+		if error_hl.cterm then
+			error_hl.cterm.nocombine = true
+		end
+		error_hl.nocombine = true
+		error_hl.reverse, error_hl.fg, error_hl.ctermfg = false, "#ff0000", 9
+		vim.api.nvim_set_hl(0, "OfflineStatusError" .. suffix, error_hl)
+	end
 	picker_selection_highlight()
 end
 set_offline_status_highlights()
 vim.api.nvim_create_autocmd("ColorScheme", {
 	group = vim.api.nvim_create_augroup("offline-status-highlights", { clear = true }),
 	callback = set_offline_status_highlights,
+})
+vim.api.nvim_create_autocmd("ModeChanged", {
+	group = "offline-status-highlights",
+	callback = function()
+		set_git_mode_highlight()
+		vim.cmd("redrawstatus")
+	end,
 })
 vim.opt.whichwrap:append("<,>,[,],h,l")
 vim.opt.iskeyword:append("-")
@@ -396,13 +440,29 @@ vim.opt.wildmode = "longest:full,full"
 vim.opt.wildignore:append({ "*/.git/*", "*/node_modules/*", "*/__pycache__/*" })
 vim.opt.laststatus = 2
 local language_status_visible = true
+function _G.OfflineGitStatus()
+	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+	local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
+	if win ~= active then
+		return ""
+	end
+	local status = vim.b[vim.api.nvim_win_get_buf(win)].offline_git_status
+	if not status or status == "" then
+		return ""
+	end
+	return "%#OfflineGitBranch# " .. status:gsub("%%", "%%%%") .. " %*"
+end
 function _G.OfflineDiagnosticStatus()
-	local counts = vim.diagnostic.count(0)
+	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+	local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
+	local error_group = win == active and "OfflineStatusError" or "OfflineStatusErrorNC"
+	local counts = vim.diagnostic.count(vim.api.nvim_win_get_buf(win))
 	local parts = {}
 	for _, item in ipairs({ { "WARN", "W:" }, { "HINT", "H:" }, { "ERROR", "E:" } }) do
 		local count = counts[vim.diagnostic.severity[item[1]]] or 0
 		if count > 0 then
-			parts[#parts + 1] = item[2] .. " " .. count
+			local text = item[2] .. " " .. count
+			parts[#parts + 1] = item[1] == "ERROR" and ("%#" .. error_group .. "#" .. text .. "%*") or text
 		end
 	end
 	return table.concat(parts, " ")
@@ -423,7 +483,10 @@ function _G.OfflineLspStatus()
 		end
 	end
 	local sorted = vim.fn.sort(vim.tbl_keys(names))
-	return #sorted > 0 and ("[LSP: " .. table.concat(sorted, ", ") .. "]") or "%#OfflineLspMissing#[LSP X]%*"
+	local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
+	local missing_group = win == active and "OfflineLspMissing" or "OfflineLspMissingNC"
+	return #sorted > 0 and ("[LSP: " .. table.concat(sorted, ", ") .. "]")
+		or ("%#" .. missing_group .. "#[LSP X]%*")
 end
 vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
 	group = vim.api.nvim_create_augroup("offline-lsp-status", { clear = true }),
@@ -434,8 +497,14 @@ vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
 		end)
 	end,
 })
-vim.opt.statusline =
-	" %{get(b:, 'offline_git_status', '')} %f %m%r%h %= %{v:lua.OfflineDiagnosticStatus()} %{%v:lua.OfflineLspStatus()%} %{v:lua.OfflineFormatStatus()} %y | %4l:%3c | %3p%% "
+function _G.OfflineStatusline()
+	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+	if win ~= vim.api.nvim_get_current_win() then
+		return " %f %= %y "
+	end
+	return "%{%v:lua.OfflineGitStatus()%} %f %m%r%h %= %{%v:lua.OfflineDiagnosticStatus()%} %{%v:lua.OfflineLspStatus()%} %{v:lua.OfflineFormatStatus()} %y | %4l:%3c | %3p%% "
+end
+vim.opt.statusline = "%!v:lua.OfflineStatusline()"
 -- 내장 renderer로 들여쓰기 가이드 표시: 텍스트/커서 이동마다 extmark를 재생성하지 않습니다.
 -- 선행 공백에만 shiftwidth 간격으로 선을 표시하며, 비어 있는 줄까지 이어주지는 않습니다.
 vim.opt.list = true
@@ -3084,7 +3153,7 @@ local function refresh_git_status(buf)
 		if branch == "(detached)" then
 			branch = "HEAD@" .. (oid or ""):sub(1, 7)
 		end
-		local status = branch and ("[git:" .. branch .. (xy and " " .. xy or "") .. "]") or ""
+		local status = branch and ("[" .. branch .. (xy and " " .. xy or "") .. "]") or ""
 		if vim.b[buf].offline_git_status ~= status then
 			vim.b[buf].offline_git_status = status
 			vim.cmd("redrawstatus")

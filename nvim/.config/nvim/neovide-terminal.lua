@@ -59,8 +59,6 @@ vim.keymap.set({ "n", "i", "v", "t" }, "<D-0>", function()
     vim.g.neovide_scale_factor = 1.0
 end, { desc = "Zoom Reset (Neovide macOS)" })
 
-vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Terminal normal mode" })
-
 -- terminal 열기
 if vim.fn.has("win32") == 1 then
     -- cmd.exe history is session-only; persist PowerShell history after each command.

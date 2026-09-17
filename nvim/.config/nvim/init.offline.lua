@@ -380,14 +380,38 @@ local function picker_selection_highlight()
 end
 local function set_git_mode_highlight()
 	local mode = vim.fn.mode():sub(1, 1)
-	local bg, ctermbg = "#3b4261", 60
+	local group = "Identifier"
 	if mode == "i" then
-		bg, ctermbg = "#2f6f4e", 29
+		group = "String"
 	elseif mode == "v" or mode == "V" or mode == "\22" then
-		bg, ctermbg = "#704b8f", 96
+		group = "Constant"
+	end
+	local normal = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
+	local accent = vim.api.nvim_get_hl(0, { name = group, link = false })
+	local bg = (accent.reverse and accent.bg or accent.fg) or normal.fg or 0x808080
+	local ctermbg = accent.cterm and accent.cterm.reverse and accent.ctermbg or accent.ctermfg
+	local function luminance(color)
+		local result = 0
+		for i, weight in ipairs({ 0.2126, 0.7152, 0.0722 }) do
+			local channel = math.floor(color / 256 ^ (3 - i)) % 256 / 255
+			result = result + weight * (channel <= 0.04045 and channel / 12.92 or ((channel + 0.055) / 1.055) ^ 2.4)
+		end
+		return result
+	end
+	local background_luminance = luminance(bg)
+	local function contrast(color)
+		local value = luminance(color)
+		return (math.max(value, background_luminance) + 0.05) / (math.min(value, background_luminance) + 0.05)
+	end
+	local fg, ctermfg = normal.bg or 0x000000, normal.ctermbg or 0
+	if contrast(normal.fg or 0xffffff) > contrast(fg) then
+		fg, ctermfg = normal.fg or 0xffffff, normal.ctermfg or 15
+	end
+	if contrast(fg) < 4.5 then
+		fg, ctermfg = background_luminance > 0.179 and 0x000000 or 0xffffff, background_luminance > 0.179 and 0 or 15
 	end
 	vim.api.nvim_set_hl(0, "OfflineGitBranch", {
-		fg = "#ffffff", bg = bg, ctermfg = 15, ctermbg = ctermbg,
+		fg = fg, bg = bg, ctermfg = ctermfg, ctermbg = ctermbg or normal.ctermfg or 8,
 		bold = true, reverse = false, nocombine = true,
 	})
 end

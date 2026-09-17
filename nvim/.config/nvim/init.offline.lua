@@ -440,6 +440,9 @@ local function set_offline_status_highlights()
 		error_hl.nocombine = true
 		error_hl.reverse, error_hl.fg, error_hl.ctermfg = false, "#ff0000", 9
 		vim.api.nvim_set_hl(0, "OfflineStatusError" .. suffix, error_hl)
+		local warn_hl = vim.deepcopy(error_hl)
+		warn_hl.fg, warn_hl.ctermfg = "#ffd700", 220
+		vim.api.nvim_set_hl(0, "OfflineStatusWarn" .. suffix, warn_hl)
 	end
 	picker_selection_highlight()
 end
@@ -480,13 +483,15 @@ function _G.OfflineDiagnosticStatus()
 	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 	local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
 	local error_group = win == active and "OfflineStatusError" or "OfflineStatusErrorNC"
+	local warn_group = win == active and "OfflineStatusWarn" or "OfflineStatusWarnNC"
 	local counts = vim.diagnostic.count(vim.api.nvim_win_get_buf(win))
 	local parts = {}
-	for _, item in ipairs({ { "WARN", "W:" }, { "HINT", "H:" }, { "ERROR", "E:" } }) do
+	for _, item in ipairs({ { "ERROR", "E:" }, { "WARN", "W:" }, { "HINT", "H:" } }) do
 		local count = counts[vim.diagnostic.severity[item[1]]] or 0
 		if count > 0 then
 			local text = item[2] .. " " .. count
-			parts[#parts + 1] = item[1] == "ERROR" and ("%#" .. error_group .. "#" .. text .. "%*") or text
+			local group = item[1] == "ERROR" and error_group or item[1] == "WARN" and warn_group
+			parts[#parts + 1] = group and ("%#" .. group .. "#" .. text .. "%*") or text
 		end
 	end
 	return table.concat(parts, " ")

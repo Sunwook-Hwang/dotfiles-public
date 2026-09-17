@@ -56,5 +56,17 @@ end, { desc = "Zoom Reset (Neovide macOS)" })
 vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Terminal normal mode" })
 
 -- terminal 열기
-vim.cmd("terminal")
+if vim.fn.has("win32") == 1 then
+    -- cmd.exe history is session-only; persist PowerShell history after each command.
+    local shell = vim.fn.executable("pwsh") == 1 and "pwsh" or "powershell"
+    vim.fn.jobstart({
+        shell,
+        "-NoLogo",
+        "-NoExit",
+        "-Command",
+        "Import-Module PSReadLine; Set-PSReadLineOption -HistorySaveStyle SaveIncrementally",
+    }, { term = true })
+else
+    vim.cmd("terminal")
+end
 vim.cmd("startinsert")

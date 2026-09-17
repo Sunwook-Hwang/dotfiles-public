@@ -10,6 +10,9 @@ vim.o.number = false
 vim.o.relativenumber = false
 vim.o.signcolumn = "no"
 
+vim.o.background = "dark"
+vim.cmd("colorscheme default")
+vim.api.nvim_set_hl(0, "Normal", { fg = "#d0d0d0", bg = "#000000" })
 
 -- vim.o.guifont = "JetBrainsMono Nerd Font:h18"
 

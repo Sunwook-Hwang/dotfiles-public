@@ -23,6 +23,12 @@ vim.g.neovide_cursor_vfx_mode = ""
 
 vim.g.neovide_scale_factor = 1.0
 
+if vim.g.neovide and vim.fn.has("win32") == 1 then
+    vim.keymap.set({ "n", "i", "v", "t" }, "<F11>", function()
+        vim.g.neovide_fullscreen = not vim.g.neovide_fullscreen
+    end, { desc = "Toggle fullscreen (Neovide Windows)" })
+end
+
 local function change_scale(delta)
     local new = vim.g.neovide_scale_factor * (1 + delta)
     if new < 0.3 then

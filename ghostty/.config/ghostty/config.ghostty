@@ -1,0 +1,5 @@
+# Installed Roboto Mono with fixed-width Nerd Font icons.
+font-family = RobotoMono Nerd Font Mono
+# Use the macOS Korean sans-serif font for glyphs missing from Roboto Mono.
+font-family = Apple SD Gothic Neo
+font-size = 14

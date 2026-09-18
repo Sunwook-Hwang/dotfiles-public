@@ -26,7 +26,7 @@ if [[ -L "$nvim_init" ]]; then
     esac
 fi
 
-for folder in claude codex git nvim tmux zsh; do
+for folder in claude codex ghostty git nvim tmux zsh; do
     [[ -d "$folder" ]] || continue
     echo "Unlinking $folder"
     stow "${STOW_IGNORE_ARGS[@]}" -D -t "$TARGET" "$folder"

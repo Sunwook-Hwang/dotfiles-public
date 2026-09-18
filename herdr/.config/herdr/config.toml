@@ -27,4 +27,4 @@ previous_tab = "alt+h"
 next_tab = "alt+l"
 
 # Reload config
-reload_config = "prefix+shift+r"
+reload_config = "prefix+a"

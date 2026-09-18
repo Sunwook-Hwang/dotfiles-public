@@ -1195,6 +1195,12 @@ local function buffer_index(buf)
 	return 1
 end
 -- Listed buffers in the top bar; numbers match Alt-1..8 (Alt-9 = last).
+function _G.OfflineTablineClick(buf, _, button)
+	if button == "l" and vim.api.nvim_buf_is_valid(buf) then
+		select_buffer(buf)
+	end
+end
+
 function _G.OfflineTabline()
 	if tabline_cache then
 		return tabline_cache
@@ -1206,7 +1212,10 @@ function _G.OfflineTabline()
 			name = "[No Name]"
 		end
 		local hl = b == vim.api.nvim_get_current_buf() and "%#TabLineSel#" or "%#TabLine#"
-		items[#items + 1] = hl .. " " .. i .. ":" .. name:gsub("%%", "%%%%") .. (vim.bo[b].modified and " + " or " ")
+		items[#items + 1] = hl
+			.. "%" .. b .. "@v:lua.OfflineTablineClick@"
+			.. " " .. i .. ":" .. name:gsub("%%", "%%%%") .. (vim.bo[b].modified and " + " or " ")
+			.. "%T"
 	end
 	tabline_cache = table.concat(items) .. "%#TabLineFill#"
 	return tabline_cache

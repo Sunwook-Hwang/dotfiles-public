@@ -1392,6 +1392,13 @@ local servers = {
 		filetypes = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
 		root_markers = { "tsconfig.json", "jsconfig.json", "package.json", ".git" },
 		init_options = { hostInfo = "neovim" },
+		before_init = function(_, config)
+			-- Prefer project TypeScript; use PATH/Mason's tsserver as a fallback.
+			local tsserver = vim.fn.exepath("tsserver")
+			if tsserver ~= "" then
+				config.init_options.tsserver = { fallbackPath = tsserver }
+			end
+		end,
 	},
 	html = {
 		cmd = { "vscode-html-language-server", "--stdio" },

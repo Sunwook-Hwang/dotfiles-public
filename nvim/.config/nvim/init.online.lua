@@ -429,12 +429,48 @@ local packages = {
 -- Update plugins with :lua vim.pack.update()
 vim.pack.add(packages, { confirm = false })
 
--- Anchor context below the winbar so it can coexist with dropbar.
-vim.cmd.runtime("autoload/context/popup/nvim.vim")
-vim.cmd.source(
-	vim.fn.fnamemodify(vim.fn.resolve(debug.getinfo(1, "S").source:sub(2)), ":p:h")
-		.. "/compat/autoload/context/popup/nvim.vim"
-)
+-- Correct context.vim's editor-relative position synchronously after its updates.
+-- Keep this integration in init.lua; no autoload overrides or deferred redraws.
+local function align_context_popups()
+	for source, popup in pairs(vim.g.context.popups) do
+		local win = tonumber(source)
+		if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_is_valid(popup) then
+			local info = vim.fn.getwininfo(win)[1]
+			local row, col = info.winrow - 1 + info.winbar, info.wincol - 1
+			local config = vim.api.nvim_win_get_config(popup)
+			if config.relative ~= "editor" or config.row ~= row or config.col ~= col then
+				vim.api.nvim_win_set_config(popup, { relative = "editor", row = row, col = col })
+			end
+		end
+	end
+end
+local function setup_context_position()
+	local group = vim.api.nvim_create_augroup("online-context-position", { clear = true })
+	-- Register after the plugin's handlers, including its OptionSet/User filters.
+	for _, event in ipairs(vim.api.nvim_get_autocmds({ group = "context.vim" })) do
+		vim.api.nvim_create_autocmd(event.event, {
+			group = group,
+			pattern = event.pattern,
+			callback = align_context_popups,
+		})
+	end
+	-- Commands can redraw without a cursor/scroll event (including Space Ts).
+	for name, command in pairs(vim.api.nvim_get_commands({ builtin = false })) do
+		if name:match("^Context") and command.definition:match("^call context#") then
+			vim.api.nvim_create_user_command(name, function()
+				vim.cmd(command.definition)
+				align_context_popups()
+			end, { bar = true })
+		end
+	end
+end
+
+-- vim.pack sources plugin scripts after init.lua during startup.
+if vim.v.vim_did_enter == 1 then
+	setup_context_position()
+else
+	vim.api.nvim_create_autocmd("VimEnter", { once = true, callback = setup_context_position })
+end
 
 -- Snacks owns the explorer, pickers, dashboard, terminal and utility UI.
 local Snacks = require("snacks")
@@ -839,16 +875,8 @@ do
 			elseif vim.wo[win].winbar == expression then
 				vim.wo[win][0].winbar = ""
 			end
-			local popup = vim.g.context.popups[tostring(win)]
-			if popup and vim.api.nvim_win_is_valid(popup) then
-				local info = vim.fn.getwininfo(win)[1]
-				vim.api.nvim_win_set_config(popup, {
-					relative = "editor",
-					row = info.winrow - 1 + info.winbar,
-					col = info.wincol - 1,
-				})
-			end
 		end
+		align_context_popups()
 	end
 	vim.api.nvim_create_autocmd("BufWinEnter", {
 		group = vim.api.nvim_create_augroup("online-dropbar", { clear = true }),

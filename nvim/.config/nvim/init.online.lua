@@ -429,6 +429,13 @@ local packages = {
 -- Update plugins with :lua vim.pack.update()
 vim.pack.add(packages, { confirm = false })
 
+-- Anchor context below the winbar so it can coexist with dropbar.
+vim.cmd.runtime("autoload/context/popup/nvim.vim")
+vim.cmd.source(
+	vim.fn.fnamemodify(vim.fn.resolve(debug.getinfo(1, "S").source:sub(2)), ":p:h")
+		.. "/compat/autoload/context/popup/nvim.vim"
+)
+
 -- Snacks owns the explorer, pickers, dashboard, terminal and utility UI.
 local Snacks = require("snacks")
 Snacks.setup({
@@ -831,6 +838,15 @@ do
 				vim.wo[win][0].winbar = expression
 			elseif vim.wo[win].winbar == expression then
 				vim.wo[win][0].winbar = ""
+			end
+			local popup = vim.g.context.popups[tostring(win)]
+			if popup and vim.api.nvim_win_is_valid(popup) then
+				local info = vim.fn.getwininfo(win)[1]
+				vim.api.nvim_win_set_config(popup, {
+					relative = "editor",
+					row = info.winrow - 1 + info.winbar,
+					col = info.wincol - 1,
+				})
 			end
 		end
 	end

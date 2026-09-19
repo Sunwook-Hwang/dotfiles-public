@@ -259,19 +259,20 @@ vim.keymap.set("n", "<leader>Sf", [[:.,$s/\<<C-r><C-w>\>/]], {
 vim.keymap.set("v", "<", "<gv", { noremap = true, silent = true })
 vim.keymap.set("v", ">", ">gv", { noremap = true, silent = true })
 
--- Large-file protection from init.offline.lua, registered before plugin callbacks.
+-- Keep growth/long-line protection in addition to Snacks bigfile detection.
+local protect_large_file
 do
 	local watched_buffers = {}
-	local function protect_large_file(buf)
+	protect_large_file = function(buf)
 		if not vim.api.nvim_buf_is_loaded(buf) then
 			return
 		end
 		if package.loaded.gitsigns then
 			require("gitsigns").detach(buf)
 		end
-		if package.loaded.ibl and require("ibl").initialized then
-			require("ibl").setup_buffer(buf, { enabled = false })
-		end
+		vim.b[buf].snacks_indent = false
+		vim.b[buf].snacks_scroll = false
+		vim.b[buf].snacks_words = false
 		pcall(vim.treesitter.stop, buf)
 		vim.bo[buf].syntax = "OFF"
 		vim.bo[buf].indentexpr = ""
@@ -352,7 +353,7 @@ do
 	vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile", "FileType", "BufWinEnter" }, {
 		callback = function(args)
 			local buf = args.buf
-			if vim.bo[buf].buftype ~= "" or vim.bo[buf].filetype == "NvimTree" then
+			if vim.bo[buf].buftype ~= "" then
 				return
 			end
 			if not watched_buffers[buf] then
@@ -393,7 +394,8 @@ vim.g.context_highlight_normal = "Pmenu"
 vim.g.context_highlight_border = "Comment"
 vim.g.context_border_char = "─"
 vim.g.context_highlight_tag = "<hide>"
-vim.g.context_filetype_blacklist = { "NvimTree", "alpha" }
+vim.g.context_filetype_blacklist =
+	{ "snacks_dashboard", "snacks_picker_list", "snacks_picker_input", "snacks_picker_preview", "aerial" }
 vim.g.context_buftype_blacklist = { "nofile", "prompt", "terminal", "quickfix", "help" }
 vim.keymap.set("n", "<leader>Ts", "<Cmd>ContextToggle<CR>", { desc = "Toggle sticky scroll" })
 -- A window disabled for a large file must recover when opening a normal buffer.
@@ -410,28 +412,198 @@ vim.api.nvim_create_autocmd("BufEnter", {
 })
 local packages = {
 	{ src = "https://github.com/wellle/context.vim" },
-	{ src = "https://github.com/nvim-lua/plenary.nvim" },
+	{ src = "https://github.com/folke/snacks.nvim" },
+	{ src = "https://github.com/folke/persistence.nvim" },
+	{ src = "https://github.com/folke/which-key.nvim" },
+
+	{ src = "https://github.com/lewis6991/gitsigns.nvim" },
+	{ src = "https://github.com/stevearc/aerial.nvim" },
+	{ src = "https://github.com/Bekaboo/dropbar.nvim" },
+
+	{ src = "https://github.com/stevearc/conform.nvim" },
 	{ src = "https://github.com/WhoIsSethDaniel/mason-tool-installer.nvim" },
 	{ src = "https://github.com/mason-org/mason.nvim" },
-	{ src = "https://github.com/NMAC427/guess-indent.nvim" },
-	{ src = "https://github.com/lewis6991/gitsigns.nvim" },
-	{ src = "https://github.com/folke/persistence.nvim" },
-	{ src = "https://github.com/goolord/alpha-nvim" },
-	{ src = "https://github.com/folke/which-key.nvim" },
-	{ src = "https://github.com/nvim-telescope/telescope.nvim" },
-	{ src = "https://github.com/jiaoshijie/undotree" },
-	{ src = "https://github.com/stevearc/aerial.nvim" },
-	{ src = "https://github.com/stevearc/conform.nvim" },
-	{ src = "https://github.com/nvim-tree/nvim-tree.lua" },
-	{ src = "https://github.com/folke/todo-comments.nvim" },
-	{ src = "https://github.com/lukas-reineke/indent-blankline.nvim" },
-	{ src = "https://github.com/nvim-lualine/lualine.nvim" },
-	{ src = "https://github.com/AbdelrahmanDwedar/awesome-nvim-colorschemes" },
 }
 
 -- Load at startup; configure dependencies before their consumers below.
 -- Update plugins with :lua vim.pack.update()
 vim.pack.add(packages, { confirm = false })
+
+-- Snacks owns the explorer, pickers, dashboard, terminal and utility UI.
+local Snacks = require("snacks")
+Snacks.setup({
+	bigfile = {
+		enabled = true,
+		size = 2 * 1024 * 1024,
+		line_length = 10000,
+		setup = function(ctx)
+			vim.b[ctx.buf].large_file = true
+			protect_large_file(ctx.buf)
+		end,
+	},
+	quickfile = { enabled = true },
+	explorer = { enabled = true },
+	input = { enabled = true, icon = "" },
+	notifier = {
+		enabled = true,
+		icons = { error = "E", warn = "W", info = "I", debug = "D", trace = "T" },
+		-- Also suppress icons explicitly supplied by other plugins.
+		filter = function(notification)
+			notification.icon = ""
+			return true
+		end,
+	},
+	indent = {
+		enabled = true,
+		indent = { char = "┊" },
+		scope = { enabled = false },
+		animate = { enabled = false },
+	},
+	scroll = {
+		enabled = true,
+		filter = function(buf)
+			return vim.bo[buf].buftype == ""
+				and not vim.b[buf].large_file
+				and vim.g.snacks_scroll ~= false
+				and vim.b[buf].snacks_scroll ~= false
+		end,
+	},
+	terminal = {
+		win = { position = "bottom", height = 0.3, keys = { term_normal = false } },
+	},
+	toggle = { which_key = false, notify = false },
+	picker = {
+		enabled = true,
+		prompt = "> ",
+		previewers = { diff = { style = "syntax" } },
+		icons = {
+			files = { enabled = false, dir = "", dir_open = "", file = "" },
+			keymaps = { nowait = "" },
+			undo = { saved = "S" },
+			ui = { live = "LIVE", selected = "[x] ", unselected = "[ ] " },
+			git = {
+				commit = "",
+				staged = "+",
+				added = "+",
+				deleted = "-",
+				ignored = "!",
+				modified = "M",
+				renamed = "R",
+				unmerged = "U",
+				untracked = "?",
+			},
+			diagnostics = { Error = "E", Warn = "W", Hint = "H", Info = "I" },
+			lsp = { unavailable = "X", enabled = "on", disabled = "off", attached = "attached" },
+		},
+		config = function(opts)
+			-- Includes every kind supplied by Snacks, without a Nerd Font dependency.
+			for kind in pairs(opts.icons.kinds) do
+				opts.icons.kinds[kind] = kind .. " "
+			end
+		end,
+		sources = {
+			undo = {
+				config = function()
+					-- Snacks writes undo previews here, including on a fresh installation.
+					vim.fn.mkdir(vim.fn.stdpath("cache"), "p")
+				end,
+				format = function(item, picker)
+					local result = Snacks.picker.format.undo(item, picker)
+					-- The current-entry marker is hard-coded in the upstream formatter.
+					result[1][1] = item.current and "> " or "  "
+					return result
+				end,
+			},
+		},
+	},
+	dashboard = {
+		enabled = true,
+		preset = {
+			header = table.concat({
+				"",
+				"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⠀⠀⠀⠀⡀⢀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠼⠤⠤⠤⠤⠤⣧⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡸⢸⠀⠀⠀⠀⠀⠀⡟⠀⣾⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⠃⢸⠘⢏⠉⠉⠉⡽⡇⠀⢹⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⠃⠀⢸⢠⠘⡆⠀⡸⠁⡇⡀⢸⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡰⠃⠀⡖⡞⣚⣆⣹⣼⣁⣀⢳⠓⠚⢹⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡴⠁⠀⠀⡇⣧⠀⢀⡜⢳⡀⠀⢸⠀⠀⠀⢣⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠜⠁⠀⠀⠀⡇⡟⢲⡞⠒⠒⢳⣺⢸⠀⠀⠀⠈⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡠⠋⠀⠀⠀⠀⠀⡇⡷⠃⡇⠀⠀⠀⢹⣸⠀⠀⠀⠀⠘⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⠁⠀⠀⠀⠀⠀⣠⢿⢓⣒⣓⣀⣀⣀⡞⠛⡖⠒⠢⠀⠀⡟⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⠁⠀⠀⠀⠀⠀⣠⠞⢹⢸⢸⠀⠀⠀⠀⠀⡇⠀⠘⢦⢰⠀⠀⡇⠘⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⠀⠀⠀⢀⡤⠊⠁⠀⠀⠀⠀⠀⣠⠞⠁⠀⢸⢸⠘⠒⠲⠒⠒⠒⡇⠀⠀⠀⠳⡄⠀⡇⠀⠈⢆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠀⢀⣠⠴⠊⠁⠀⠀⠀⠀⠀⢀⡤⡎⠁⠀⠀⠀⢸⢸⠀⠀⢀⠀⠀⠀⡇⠀⠀⠀⢀⠈⢦⡗⠀⠀⠈⢣⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡗⠒⡁⠀⠀⠀⠀⠀⠀⠀",
+				"⠈⠁⠀⠀⠀⠀⠀⠀⢀⡠⠖⠁⠀⡇⠀⠀⠀⠀⠚⣾⠒⣒⠚⣢⠀⢰⠓⠒⠒⠒⠺⠀⠀⣟⢆⠀⠀⠀⡟⣄⠀⠀⠀⠀⠀⠀⠀⠀⢀⣾⣑⡞⣹⡄⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⠀⠀⢀⣀⡤⠚⠁⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⢰⠀⠀⠀⠀⢸⢰⠀⠀⠀⠀⡇⠀⡇⠀⠙⠢⣄⡇⠈⠣⡀⠀⠀⠀⠀⣀⡴⣋⢼⡏⠠⢻⠘⢄⠀⠀⠀⠀⠀",
+				"⢀⠤⠔⠊⠉⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⠘⠒⠒⢲⠒⢺⢸⠀⠀⠀⠀⡇⠀⡇⠀⠀⠀⠀⡏⠑⠒⢺⠓⠲⠶⡟⠓⠉⡇⢸⣇⣠⢸⠀⠀⡗⠦⣀⠀⠀",
+				"⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⠀⠀⠀⢸⠀⢸⢸⠀⠀⠀⠀⡅⠀⣇⣀⣀⣀⠀⡇⠀⠠⢼⠤⠤⣤⣧⣤⣤⣧⣼⣧⣼⢸⠤⠤⠇⣀⣈⣉⡁",
+				"⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⢀⣀⣿⠀⠤⠤⠼⠔⢺⢸⠀⠀⠀⠀⣏⣀⠧⡤⡤⣖⢒⣷⣚⡻⠭⠯⠭⠗⠒⠓⠒⠛⢻⣏⣹⢸⠉⠉⠁⠀⠐⠒⠂",
+				"⠀⠀⠀⠀⠀⠀⡇⠀⠀⣀⡀⠤⠤⡗⠒⠈⠉⠁⠀⢸⠀⠀⠀⣀⣠⣼⢸⠀⠀⠀⠀⣇⠦⠽⠚⠒⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣸⡟⢻⢸⣀⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⢀⣀⠤⠔⡗⠉⠁⠀⠀⠀⠀⡇⠀⠀⠀⢀⡠⣼⠖⡘⢍⠰⡡⢺⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⢀⠁⠀⠸⠇⠸⠼⠀⠈⠆⠢⠄⠀⠀",
+				"⠐⠉⠁⠀⠀⠀⡇⠀⠀⠀⠀⠀⢀⣧⠤⠖⠋⢽⣠⢃⠞⣈⡶⠜⠒⢹⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠔⡠⠌⢁⡐⠒⢒⡠⠀⢓⡈⠄⠀⠀⠀",
+				"⠀⠀⠀⠀⠀⠀⡇⠀⢀⡠⠔⠚⡍⠰⠎⣠⠒⣢⡥⢾⠋⠁⠀⠀⠀⢸⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠈⠉⢦⡀⠀⣀⠧⠚⠉⠒⠒⠒⠃⢀⣴⠗⠋⠁⡇⢸⠀⠐⠂⠢⠤⢼⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⠀⢣⠈⠉⠉⠉⠉⠻⣉⡶⠖⠋⠀⠀⠀⠀⡇⢸⠀⠸⡉⠏⢐⣾⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+				"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣖⠒⠒⠠⡀⠀⠀⡇⢸⠀⠀⡱⠈⠁⣼⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+			}, "\n"),
+			keys = {
+				{
+					key = "f",
+					desc = "Find file",
+					action = function()
+						Snacks.picker.files()
+					end,
+				},
+				{
+					key = "r",
+					desc = "Recent files",
+					action = function()
+						Snacks.picker.recent()
+					end,
+				},
+				{
+					key = "p",
+					desc = "Select session",
+					action = function()
+						require("persistence").select()
+					end,
+				},
+				{ key = "n", desc = "New file", action = ":ene | startinsert" },
+				{
+					key = "c",
+					desc = "Config",
+					action = function()
+						vim.cmd.edit(vim.fn.stdpath("config") .. "/init.lua")
+					end,
+				},
+				{
+					key = "u",
+					desc = "Update plugins",
+					action = function()
+						vim.pack.update()
+					end,
+				},
+				{ key = "q", desc = "Quit", action = ":qa" },
+			},
+		},
+		formats = {
+			icon = function()
+				return { "", width = 0 }
+			end,
+		},
+		sections = {
+			{ section = "header" },
+			{ section = "keys", gap = 1, padding = 1 },
+			{ text = "https://sunwook-hwang.github.io", align = "center" },
+		},
+	},
+})
+vim.keymap.set("n", "<leader>A", function()
+	Snacks.dashboard()
+end, { desc = "Open dashboard" })
+Snacks.toggle.indent():map("<leader>Ti")
+Snacks.toggle.scroll():map("<leader>TS")
 
 -- =========================================
 -- ============ PLUGINS: SETUP =============
@@ -525,79 +697,6 @@ vim.keymap.set("n", "<leader>pS", function()
 end, { desc = "Select session" })
 
 -- -------------------------------------
--- UI: alpha-nvim (dashboard)
--- -------------------------------------
-do
-	local alpha = require("alpha")
-	local dashboard = require("alpha.themes.dashboard")
-
-	-- Dashboard header (ASCII art)
-	dashboard.section.header.val = {
-		"",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⠀⠀⠀⠀⡀⢀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠼⠤⠤⠤⠤⠤⣧⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡸⢸⠀⠀⠀⠀⠀⠀⡟⠀⣾⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⠃⢸⠘⢏⠉⠉⠉⡽⡇⠀⢹⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⠃⠀⢸⢠⠘⡆⠀⡸⠁⡇⡀⢸⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡰⠃⠀⡖⡞⣚⣆⣹⣼⣁⣀⢳⠓⠚⢹⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡴⠁⠀⠀⡇⣧⠀⢀⡜⢳⡀⠀⢸⠀⠀⠀⢣⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠜⠁⠀⠀⠀⡇⡟⢲⡞⠒⠒⢳⣺⢸⠀⠀⠀⠈⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡠⠋⠀⠀⠀⠀⠀⡇⡷⠃⡇⠀⠀⠀⢹⣸⠀⠀⠀⠀⠘⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⠁⠀⠀⠀⠀⠀⣠⢿⢓⣒⣓⣀⣀⣀⡞⠛⡖⠒⠢⠀⠀⡟⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⠁⠀⠀⠀⠀⠀⣠⠞⢹⢸⢸⠀⠀⠀⠀⠀⡇⠀⠘⢦⢰⠀⠀⡇⠘⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⢀⡤⠊⠁⠀⠀⠀⠀⠀⣠⠞⠁⠀⢸⢸⠘⠒⠲⠒⠒⠒⡇⠀⠀⠀⠳⡄⠀⡇⠀⠈⢆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⢀⣠⠴⠊⠁⠀⠀⠀⠀⠀⢀⡤⡎⠁⠀⠀⠀⢸⢸⠀⠀⢀⠀⠀⠀⡇⠀⠀⠀⢀⠈⢦⡗⠀⠀⠈⢣⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡗⠒⡁⠀⠀⠀⠀⠀⠀⠀",
-		"⠈⠁⠀⠀⠀⠀⠀⠀⢀⡠⠖⠁⠀⡇⠀⠀⠀⠀⠚⣾⠒⣒⠚⣢⠀⢰⠓⠒⠒⠒⠺⠀⠀⣟⢆⠀⠀⠀⡟⣄⠀⠀⠀⠀⠀⠀⠀⠀⢀⣾⣑⡞⣹⡄⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⢀⣀⡤⠚⠁⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⢰⠀⠀⠀⠀⢸⢰⠀⠀⠀⠀⡇⠀⡇⠀⠙⠢⣄⡇⠈⠣⡀⠀⠀⠀⠀⣀⡴⣋⢼⡏⠠⢻⠘⢄⠀⠀⠀⠀⠀",
-		"⢀⠤⠔⠊⠉⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⠘⠒⠒⢲⠒⢺⢸⠀⠀⠀⠀⡇⠀⡇⠀⠀⠀⠀⡏⠑⠒⢺⠓⠲⠶⡟⠓⠉⡇⢸⣇⣠⢸⠀⠀⡗⠦⣀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⠀⠀⠀⢸⠀⢸⢸⠀⠀⠀⠀⡅⠀⣇⣀⣀⣀⠀⡇⠀⠠⢼⠤⠤⣤⣧⣤⣤⣧⣼⣧⣼⢸⠤⠤⠇⣀⣈⣉⡁",
-		"⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⢀⣀⣿⠀⠤⠤⠼⠔⢺⢸⠀⠀⠀⠀⣏⣀⠧⡤⡤⣖⢒⣷⣚⡻⠭⠯⠭⠗⠒⠓⠒⠛⢻⣏⣹⢸⠉⠉⠁⠀⠐⠒⠂",
-		"⠀⠀⠀⠀⠀⠀⡇⠀⠀⣀⡀⠤⠤⡗⠒⠈⠉⠁⠀⢸⠀⠀⠀⣀⣠⣼⢸⠀⠀⠀⠀⣇⠦⠽⠚⠒⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣸⡟⢻⢸⣀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⢀⣀⠤⠔⡗⠉⠁⠀⠀⠀⠀⡇⠀⠀⠀⢀⡠⣼⠖⡘⢍⠰⡡⢺⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⢀⠁⠀⠸⠇⠸⠼⠀⠈⠆⠢⠄⠀⠀",
-		"⠐⠉⠁⠀⠀⠀⡇⠀⠀⠀⠀⠀⢀⣧⠤⠖⠋⢽⣠⢃⠞⣈⡶⠜⠒⢹⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠔⡠⠌⢁⡐⠒⢒⡠⠀⢓⡈⠄⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⡇⠀⢀⡠⠔⠚⡍⠰⠎⣠⠒⣢⡥⢾⠋⠁⠀⠀⠀⢸⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠈⠉⢦⡀⠀⣀⠧⠚⠉⠒⠒⠒⠃⢀⣴⠗⠋⠁⡇⢸⠀⠐⠂⠢⠤⢼⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⢣⠈⠉⠉⠉⠉⠻⣉⡶⠖⠋⠀⠀⠀⠀⡇⢸⠀⠸⡉⠏⢐⣾⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣖⠒⠒⠠⡀⠀⠀⡇⢸⠀⠀⡱⠈⠁⣼⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-	}
-
-	-- Dashboard buttons
-	dashboard.section.buttons.val = {
-		dashboard.button("f", "Find file", ":Telescope find_files<CR>"),
-		dashboard.button("r", "Recent files", ":Telescope oldfiles<CR>"),
-		-- dashboard.button("p", "Find project", ":Telescope projects<CR>"),
-		-- dashboard.button("R", "Restore Session", ":lua require('persistence').load()<CR>"),
-		-- dashboard.button("L", "Last Session", ":lua require('persistence').load({ last = true })<CR>"),
-		dashboard.button("p", "Select session", ":lua require('persistence').select()<CR>"),
-		dashboard.button("n", "New file", ":ene | startinsert<CR>"),
-		dashboard.button("c", "Config", ":e ~/.config/nvim/init.lua<CR>"),
-		dashboard.button("u", "Update plugins", ":lua vim.pack.update()<CR>"),
-		dashboard.button("q", "Quit", ":qa!<CR>"),
-	}
-
-	-- Footer + highlights
-	dashboard.section.footer.val = "https://sunwook-hwang.github.io"
-	dashboard.section.footer.opts.hl = "Type"
-	dashboard.section.header.opts.hl = "Include"
-	dashboard.section.buttons.opts.hl = "Keyword"
-	dashboard.opts.opts.noautocmd = true
-
-	alpha.setup(dashboard.opts)
-
-	-- Auto start dashboard on empty start
-	vim.api.nvim_create_AUTOCMD = vim.api.nvim_create_autocmd
-	vim.api.nvim_create_AUTOCMD("VimEnter", {
-		callback = function()
-			if vim.fn.argc() == 0 and vim.api.nvim_buf_get_name(0) == "" then
-				require("alpha").start(true)
-			end
-		end,
-	})
-
-	vim.keymap.set("n", "<leader>A", "<Cmd>Alpha<CR>", { desc = "Open Alpha Dashboard" })
-end
-
--- -------------------------------------
 -- Clipboard over SSH: native OSC52 copy, with the system paste provider unchanged
 -- -------------------------------------
 do
@@ -625,7 +724,38 @@ require("which-key").setup({
 	delay = 0,
 	icons = {
 		mappings = false,
-		keys = {},
+		keys = {
+			Up = "Up",
+			Down = "Down",
+			Left = "Left",
+			Right = "Right",
+			C = "Ctrl-",
+			M = "Alt-",
+			D = "Cmd-",
+			S = "Shift-",
+			CR = "Enter",
+			Esc = "Esc",
+			NL = "Enter",
+			BS = "Backspace",
+			Space = "Space",
+			Tab = "Tab",
+			ScrollWheelDown = "WheelDown",
+			ScrollWheelUp = "WheelUp",
+			F1 = "F1",
+			F2 = "F2",
+			F3 = "F3",
+			F4 = "F4",
+			F5 = "F5",
+			F6 = "F6",
+			F7 = "F7",
+			F8 = "F8",
+			F9 = "F9",
+			F10 = "F10",
+			F11 = "F11",
+			F12 = "F12",
+		},
+		breadcrumb = ">",
+		separator = "->",
 	},
 	spec = {
 		{ "<leader>s", group = "[S]earch" },
@@ -640,207 +770,106 @@ require("which-key").setup({
 })
 
 -- -------------------------------------
--- Telescope
+-- Snacks pickers: retain the existing search and navigation keys.
 -- -------------------------------------
 do
-	require("telescope").setup({})
-
-	local builtin = require("telescope.builtin")
-	vim.keymap.set("n", "<leader>sg", builtin.git_commits, { desc = "[S]earch [G]itcommits" })
-	vim.keymap.set("n", "<leader>sc", builtin.commands, { desc = "[S]earch [C]ommands" })
-
-	vim.keymap.set("n", "<leader>st", builtin.live_grep, { desc = "[S]earch [T]ext" })
-	vim.keymap.set("n", "<leader>sd", builtin.diagnostics, { desc = "[S]earch [D]iagnostics" })
-	vim.keymap.set("n", "<leader>sk", builtin.keymaps, { desc = "[S]earch [R]esume" })
-	vim.keymap.set("n", "<leader>sr", builtin.oldfiles, { desc = "[S]earch [R]ecent Files" })
-	vim.keymap.set("n", "<leader>t", builtin.grep_string, { desc = "Search current [T]ext under Cursor" })
-
-	vim.keymap.set("n", "<leader>sp", function()
-		builtin.colorscheme({ enable_preview = true })
-	end, { desc = "[S]earch [P]alette (colorscheme)" })
-
-	vim.keymap.set("n", "<leader><cr>", builtin.git_files, { desc = "Search Files in Current Git" })
-	vim.keymap.set("n", "<leader>f", builtin.find_files, { desc = "[F]ind Files" })
-	vim.keymap.set("n", "<leader>sh", builtin.help_tags, { desc = "[S]earch [H]elp" })
-	vim.keymap.set("n", "<leader>sk", builtin.keymaps, { desc = "[S]earch [K]eymaps" })
-
-	vim.keymap.set("n", "<leader>s/", function()
-		builtin.live_grep({
-			grep_open_files = true,
-			prompt_title = "Live Grep in Open Files",
-		})
-	end, { desc = "[S]earch [/] in Open Files" })
-
+	local pickers = {
+		sg = { "git_log", "Search Git commits" },
+		sc = { "commands", "Search commands" },
+		st = { "grep", "Search text" },
+		sd = { "diagnostics", "Search diagnostics" },
+		sk = { "keymaps", "Search keymaps" },
+		sr = { "recent", "Search recent files" },
+		t = { "grep_word", "Search word under cursor" },
+		sp = { "colorschemes", "Preview colorschemes" },
+		["<CR>"] = { "git_files", "Search files in current Git" },
+		f = { "files", "Find files" },
+		sh = { "help", "Search help" },
+		["s/"] = { "grep_buffers", "Search open files" },
+		u = { "undo", "Search undo history" },
+	}
+	for key, picker in pairs(pickers) do
+		vim.keymap.set("n", "<leader>" .. key, function()
+			Snacks.picker[picker[1]]()
+		end, { desc = picker[2] })
+	end
 	vim.keymap.set("n", "<leader>sn", function()
-		builtin.find_files({ cwd = vim.fn.stdpath("config") })
-	end, { desc = "[S]earch [N]eovim files" })
+		Snacks.picker.files({ cwd = vim.fn.stdpath("config") })
+	end, { desc = "Search Neovim files" })
 end
 
--- -------------------------------------
--- Split terminal (from init.offline.lua)
--- -------------------------------------
--- Ctrl-t toggles the same shell in a bottom split; keep it out of the buffer list.
+-- LSP breadcrumbs without Treesitter or font icons.
 do
-	local terminal
-	local function terminal_running(buf)
-		local job = vim.bo[buf].channel
-		if type(job) ~= "number" or job <= 0 then
-			return false
-		end
-		local ok, status = pcall(vim.fn.jobwait, { job }, 0)
-		return ok and status[1] == -1
+	local enabled = true
+	local expression = "%{%v:lua.dropbar()%}"
+	local function eligible(buf, win)
+		return enabled
+			and vim.bo[buf].buftype == ""
+			and vim.api.nvim_buf_get_name(buf) ~= ""
+			and not vim.b[buf].large_file
+			and vim.api.nvim_win_get_config(win).relative == ""
+			and (vim.wo[win].winbar == "" or vim.wo[win].winbar == expression)
 	end
-	local function toggle_terminal()
-		if
-			terminal
-			and vim.api.nvim_buf_is_valid(terminal)
-			and vim.bo[terminal].buftype == "terminal"
-			and not terminal_running(terminal)
-		then
-			vim.api.nvim_buf_delete(terminal, { force = true })
-			terminal = nil
-		end
-		if terminal and vim.api.nvim_buf_is_valid(terminal) then
-			local win = vim.fn.bufwinid(terminal)
-			if win ~= -1 then
-				vim.cmd("stopinsert")
-				vim.api.nvim_win_close(win, true)
-				return
+	require("dropbar").setup({
+		sources = { path = { preview = false } },
+		icons = {
+			enable = false,
+			ui = { bar = { separator = " > ", extends = "..." }, menu = { indicator = "> " } },
+		},
+		bar = {
+			enable = eligible,
+			sources = function()
+				local sources = require("dropbar.sources")
+				return { sources.path, sources.lsp }
+			end,
+		},
+	})
+	local function refresh()
+		for _, win in ipairs(vim.api.nvim_list_wins()) do
+			local buf = vim.api.nvim_win_get_buf(win)
+			if eligible(buf, win) then
+				vim.wo[win][0].winbar = expression
+			elseif vim.wo[win].winbar == expression then
+				vim.wo[win][0].winbar = ""
 			end
 		end
-		if terminal and vim.api.nvim_buf_is_valid(terminal) then
-			vim.cmd("botright sbuffer " .. terminal)
-		else
-			vim.cmd("botright new")
-			terminal = vim.api.nvim_get_current_buf()
-			vim.bo.bufhidden = "hide"
-			vim.bo.buflisted = false
-			vim.fn.jobstart(vim.o.shell, { term = true })
-		end
-		vim.cmd("startinsert")
 	end
-	vim.keymap.set(
-		{ "n", "t" },
-		"<C-t>",
-		toggle_terminal,
-		{ noremap = true, silent = true, desc = "Toggle bottom terminal" }
-	)
+	vim.api.nvim_create_autocmd("BufWinEnter", {
+		group = vim.api.nvim_create_augroup("online-dropbar", { clear = true }),
+		callback = refresh,
+	})
+	vim.keymap.set("n", "<leader>Td", function()
+		enabled = not enabled
+		refresh()
+	end, { desc = "Toggle breadcrumb bar" })
 end
 
--- -------------------------------------
--- undotree
--- -------------------------------------
-require("undotree").setup({
-	window = { winblend = 0 },
-})
-
-vim.keymap.set("n", "<leader>u", function()
-	require("undotree").toggle()
-end, { desc = "Toggle Undotree" })
-
--- -------------------------------------
--- aerial symbols outline
--- -------------------------------------
+-- Persistent outline with cursor tracking in both directions.
 require("aerial").setup({
 	backends = { "lsp", "markdown", "asciidoc", "man" },
-	layout = { max_width = { 40, 0.25 } },
+	layout = { default_direction = "right", max_width = { 40, 0.25 } },
+	attach_mode = "global",
+	autojump = true,
+	close_on_select = false,
 	show_guides = true,
 	nerd_font = false,
+	icons = { Collapsed = ">" },
 })
+vim.keymap.set("n", "<leader>o", "<Cmd>AerialToggle<CR>", { desc = "Toggle symbols outline" })
 
-vim.keymap.set("n", "<leader>o", "<Cmd>AerialToggle<CR>", { desc = "Aerial: Toggle" })
-
--- Bound Git status output as in init.offline.lua.
-local function bounded_system(command, opts, callback)
-	local stdout, stderr, bytes, error_bytes = {}, {}, 0, 0
-	local process, failure
-	opts.stdout = function(err, data)
-		if err then
-			failure = tostring(err)
-		elseif data and not failure then
-			bytes = bytes + #data
-			if bytes > 2 * 1024 * 1024 then
-				failure = "Command output exceeds 2 MiB"
-			else
-				stdout[#stdout + 1] = data
-			end
-		end
-		if failure and process then
-			process:kill(9)
-		end
-	end
-	opts.stderr = function(err, data)
-		data = err and tostring(err) or data
-		if data and error_bytes < 8192 then
-			data = data:sub(1, 8192 - error_bytes)
-			stderr[#stderr + 1] = data
-			error_bytes = error_bytes + #data
-		end
-	end
-	process = vim.system(command, opts, function(result)
-		result.stdout = table.concat(stdout)
-		result.stderr = failure or table.concat(stderr)
-		if failure then
-			result.code = 1
-		end
-		callback(result)
-	end)
-	return process
-end
-
--- -------------------------------------
--- Git status: bottom read-only split (from init.offline.lua)
--- -------------------------------------
+-- Keep a single bottom terminal even when the editor's cwd changes.
 do
-	local job, request
-	vim.keymap.set("n", "<leader>gg", function()
-		local name = vim.api.nvim_buf_get_name(0)
-		local dir = vim.bo.filetype == "NvimTree" and vim.fn.getcwd()
-			or (vim.bo.buftype == "" and name ~= "" and vim.fs.dirname(name))
-		if not dir then
-			for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-				local buf = vim.api.nvim_win_get_buf(win)
-				local file = vim.api.nvim_buf_get_name(buf)
-				if vim.bo[buf].buftype == "" and file ~= "" then
-					dir = vim.fs.dirname(file)
-					break
-				end
-			end
-		end
-		local root = vim.fs.root(dir or vim.fn.getcwd(), ".git")
-		if not root then
-			vim.notify("Current file is not in a Git project")
-			return
-		end
-		if job then
-			job:kill(15)
-		end
-		local current = {}
-		request = current
-		job = bounded_system(
-			{ "git", "--no-pager", "status", "--short", "--branch", "--untracked-files=normal" },
-			{ cwd = root, text = true, timeout = 5000 },
-			vim.schedule_wrap(function(result)
-				if request ~= current then
-					return
-				end
-				job = nil
-				if result.code ~= 0 then
-					vim.notify("Git status failed: " .. result.stderr, vim.log.levels.WARN)
-					return
-				end
-				vim.cmd("botright new")
-				vim.bo.buftype = "nofile"
-				vim.bo.buflisted = false
-				vim.bo.bufhidden = "wipe"
-				vim.bo.swapfile = false
-				vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(result.stdout, "\n", { trimempty = true }))
-				vim.bo.filetype = "git"
-				vim.bo.modifiable = false
-			end)
-		)
-	end, { noremap = true, silent = true, desc = "Git status" })
+	local terminal_cwd
+	vim.keymap.set({ "n", "t" }, "<C-t>", function()
+		terminal_cwd = terminal_cwd or vim.fn.getcwd()
+		Snacks.terminal.toggle(nil, { cwd = terminal_cwd, count = 1 })
+	end, { desc = "Toggle bottom terminal" })
 end
+
+-- Git status and previews use the same picker UI as file search.
+vim.keymap.set("n", "<leader>gg", function()
+	Snacks.picker.git_status()
+end, { desc = "Git status" })
 
 -- -------------------------------------
 -- Formatting: conform.nvim (manual)
@@ -921,7 +950,6 @@ end
 -- Buffers without completion providers use words/tags; connected providers use the async engine.
 local function buffer_completion(buf)
 	vim.bo[buf].autocomplete = vim.bo[buf].buftype == ""
-		and vim.bo[buf].filetype ~= "NvimTree"
 		and not vim.b[buf].large_file
 		and #vim.lsp.get_clients({ bufnr = buf, method = "textDocument/completion" }) == 0
 end
@@ -942,54 +970,14 @@ vim.api.nvim_create_autocmd({ "BufEnter", "FileType", "LspDetach" }, {
 })
 
 -- -------------------------------------
--- File explorer: nvim-tree
+-- File explorer: Snacks, with the existing Git-first project root policy.
 -- -------------------------------------
 do
-	local opts = {
-		sync_root_with_cwd = true,
-		respect_buf_cwd = true,
-		update_focused_file = {
-			enable = true,
-			update_cwd = true,
-		},
-		view = { adaptive_size = true },
-		renderer = {
-			icons = {
-				glyphs = {
-					default = "-",
-					symlink = "~",
-					folder = {
-						arrow_open = "v",
-						arrow_closed = ">",
-						default = "+",
-						open = "-",
-						empty = "+",
-						empty_open = "-",
-						symlink = "~",
-					},
-					git = {
-						unstaged = "!",
-						staged = "+",
-						unmerged = "≠",
-						renamed = "→",
-						untracked = "?",
-						deleted = "x",
-						ignored = "○",
-					},
-				},
-			},
-		},
-	}
-
-	local nvim_tree = require("nvim-tree")
-	nvim_tree.setup(opts)
-
-	-- Match offline project discovery; DirChanged already synchronizes nvim-tree.
 	vim.api.nvim_create_autocmd("BufEnter", {
-		group = vim.api.nvim_create_augroup("nvim-tree-auto-root", { clear = true }),
+		group = vim.api.nvim_create_augroup("online-project-root", { clear = true }),
 		callback = function(args)
 			local file = vim.api.nvim_buf_get_name(args.buf)
-			if vim.bo[args.buf].buftype ~= "" or file == "" or vim.bo[args.buf].filetype == "NvimTree" then
+			if vim.bo[args.buf].buftype ~= "" or file == "" then
 				return
 			end
 			local dir = vim.fs.dirname(file)
@@ -1006,14 +994,10 @@ do
 			end
 		end,
 	})
-
-	vim.keymap.set("n", "<leader>e", "<Cmd>NvimTreeFindFileToggle<CR>", { desc = "NvimTree: Find file & toggle" })
+	vim.keymap.set("n", "<leader>e", function()
+		Snacks.explorer()
+	end, { desc = "Toggle file explorer" })
 end
-
--- -------------------------------------
--- TODO comments highlight
--- -------------------------------------
-require("todo-comments").setup({ signs = false })
 
 -- -------------------------------------
 -- LSP: native client and buffer mappings
@@ -1044,22 +1028,34 @@ do
 			local opts = { buffer = ev.buf, silent = true }
 
 			opts.desc = "Go to definition"
-			keymap.set("n", "gd", vim.lsp.buf.definition, opts)
+			keymap.set("n", "gd", function()
+				Snacks.picker.lsp_definitions()
+			end, opts)
 
 			opts.desc = "References"
-			keymap.set("n", "gr", vim.lsp.buf.references, opts)
+			keymap.set("n", "gr", function()
+				Snacks.picker.lsp_references()
+			end, opts)
 
 			opts.desc = "Show LSP references"
-			keymap.set("n", "gR", vim.lsp.buf.references, opts)
+			keymap.set("n", "gR", function()
+				Snacks.picker.lsp_references()
+			end, opts)
 
 			opts.desc = "Go to declaration"
-			keymap.set("n", "gD", vim.lsp.buf.declaration, opts)
+			keymap.set("n", "gD", function()
+				Snacks.picker.lsp_declarations()
+			end, opts)
 
 			opts.desc = "Show LSP implementations"
-			keymap.set("n", "gi", vim.lsp.buf.implementation, opts)
+			keymap.set("n", "gi", function()
+				Snacks.picker.lsp_implementations()
+			end, opts)
 
 			opts.desc = "Show LSP type definitions"
-			keymap.set("n", "gt", vim.lsp.buf.type_definition, opts)
+			keymap.set("n", "gt", function()
+				Snacks.picker.lsp_type_definitions()
+			end, opts)
 
 			opts.desc = "See available code actions"
 			keymap.set({ "n", "v" }, "<leader>la", vim.lsp.buf.code_action, opts)
@@ -1085,7 +1081,7 @@ do
 
 			opts.desc = "Show buffer diagnostics"
 			keymap.set("n", "<leader>lD", function()
-				vim.diagnostic.setloclist({ open = true })
+				Snacks.picker.diagnostics_buffer()
 			end, opts)
 
 			opts.desc = "Show line diagnostics"
@@ -1114,18 +1110,11 @@ do
 
 	-- Diagnostics toggle (global)
 	vim.diagnostic.enable(true, {})
-	local function toggle_diagnostics_global()
-		local enabled = vim.diagnostic.is_enabled({})
-		vim.diagnostic.enable(not enabled, {})
-		vim.notify(("Diagnostics: %s (global)"):format((not enabled) and "Enabled" or "Disabled"))
-	end
-	pcall(vim.api.nvim_create_user_command, "ToggleDiagnostics", toggle_diagnostics_global, {})
-	vim.keymap.set(
-		"n",
-		"<leader>lt",
-		"<Cmd>ToggleDiagnostics<CR>",
-		{ silent = true, desc = "Toggle Diagnostics (global)" }
-	)
+	local diagnostics = Snacks.toggle.diagnostics()
+	vim.api.nvim_create_user_command("ToggleDiagnostics", function()
+		diagnostics:toggle()
+	end, {})
+	diagnostics:map("<leader>lt")
 end
 -- -------------------------------------
 -- LSP server definitions and Mason installation
@@ -1281,7 +1270,10 @@ vim.keymap.set("n", "<leader>lv", function()
 end, { desc = "Select Python environment for this project" })
 
 -- Prefer PATH tools; append Mason's installed executables as a fallback.
-require("mason").setup({ PATH = "append", ui = {} })
+require("mason").setup({
+	PATH = "append",
+	ui = { icons = { package_installed = "OK", package_pending = "...", package_uninstalled = "-" } },
+})
 local servers = {
 	clangd = {
 		cmd = { "clangd" },
@@ -1579,95 +1571,7 @@ require("mason-tool-installer").setup({
 })
 enable_servers()
 
--- nvim-tree operations use native LSP requests/notifications to keep imports in sync.
-do
-	local api = require("nvim-tree.api")
-	local events = {
-		WillRenameNode = "willRename",
-		NodeRenamed = "didRename",
-		WillCreateFile = "willCreate",
-		FileCreated = "didCreate",
-		FolderCreated = "didCreate",
-		WillRemoveFile = "willDelete",
-		FileRemoved = "didDelete",
-		FolderRemoved = "didDelete",
-	}
-	for event, operation in pairs(events) do
-		api.events.subscribe(api.events.Event[event], function(data)
-			local path = vim.fs.normalize(data.old_name or data.fname or data.folder_name)
-			local folder = data.folder_name ~= nil or vim.fn.isdirectory(data.new_name or path) == 1
-			local entry = data.old_name
-					and { oldUri = vim.uri_from_fname(path), newUri = vim.uri_from_fname(data.new_name) }
-				or { uri = vim.uri_from_fname(path) }
-			local method = "workspace/" .. operation .. "Files"
-			for _, client in ipairs(vim.lsp.get_clients({ method = method })) do
-				local registration = vim.tbl_get(client.server_capabilities, "workspace", "fileOperations", operation)
-				local in_workspace = false
-				local roots = client.workspace_folders
-					or (client.root_dir and { { uri = vim.uri_from_fname(client.root_dir) } } or {})
-				for _, root in ipairs(roots) do
-					local dir = vim.fs.normalize(vim.uri_to_fname(root.uri)):gsub("/$", "")
-					if path == dir or vim.startswith(path, dir .. "/") then
-						in_workspace = true
-						break
-					end
-				end
-				local matches = false
-				for _, filter in ipairs(registration and registration.filters or {}) do
-					local pattern = filter.pattern
-					if
-						(not filter.scheme or filter.scheme == "file")
-						and (not pattern.matches or pattern.matches == (folder and "folder" or "file"))
-					then
-						local case = pattern.options and pattern.options.ignoreCase and "\\c" or "\\C"
-						local regex = vim.regex(case .. vim.fn.glob2regpat(pattern.glob))
-						if regex:match_str(path) or (folder and regex:match_str(path .. "/")) then
-							matches = true
-							break
-						end
-					end
-				end
-				if in_workspace and matches then
-					local params = { files = { entry } }
-					if operation:sub(1, 4) == "will" then
-						local response, err = client:request_sync(method, params, 5000)
-						if response and response.result and response.result ~= vim.NIL then
-							vim.lsp.util.apply_workspace_edit(response.result, client.offset_encoding)
-						elseif err or (response and response.err) then
-							vim.notify(
-								"LSP file operation failed: " .. vim.inspect(err or response.err),
-								vim.log.levels.WARN
-							)
-						end
-					else
-						client:notify(method, params)
-					end
-				end
-			end
-		end)
-	end
-end
--- -------------------------------------
--- Indent guides: indent-blankline
--- -------------------------------------
-do
-	local opts = {
-		indent = {
-			char = "┊",
-			tab_char = "┊",
-		},
-		scope = {
-			enabled = false, -- Scope detection requires Treesitter.
-			show_start = false,
-			show_end = false,
-		},
-	}
-
-	local ibl = require("ibl")
-	ibl.setup(opts)
-
-	vim.keymap.set("n", "<leader>Ti", "<Cmd>IBLToggle<CR>", { desc = "Toggle indent guides" })
-end
+-- File renames in the Snacks explorer use Snacks.rename for LSP import updates.
 
 -- -------------------------------------
 -- Buffers: native tabline and navigation (from init.offline.lua)
@@ -1677,12 +1581,12 @@ do
 		vim.keymap.set(mode, lhs, rhs, { noremap = true, silent = true, desc = desc })
 	end
 	local function focus_editor()
-		if vim.bo.filetype ~= "NvimTree" and vim.bo.filetype ~= "aerial" then
+		if vim.bo.filetype ~= "aerial" and not vim.bo.filetype:match("^snacks_picker") then
 			return
 		end
 		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
 			local buf = vim.api.nvim_win_get_buf(win)
-			if vim.bo[buf].buftype == "" and vim.bo[buf].filetype ~= "NvimTree" then
+			if vim.bo[buf].buftype == "" then
 				vim.api.nvim_set_current_win(win)
 				return
 			end
@@ -1777,17 +1681,19 @@ do
 	-- =========================================
 	-- Use the existing selection UI for the same ordered buffer list.
 	local function pick_buffer()
-		vim.ui.select(buffers(), {
-			prompt = "Buffers",
-			format_item = function(buf)
-				local name = vim.api.nvim_buf_get_name(buf)
-				return buf .. ": " .. (name ~= "" and vim.fn.fnamemodify(name, ":~:.") or "[No Name]")
+		focus_editor()
+		local order = {}
+		for index, buf in ipairs(buffers()) do
+			order[buf] = index
+		end
+		Snacks.picker.buffers({
+			sort_lastused = false,
+			sort = { fields = { "score:desc", "order" } },
+			transform = function(item)
+				item.order = order[item.buf]
+				return item.order ~= nil
 			end,
-		}, function(buf)
-			if buf and vim.api.nvim_buf_is_valid(buf) then
-				select_buffer(buf)
-			end
-		end)
+		})
 	end
 	for key, command in pairs({ ["<S-l>"] = "bnext", ["<S-h>"] = "bprevious", ["]b"] = "bnext", ["[b"] = "bprevious" }) do
 		map("n", key, function()
@@ -1831,7 +1737,7 @@ do
 			vim.notify("Unsaved changes: save the buffer before closing")
 			return
 		end
-		vim.api.nvim_buf_delete(0, { force = force or is_terminal })
+		Snacks.bufdelete({ force = force or is_terminal, wipe = true })
 	end
 	map("n", "<leader>c", function()
 		close_current_buffer(true)
@@ -1866,7 +1772,7 @@ do
 				then
 					local is_terminal = vim.bo[b].buftype == "terminal"
 					if is_terminal or not vim.bo[b].modified then
-						vim.api.nvim_buf_delete(b, { force = is_terminal })
+						Snacks.bufdelete({ buf = b, force = is_terminal, wipe = true })
 					end
 				end
 			end
@@ -1875,12 +1781,132 @@ do
 end
 
 -- -------------------------------------
--- Statusline: lualine
+-- Statusline: native renderer from init.offline.lua
 -- -------------------------------------
 do
-	local lualine = require("lualine")
-	local function lsp_status()
-		local buf = vim.api.nvim_get_current_buf()
+	local function set_git_mode_highlight()
+		local mode = vim.fn.mode():sub(1, 1)
+		local group = "Identifier"
+		if mode == "i" then
+			group = "String"
+		elseif mode == "v" or mode == "V" or mode == "\22" then
+			group = "Constant"
+		end
+		local normal = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
+		local accent = vim.api.nvim_get_hl(0, { name = group, link = false })
+		local bg = (accent.reverse and accent.bg or accent.fg) or normal.fg or 0x808080
+		local ctermbg = accent.cterm and accent.cterm.reverse and accent.ctermbg or accent.ctermfg
+		local function luminance(color)
+			local result = 0
+			for i, weight in ipairs({ 0.2126, 0.7152, 0.0722 }) do
+				local channel = math.floor(color / 256 ^ (3 - i)) % 256 / 255
+				result = result + weight * (channel <= 0.04045 and channel / 12.92 or ((channel + 0.055) / 1.055) ^ 2.4)
+			end
+			return result
+		end
+		local background_luminance = luminance(bg)
+		local function contrast(color)
+			local value = luminance(color)
+			return (math.max(value, background_luminance) + 0.05) / (math.min(value, background_luminance) + 0.05)
+		end
+		local fg, ctermfg = normal.bg or 0x000000, normal.ctermbg or 0
+		if contrast(normal.fg or 0xffffff) > contrast(fg) then
+			fg, ctermfg = normal.fg or 0xffffff, normal.ctermfg or 15
+		end
+		if contrast(fg) < 4.5 then
+			fg, ctermfg =
+				background_luminance > 0.179 and 0x000000 or 0xffffff, background_luminance > 0.179 and 0 or 15
+		end
+		vim.api.nvim_set_hl(0, "OnlineGitBranch", {
+			fg = fg,
+			bg = bg,
+			ctermfg = ctermfg,
+			ctermbg = ctermbg or normal.ctermfg or 8,
+			bold = true,
+			reverse = false,
+			nocombine = true,
+		})
+	end
+	local function set_online_status_highlights()
+		local inactive = vim.api.nvim_get_hl(0, { name = "StatusLineNC", link = false })
+		inactive.bold = false
+		if inactive.cterm then
+			inactive.cterm.bold = false
+		end
+		vim.api.nvim_set_hl(0, "StatusLineNC", inactive)
+		vim.api.nvim_set_hl(0, "OnlineLspMissing", { fg = "#ffffff", bg = "#af0000", bold = true })
+		vim.api.nvim_set_hl(0, "OnlineLspMissingNC", { fg = "#ffffff", bg = "#af0000", bold = false, nocombine = true })
+		set_git_mode_highlight()
+		for _, suffix in ipairs({ "", "NC" }) do
+			local error_hl = vim.api.nvim_get_hl(0, { name = "StatusLine" .. suffix, link = false })
+			if error_hl.reverse then
+				error_hl.bg = error_hl.fg
+			end
+			if error_hl.cterm and error_hl.cterm.reverse then
+				error_hl.ctermbg = error_hl.ctermfg
+				error_hl.cterm.reverse = false
+			end
+			if error_hl.cterm then
+				error_hl.cterm.nocombine = true
+			end
+			error_hl.nocombine = true
+			error_hl.reverse, error_hl.fg, error_hl.ctermfg = false, "#ff0000", 9
+			vim.api.nvim_set_hl(0, "OnlineStatusError" .. suffix, error_hl)
+			local warn_hl = vim.deepcopy(error_hl)
+			warn_hl.fg, warn_hl.ctermfg = "#ffd700", 220
+			vim.api.nvim_set_hl(0, "OnlineStatusWarn" .. suffix, warn_hl)
+		end
+	end
+	set_online_status_highlights()
+	vim.api.nvim_create_autocmd("ColorScheme", {
+		group = vim.api.nvim_create_augroup("online-status-highlights", { clear = true }),
+		callback = set_online_status_highlights,
+	})
+	vim.api.nvim_create_autocmd("ModeChanged", {
+		group = "online-status-highlights",
+		callback = function()
+			set_git_mode_highlight()
+			vim.cmd("redrawstatus")
+		end,
+	})
+	vim.opt.laststatus = 2
+	local language_status_visible = true
+	function _G.OnlineGitStatus()
+		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+		local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
+		if win ~= active then
+			return ""
+		end
+		local branch = vim.b[vim.api.nvim_win_get_buf(win)].gitsigns_head
+		local status = branch and branch ~= "" and ("[" .. branch .. "]") or ""
+		if not status or status == "" then
+			return ""
+		end
+		return "%#OnlineGitBranch# " .. status:gsub("%%", "%%%%") .. " %*"
+	end
+	function _G.OnlineDiagnosticStatus()
+		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+		local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
+		local error_group = win == active and "OnlineStatusError" or "OnlineStatusErrorNC"
+		local warn_group = win == active and "OnlineStatusWarn" or "OnlineStatusWarnNC"
+		local counts = vim.diagnostic.count(vim.api.nvim_win_get_buf(win))
+		local parts = {}
+		for _, item in ipairs({ { "ERROR", "E:" }, { "WARN", "W:" }, { "HINT", "H:" } }) do
+			local count = counts[vim.diagnostic.severity[item[1]]] or 0
+			if count > 0 then
+				local text = item[2] .. " " .. count
+				local group = item[1] == "ERROR" and error_group or item[1] == "WARN" and warn_group
+				parts[#parts + 1] = group and ("%#" .. group .. "#" .. text .. "%*") or text
+			end
+		end
+		return table.concat(parts, " ")
+	end
+	function _G.OnlineLspStatus()
+		if not language_status_visible then
+			return ""
+		end
+		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+		local buf = vim.api.nvim_win_get_buf(win)
 		if vim.bo[buf].buftype ~= "" then
 			return ""
 		end
@@ -1891,16 +1917,26 @@ do
 			end
 		end
 		local sorted = vim.fn.sort(vim.tbl_keys(names))
-		return #sorted > 0 and ("[LSP: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]") or "[LSP X]"
+		local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
+		local missing_group = win == active and "OnlineLspMissing" or "OnlineLspMissingNC"
+		return #sorted > 0 and ("[LSP: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]")
+			or ("%#" .. missing_group .. "#[LSP X]%*")
 	end
-	local function lsp_status_color()
-		local buf = vim.api.nvim_get_current_buf()
-		if vim.bo[buf].buftype == "" and #vim.lsp.get_clients({ bufnr = buf }) == 0 then
-			return { fg = "#ffffff", bg = "#af0000", gui = "bold" }
+	vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
+		group = vim.api.nvim_create_augroup("online-lsp-status", { clear = true }),
+		callback = function()
+			-- LspDetach fires before the client is removed from the buffer.
+			vim.schedule(function()
+				vim.cmd("redrawstatus")
+			end)
+		end,
+	})
+	function _G.OnlineFormatStatus()
+		if not language_status_visible then
+			return ""
 		end
-	end
-	local function format_status()
-		local buf = vim.api.nvim_get_current_buf()
+		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+		local buf = vim.api.nvim_win_get_buf(win)
 		if vim.bo[buf].buftype ~= "" then
 			return ""
 		end
@@ -1923,54 +1959,20 @@ do
 			end
 		end
 		local sorted = vim.fn.sort(vim.tbl_keys(names))
-		return #sorted > 0 and ("[FORMAT: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]") or "[FORMAT X]"
+		return #sorted > 0 and ("[FORMAT: " .. table.concat(sorted, ", ") .. "]") or "[FORMAT X]"
 	end
-	vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
-		group = vim.api.nvim_create_augroup("online-lsp-status", { clear = true }),
-		callback = function()
-			vim.schedule(function()
-				lualine.refresh({ place = { "statusline" } })
-			end)
-		end,
-	})
-	lualine.setup({
-		sections = {
-			lualine_a = { "mode" },
-			lualine_b = {
-				{
-					"branch",
-					icon = "",
-				},
-				{
-					"diff",
-					symbols = {
-						added = "+",
-						modified = "~",
-						removed = "-",
-					},
-				},
-			},
-			lualine_c = { "filename" },
-			lualine_x = {
-				{ "diagnostics", sources = { "nvim_diagnostic" }, always_visible = false },
-				{ lsp_status, color = lsp_status_color },
-				format_status,
-				"filetype",
-			},
-			lualine_y = {},
-			lualine_z = { "location" },
-		},
-		inactive_sections = {
-			lualine_c = { "filename" },
-			lualine_x = { { lsp_status, color = lsp_status_color }, format_status, "filetype" },
-		},
-		options = {
-			theme = "auto",
-			section_separators = "",
-			component_separators = "",
-			icons_enabled = false,
-		},
-	})
+	function _G.OnlineStatusline()
+		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+		if win ~= vim.api.nvim_get_current_win() then
+			return " %f %= %y "
+		end
+		return "%{%v:lua.OnlineGitStatus()%} %f %m%r%h %= %{%v:lua.OnlineDiagnosticStatus()%} %{%v:lua.OnlineLspStatus()%} %{v:lua.OnlineFormatStatus()} %y | %4l:%3c | %3p%% "
+	end
+	vim.opt.statusline = "%!v:lua.OnlineStatusline()"
+	vim.keymap.set("n", "<leader>Tl", function()
+		language_status_visible = not language_status_visible
+		vim.cmd("redrawstatus")
+	end, { desc = "Toggle LSP / formatter status" })
 end
 -- =========================================
 -- =========== POST-PLUGIN COMMANDS ========
@@ -2001,51 +2003,7 @@ if display.transparent_window then
 	cmd("au ColorScheme * hi SignColumn ctermbg=none guibg=none")
 	cmd("au ColorScheme * hi NormalNC ctermbg=none guibg=none")
 	cmd("au ColorScheme * hi MsgArea ctermbg=none guibg=none")
-	cmd("au ColorScheme * hi TelescopeBorder ctermbg=none guibg=none")
-	cmd("au ColorScheme * hi NvimTreeNormal ctermbg=none guibg=none")
+	cmd("au ColorScheme * hi SnacksPickerBorder ctermbg=none guibg=none")
+	cmd("au ColorScheme * hi SnacksPickerList ctermbg=none guibg=none")
 	cmd("let &fcs='eob: '")
-end
-
--- =========================================
--- ============ NEOVIDE SETTINGS ===========
--- =========================================
-if vim.g.neovide then
-	vim.o.guifont = "JetBrainsMono Nerd Font:h18"
-
-	-- Disable cursor animations/effects
-	vim.g.neovide_cursor_animation_length = 0
-	vim.g.neovide_cursor_trail_size = 0
-	vim.g.neovide_cursor_vfx_mode = nil
-
-	vim.g.neovide_scale_factor = 1.0
-
-	local function change_scale(delta)
-		local new = vim.g.neovide_scale_factor * (1 + delta)
-		if new < 0.3 then
-			new = 0.3
-		end
-		vim.g.neovide_scale_factor = new
-	end
-
-	-- Windows/Linux
-	vim.keymap.set({ "n", "i", "v" }, "<C-=>", function()
-		change_scale(0.10)
-	end, { desc = "Zoom In (Neovide)" })
-	vim.keymap.set({ "n", "i", "v" }, "<C-->", function()
-		change_scale(-0.10)
-	end, { desc = "Zoom Out (Neovide)" })
-	vim.keymap.set({ "n", "i", "v" }, "<C-0>", function()
-		vim.g.neovide_scale_factor = 1.0
-	end, { desc = "Zoom Reset (Neovide)" })
-
-	-- macOS
-	vim.keymap.set({ "n", "i", "v" }, "<D-=>", function()
-		change_scale(0.10)
-	end, { desc = "Zoom In (Neovide macOS)" })
-	vim.keymap.set({ "n", "i", "v" }, "<D-->", function()
-		change_scale(-0.10)
-	end, { desc = "Zoom Out (Neovide macOS)" })
-	vim.keymap.set({ "n", "i", "v" }, "<D-0>", function()
-		vim.g.neovide_scale_factor = 1.0
-	end, { desc = "Zoom Reset (Neovide macOS)" })
 end

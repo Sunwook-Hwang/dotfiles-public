@@ -3323,6 +3323,37 @@ end
 local git_signs = vim.api.nvim_create_namespace("offline-git-signs")
 local git_sign_versions, git_sign_timers, git_diff_jobs, git_sign_rendered = {}, {}, {}, {}
 local git_base_cache = {}
+-- Git atomically replaces the index. Include inode and nanosecond timestamps so
+-- same-size updates invalidate cached blobs, including in worktrees/submodules.
+local function git_index_stamp(root)
+	local function absolute(path)
+		return (path:match("^[/\\]") or path:match("^%a:[/\\]")) and path or (root .. "/" .. path)
+	end
+	local index = vim.env.GIT_INDEX_FILE
+	if not index then
+		local gitdir = root .. "/.git"
+		local info = vim.uv.fs_stat(gitdir)
+		if info and info.type == "file" then
+			local ok, lines = pcall(vim.fn.readfile, gitdir, "", 1)
+			local target = ok and (lines[1] or ""):match("^gitdir: (.+)$")
+			if not target then
+				return nil
+			end
+			gitdir = absolute(target)
+		end
+		index = gitdir .. "/index"
+	else
+		index = absolute(index)
+	end
+	local info = vim.uv.fs_stat(index)
+	if not info then
+		return index .. ":missing"
+	end
+	return table.concat({
+		index, info.dev, info.ino, info.size,
+		info.mtime.sec, info.mtime.nsec, info.ctime.sec, info.ctime.nsec,
+	}, ":")
+end
 local function git_hunk_rows(buf)
 	local rows, previous = {}, nil
 	for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(buf, git_signs, 0, -1, {})) do
@@ -3631,19 +3662,8 @@ local function request_git_marks(buf, base, current, count, apply)
 	job.work:queue(base, current, count)
 end
 
-local function queue_git_signs(buf, invalidate)
-	if invalidate then
-		git_base_cache[buf], git_sign_rendered[buf] = nil, nil
-	end
+local function queue_git_signs(buf)
 	if not vim.api.nvim_buf_is_loaded(buf) then
-		return
-	end
-	local rendered = git_sign_rendered[buf]
-	if
-		rendered
-		and rendered.tick == vim.api.nvim_buf_get_changedtick(buf)
-		and rendered.file == vim.api.nvim_buf_get_name(buf)
-	then
 		return
 	end
 	git_sign_versions[buf] = {} -- unique token, also across unload/reload
@@ -3688,6 +3708,11 @@ local function queue_git_signs(buf, invalidate)
 			return
 		end
 		local tick = vim.api.nvim_buf_get_changedtick(buf)
+		local stamp = git_index_stamp(root)
+		local rendered = git_sign_rendered[buf]
+		if stamp and rendered and rendered.tick == tick and rendered.file == file and rendered.index == stamp then
+			return
+		end
 		local current = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
 		if vim.bo[buf].endofline then
 			current = current .. "\n"
@@ -3698,6 +3723,7 @@ local function queue_git_signs(buf, invalidate)
 				and vim.api.nvim_buf_get_changedtick(buf) == tick
 				and vim.api.nvim_buf_get_name(buf) == file
 				and not vim.b[buf].offline_large_file
+				and git_index_stamp(root) == stamp
 		end
 		local function apply_base(base)
 			if not is_current() then
@@ -3719,11 +3745,11 @@ local function queue_git_signs(buf, invalidate)
 						priority = 5,
 					})
 				end
-				git_sign_rendered[buf] = { tick = tick, file = file }
+				git_sign_rendered[buf] = { tick = tick, file = file, index = stamp }
 			end)
 		end
 		local cached = git_base_cache[buf]
-		if cached and cached.file == file and cached.root == root then
+		if stamp and cached and cached.file == file and cached.root == root and cached.index == stamp then
 			if cached.base then
 				apply_base(cached.base)
 			else
@@ -3737,13 +3763,13 @@ local function queue_git_signs(buf, invalidate)
 			quiet = true,
 			failed = function()
 				if is_current() then
-					git_base_cache[buf] = { file = file, root = root, base = false }
+					git_base_cache[buf] = { file = file, root = root, base = false, index = stamp }
 					clear_signs()
 				end
 			end,
 		}, function(base)
 			if is_current() then
-				git_base_cache[buf] = { file = file, root = root, base = base }
+				git_base_cache[buf] = { file = file, root = root, base = base, index = stamp }
 				apply_base(base)
 			end
 		end)
@@ -3768,7 +3794,6 @@ vim.api.nvim_create_autocmd({
 			or args.event == "TermLeave"
 			or args.event == "TermClose"
 		then
-			git_base_cache, git_sign_rendered = {}, {}
 			local seen = {}
 			for _, win in ipairs(vim.api.nvim_list_wins()) do
 				local buf = vim.api.nvim_win_get_buf(win)
@@ -3778,7 +3803,7 @@ vim.api.nvim_create_autocmd({
 				end
 			end
 		else
-			queue_git_signs(args.buf, args.event == "BufWritePost")
+			queue_git_signs(args.buf)
 		end
 	end,
 })
@@ -5929,48 +5954,4 @@ do
 			end
 		end,
 	})
-end
-
--- =========================================
--- ============ NEOVIDE SETTINGS ===========
--- =========================================
-if vim.g.neovide then
-	vim.o.guifont = "JetBrainsMono Nerd Font:h18"
-
-	-- Disable cursor animations/effects
-	vim.g.neovide_cursor_animation_length = 0
-	vim.g.neovide_cursor_trail_size = 0
-	vim.g.neovide_cursor_vfx_mode = nil
-
-	vim.g.neovide_scale_factor = 1.0
-
-	local function change_scale(delta)
-		local new = vim.g.neovide_scale_factor * (1 + delta)
-		if new < 0.3 then
-			new = 0.3
-		end
-		vim.g.neovide_scale_factor = new
-	end
-
-	-- Windows/Linux
-	vim.keymap.set({ "n", "i", "v" }, "<C-=>", function()
-		change_scale(0.10)
-	end, { desc = "Zoom In (Neovide)" })
-	vim.keymap.set({ "n", "i", "v" }, "<C-->", function()
-		change_scale(-0.10)
-	end, { desc = "Zoom Out (Neovide)" })
-	vim.keymap.set({ "n", "i", "v" }, "<C-0>", function()
-		vim.g.neovide_scale_factor = 1.0
-	end, { desc = "Zoom Reset (Neovide)" })
-
-	-- macOS
-	vim.keymap.set({ "n", "i", "v" }, "<D-=>", function()
-		change_scale(0.10)
-	end, { desc = "Zoom In (Neovide macOS)" })
-	vim.keymap.set({ "n", "i", "v" }, "<D-->", function()
-		change_scale(-0.10)
-	end, { desc = "Zoom Out (Neovide macOS)" })
-	vim.keymap.set({ "n", "i", "v" }, "<D-0>", function()
-		vim.g.neovide_scale_factor = 1.0
-	end, { desc = "Zoom Reset (Neovide macOS)" })
 end

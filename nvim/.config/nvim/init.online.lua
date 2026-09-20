@@ -514,6 +514,16 @@ Snacks.setup({
 	terminal = {
 		win = { position = "bottom", height = 0.3, keys = { term_normal = false } },
 	},
+	lazygit = {
+		configure = false, -- Use lazygit's own config and colors instead of the Neovim theme.
+		win = {
+			position = "float",
+			height = 0.9,
+			width = 0.9,
+			backdrop = false,
+			wo = { winhighlight = "Normal:Normal,NormalNC:Normal" },
+		},
+	},
 	toggle = { which_key = false, notify = false },
 	picker = {
 		enabled = true,
@@ -910,10 +920,10 @@ do
 	end, { desc = "Toggle bottom terminal" })
 end
 
--- Git status and previews use the same picker UI as file search.
+-- Toggle lazygit independently of the bottom shell terminal.
 vim.keymap.set("n", "<leader>gg", function()
-	Snacks.picker.git_status()
-end, { desc = "Git status" })
+	Snacks.lazygit()
+end, { desc = "Toggle lazygit" })
 
 -- -------------------------------------
 -- Formatting: conform.nvim (manual)

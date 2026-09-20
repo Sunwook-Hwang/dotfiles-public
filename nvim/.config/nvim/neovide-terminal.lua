@@ -14,7 +14,8 @@ vim.o.background = "dark"
 vim.cmd("colorscheme default")
 vim.api.nvim_set_hl(0, "Normal", { fg = "#d0d0d0", bg = "#000000" })
 
--- vim.o.guifont = "JetBrainsMono Nerd Font:h18"
+-- The outer GUI renders nested Neovim too; prefer solid-dot Braille glyphs.
+vim.o.guifont = "RobotoMono Nerd Font Mono,monospace:h14"
 
 -- Disable cursor animations/effects
 vim.g.neovide_cursor_animation_length = 0.05

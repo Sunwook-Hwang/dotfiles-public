@@ -867,12 +867,6 @@ vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter", "WinEnter" }, {
 vim.api.nvim_create_autocmd("FileType", {
 	pattern = "netrw",
 	callback = function(args)
-		local win = vim.api.nvim_get_current_win()
-		vim.schedule(function()
-			if vim.api.nvim_win_is_valid(win) and vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "netrw" then
-				set_window_width(win, sidebar_width())
-			end
-		end)
 		vim.w.netrw_liststyle = 3
 		vim.opt_local.number = true
 		vim.opt_local.relativenumber = false
@@ -1108,6 +1102,8 @@ vim.keymap.set("n", "<leader>e", function()
 	for _, buf in ipairs(vim.api.nvim_list_bufs()) do
 		existing_buffers[buf] = true
 	end
+	-- Negative winsize is an absolute column count: open at the final width.
+	vim.g.netrw_winsize = -sidebar_width()
 	netrw_command("Lexplore " .. vim.fn.fnameescape(root == "" and "/" or root))
 	if file ~= "" then
 		reveal_tree_file(file:sub(#root + 2))

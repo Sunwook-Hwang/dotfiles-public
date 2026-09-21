@@ -958,6 +958,7 @@ Snacks.toggle.scroll():map("<leader>TS")
 -- Git signs + hunk operations
 -- -------------------------------------
 require("gitsigns").setup({
+	current_line_blame_opts = { delay = 150 },
 	signs = {
 		add = { text = "+" },
 		change = { text = "~" },
@@ -1003,7 +1004,6 @@ require("gitsigns").setup({
 
 		-- Preview/Blame/Diff/Deleted
 		map("n", "<leader>gv", gs.preview_hunk_inline, "Git: Preview hunk (inline)")
-		map("n", "<leader>gb", gs.toggle_current_line_blame, "Git: Toggle inline blame")
 		map("n", "<leader>gB", function()
 			gs.blame_line({ full = true })
 		end, "Git: Blame (full)")
@@ -1017,6 +1017,10 @@ require("gitsigns").setup({
 		map({ "o", "x" }, "ih", ":<C-U>Gitsigns select_hunk<CR>", "Git: inner hunk")
 	end,
 })
+vim.keymap.set("n", "<leader>gb", function()
+	local enabled = require("gitsigns").toggle_current_line_blame()
+	vim.notify("Inline blame: " .. (enabled and "on" or "off"))
+end, { desc = "Toggle inline blame" })
 
 -- -------------------------------------
 -- Session management: persistence.nvim

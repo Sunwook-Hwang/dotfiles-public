@@ -785,7 +785,13 @@ Snacks.setup({
 	indent = {
 		enabled = true,
 		indent = { char = "┊" },
-		scope = { enabled = false },
+		scope = {
+			enabled = false,
+			-- Snacks attaches a scope listener even when its highlight is disabled.
+			filter = function()
+				return false
+			end,
+		},
 		animate = { enabled = false },
 	},
 	scroll = {
@@ -2277,12 +2283,24 @@ do
 		end
 		return "%#OnlineGitBranch# " .. status:gsub("%%", "%%%%") .. " %*"
 	end
+	local diagnostic_counts = {}
+	vim.api.nvim_create_autocmd({ "DiagnosticChanged", "BufWipeout" }, {
+		group = vim.api.nvim_create_augroup("online-diagnostic-status", { clear = true }),
+		callback = function(args)
+			diagnostic_counts[args.buf] = nil
+		end,
+	})
 	function _G.OnlineDiagnosticStatus()
 		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 		local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
 		local error_group = win == active and "OnlineStatusError" or "OnlineStatusErrorNC"
 		local warn_group = win == active and "OnlineStatusWarn" or "OnlineStatusWarnNC"
-		local counts = vim.diagnostic.count(vim.api.nvim_win_get_buf(win))
+		local buf = vim.api.nvim_win_get_buf(win)
+		local counts = diagnostic_counts[buf]
+		if not counts then
+			counts = vim.diagnostic.count(buf)
+			diagnostic_counts[buf] = counts
+		end
 		local parts = {}
 		for _, item in ipairs({ { "ERROR", "E:" }, { "WARN", "W:" }, { "HINT", "H:" } }) do
 			local count = counts[vim.diagnostic.severity[item[1]]] or 0

@@ -1,0 +1,151 @@
+# 오프라인 Vim 9.0+
+
+[English](vim-offline-features.md) · [설정 파일](../vim/.vimrc) · [Neovim 기능](nvim-offline-features.ko.md)
+
+**`.vimrc` 한 파일, 외부 플러그인 없음, Lua 불필요, 시작 시 다운로드 없음.**
+offvi의 기본 조작을 Vimscript로 옮겼으며, LSP 대신 ctags를 사용합니다.
+문법 강조·들여쓰기·netrw·완성·diff·터미널·팝업은 Vim 내장 기능입니다.
+
+## 실행과 설치
+
+```sh
+vim -Nu /path/to/dotfiles/vim/.vimrc
+```
+
+**Vim 9.0 이상**의 일반적인 기능 포함 빌드가 필요합니다. `vim --version`에서
+`+timers`, `+job`, `+channel`, `+popupwin`, `+cryptv`를 확인하세요.
+Tiny/minimal 빌드는 지원하지 않습니다. `+terminal`이 있으면 내장 터미널과
+lazygit 팝업도 사용할 수 있습니다. Python/Lua 인터프리터는 필요 없습니다.
+
+저장소의 `./install_dotfiles.sh`는 `vim/.vimrc`를 `~/.vimrc`로 연결하며,
+충돌하는 기존 파일은 백업합니다. `./clean_dotfiles.sh`는 링크를 해제합니다.
+서버에는 이 파일 하나를 `~/.vimrc`로 복사해도 됩니다. 실행은 **`vim`**입니다.
+기존 **`onvi`·`offvi`는 계속 Neovim을 실행**합니다.
+
+ctags 인덱스·undo·세션·netrw 상태는 `~/.vim/offline`에 저장합니다.
+실행 전에 `VIM_OFFLINE_DATA`를 지정하면 저장 위치를 바꿀 수 있습니다.
+기존 Vim 플러그인 폴더는 로드하지 않고, Vim에 포함된 runtime만 사용합니다.
+
+## 편집과 ctags
+
+| 단축키 | 동작 |
+| --- | --- |
+| `gcc` | 현재 줄 주석 토글; 앞에 숫자로 줄 수 지정 가능 |
+| `gc` + 이동 | `gcj`, `gcap` 등 이동 범위에 주석 토글 |
+| Visual `gc` | 선택한 여러 줄 주석 토글 |
+| `.` | 주석 조작 반복 |
+| `>>` / `<<` | 현재 줄 들여쓰기 / 내어쓰기. 첫 열 Python 주석도 지원 |
+| Visual `>` / `<` | 선택한 여러 줄 들여쓰기 / 내어쓰기, 선택 유지 |
+| `Ctrl-s`, `jk` | 저장 / Insert 모드 종료 |
+| `Ctrl-h/j/k/l`, `Alt-j/k` | 창 이동 / 줄·선택 영역 이동 |
+| `Ctrl-Space` | 단어·ctags 자동완성 요청 |
+| `Ctrl-n/p`, `Tab`, `Shift-Tab` | 완성 후보 선택 |
+| `Enter` | 선택한 완성 후보 적용, 선택이 없으면 줄바꿈 |
+| `gd` | ctags 정의 이동. 필요한 경우 프로젝트 인덱스 먼저 생성 |
+| `g Ctrl-t` | 태그 스택에서 이전 위치로 복귀 |
+| `Space o` | 오른쪽 ctags 아웃라인. `Enter` 이동, `r` 갱신, `q` 닫기 |
+| `:CtagsUpdate`, `:CtagsClearAll` | 프로젝트 전체 인덱스 재생성 / 관리하는 인덱스 삭제 |
+| `:OfflineCancel` | 진행 중인 외부 작업·검색 취소 |
+
+주석은 파일 형식의 `commentstring`을 사용합니다. 괄호·따옴표·백틱 자동 짝,
+기존 닫는 기호 건너뛰기, 빈 짝 Backspace 삭제도 지원합니다.
+문법 색상과 들여쓰기는 Vim 기본 runtime을 사용하며, 테마는 내장되어 있으면
+`retrobox`, 없으면 `desert`입니다.
+
+**Universal Ctags를 PATH에 설치하는 것을 권장**합니다. Exuberant Ctags도
+지원하며, macOS의 BSD ctags는 지원하지 않습니다. PATH 전체에서 Universal을
+우선 선택하고, 필요하면 `g:offline_ctags`로 실행 파일을 지정할 수 있습니다.
+
+현재 파일 완성용 인덱스는 처음 편집할 때, 프로젝트 전체 인덱스는 정의 탐색 시
+비동기로 만듭니다. 저장 시 변경 파일을 다시 인덱싱하며, 전체 생성과 저장이
+겹쳐도 작업을 취소하거나 변경을 잃지 않도록 순서대로 처리합니다.
+Git 프로젝트는 `.gitignore`를 존중하고, 일반 디렉토리는 대표적인 빌드·의존성
+폴더를 제외합니다. 지원 언어는 설치된 ctags에 따르며 CUDA 확장자는 C++로 처리합니다.
+외부에서 삭제·이름 변경한 파일은 `:CtagsUpdate`로 전체 갱신하세요.
+
+**ctags는 저장된 파일을 읽습니다.** LSP 진단, 의미 기반 참조 찾기·이름 변경,
+타입 추론, hover, 시그니처 도움말, 코드 액션, semantic token, 스니펫은 없습니다.
+`gD`·`K`는 Vim 기본 동작입니다. 이름에 줄바꿈이 들어간 파일은 인덱싱하지 못합니다.
+
+## 화면·파일·검색
+
+| 단축키 | 동작 |
+| --- | --- |
+| `Space A` | 대시보드. 파일 없이 터미널에서 시작할 때도 표시 |
+| 대시보드 `j/k`, `Enter`, 메뉴 문자 | 항목 선택·실행 |
+| 대시보드 `:` | 대시보드를 닫고 명령 입력. 마지막 창에서 `:q`하면 Vim 종료 |
+| `Space` | 잠시 기다리면 실제 Space 단축키 안내 표시 |
+| `Space e` | 왼쪽 netrw 파일 트리 토글 |
+| `Space f`, `Space Enter` | 프로젝트 파일 / Git 파일 검색 |
+| `Space st`, `Space t`, `Space s/` | 실시간 내용 검색 / 커서 단어 / 열린 파일의 저장된 내용 검색 |
+| `Space sr`, `Space sn`, `Space sb/bp` | 최근 파일 / Vim 설정 / 버퍼 검색 |
+| `Space sc/sh/sp/sk` | 명령 / 도움말 / 테마 / 단축키 검색 |
+| `Shift-h/l`, `[b` / `]b`, `Alt-1` … `Alt-9` | 버퍼 전환 |
+| `Space bw`, `Space c` | 버퍼 닫기 / 강제 닫기. 분할창 유지 |
+| `Space bm`, `Space bh/bl` | 다른 버퍼 / 왼쪽·오른쪽 버퍼 닫기 |
+| `Space bj/bk`, `Space bD/bL` | 버퍼 순서 이동 / 디렉토리·언어로 정렬 |
+| `Space Ti` | 인덴트 가이드 토글. 기본 켜짐 |
+| `Space Ts`, `Space TS` | 스티키 / 부드러운 페이지 스크롤 토글. 둘 다 기본 꺼짐 |
+| `Space Tl` | ctags·포매터 상태 표시 토글 |
+
+검색 팝업에는 프리뷰가 있으며 `Ctrl-n/p` 또는 방향키, `Enter`, `Esc`,
+`Ctrl-q`(quickfix로 보내기)를 지원합니다. 내용 검색은 `rg`, 없으면 `grep`을
+사용하고, 파일 목록은 `find`로 찾습니다.
+
+netrw의 Enter/`l`, `h`, `-`, `o/v/t`, `%`, `d`, `D`, `R`, `mf/mu/mt/mc/mm`,
+`Space nr`을 지원합니다. `%`로 만든 파일은 편집창으로 열립니다. 삭제·이름 변경은
+트리의 실제 경로를 사용하고, 표시 장식 때문에 이름이 모호하면 조작하지 않습니다.
+복사·이동에는 시스템 `cp`·`mv`가 필요합니다. 갱신은 기존 트리에서 이루어집니다.
+트리에서 `:Ntree /경로` 또는 `gn`으로 루트를 직접 바꿀 수 있습니다.
+
+루트 탐색 기준은 offvi와 같습니다. 일반 소스는 Git·프로젝트 마커,
+`site-packages`/`dist-packages` 내부는 패키지 폴더, Python 표준 라이브러리는
+`os.py`와 `importlib/__init__.py`가 있는 폴더를 사용합니다. Python 버전을 고정하지 않습니다.
+
+스티키는 offvi와 같은 들여쓰기 기반 추정입니다. 여러 줄 Python 함수 선언,
+실제 원본 줄 번호, 왼쪽 번호·sign 여백, 인덴트 가이드, syntax 색상을 유지합니다.
+최대 8줄이며, 초과하면 가장 바깥 범위와 함수 이름을 보존하고 가까운 내부 범위를
+남깁니다. 정식 언어 파서는 아니므로 불규칙한 들여쓰기나 화면 위 1,000줄보다
+먼 곳에서 시작하는 범위는 완전하게 표시하지 못할 수 있습니다.
+
+활성 상태줄에는 모드별 배경색의 Git 브랜치, 파일명, ctags·포매터 상태,
+파일 형식, 고정 폭의 위치가 표시됩니다. 비활성 창에는 파일명과 파일 형식만 남습니다.
+`[CTAGS X]`·`[FORMAT X]`는 지원하는 실행 도구를 찾지 못했다는 뜻입니다.
+
+## Git·포매터·세션·터미널
+
+| 단축키 | 동작 |
+| --- | --- |
+| `Space gg` | lazygit이 있으면 가로·세로 90% 팝업, 없으면 Git 상태 분할창 |
+| `Space gd/gD` | 별도 탭에서 index / HEAD와 비교. 작업 파일은 그대로 편집 가능 |
+| `Space gn/gp`, `Space gb`, `Space sg` | 변경 구간 이동 / 인라인 blame 토글 / 로그 |
+| `Space lf` | 비동기 포매팅. 저장 시 자동 포매팅 없음 |
+| `Space u` | undo 상태 프리뷰 후 적용 |
+| `Space pr/pl/pS/pd` | 디렉토리 세션 / 마지막 세션 / 세션 선택 / 자동 저장 중지 |
+| `Ctrl-t` | 하단 터미널 재사용·토글 |
+| 터미널 `Esc Esc` 또는 `Ctrl-w N` | Terminal-Normal 모드. `i`로 입력 복귀 |
+
+Git sign은 Vim 9.0에서도 **저장하지 않은 변경까지** 비교합니다. 입력 중에는
+index 내용을 재사용하고 파일 진입·저장·포커스 복귀·외부 명령 종료 때 갱신합니다.
+커서 이동이나 상태줄 렌더링마다 Git을 실행하지 않습니다. 인라인 blame은 기본 꺼짐,
+150ms 지연이며, Vim 9.0에 맞춰 줄 끝의 비대화형 팝업으로 표시합니다.
+수정된 버퍼에서는 숨깁니다. diff에서 한쪽 창을 닫으면 원래 편집 탭으로 돌아옵니다.
+
+포매터는 **PATH → 기존 Neovim Mason 실행 파일** 순서로 찾고 설치하지는 않습니다.
+Python은 Ruff → Black 순서입니다. 나머지는 StyLua, C/C++/CUDA/Proto의
+clang-format, JS/TS/React·HTML/CSS/SCSS/Less·JSON/JSONC·YAML·Markdown/MDX·GraphQL·Vue·Handlebars의
+Prettier, Bazel의 Buildifier, Shell의 shfmt, cmake-format, TeX의 latexindent,
+Rust의 rustfmt를 등록했습니다. MLIR 전용 포매터나 LSP 포매터 대체 실행은 없습니다.
+포매팅 도중 수정·이름 변경된 버퍼에는 늦게 온 결과를 적용하지 않습니다.
+
+로컬 데스크톱에서는 가능한 경우 Vim 시스템 클립보드를 사용합니다. SSH에서는
+OSC52와 `base64`로 접속한 PC의 클립보드에 복사합니다. tmux 래핑도 포함하며,
+클라이언트 터미널에서 OSC52를 허용해야 합니다. 원격에서 PC 클립보드를 읽는 기능은
+아니므로 붙여넣기는 터미널의 붙여넣기 키를 사용하세요.
+
+2MiB·50,000줄 이상 파일에는 자동 기능 제한을 적용합니다. Git sign·스티키에는
+더 낮은 바이트 제한이 있고, sign은 2,000개로 제한합니다. 외부 작업은 비동기로
+실행하며 시간·출력 상한과 취소 처리를 둡니다. 캐시는 임의의 유효 시간이 아니라
+실제 편집·파일·창 이벤트에 따라 갱신합니다.
+복잡한 Git 변경 구간은 화면 정지를 막기 위해 추가·수정 줄의 세부 분류를 단순화하며,
+변경 구간 자체의 표시는 유지합니다.

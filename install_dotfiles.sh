@@ -30,10 +30,10 @@ function backup_conflicts {
             echo "Backing up existing $target_path -> $backup_path"
             mv "$target_path" "$backup_path"
         fi
-    done < <(git ls-files "$folder")
+    done < <(git ls-files --cached --others --exclude-standard "$folder")
 }
 
-for folder in claude codex ghostty git herdr nvim zsh tmux; do
+for folder in claude codex ghostty git herdr nvim vim zsh tmux; do
     [[ -d "$folder" ]] || continue
     echo "Linking $folder"
     stow "${STOW_IGNORE_ARGS[@]}" -D -t "$TARGET" "$folder"

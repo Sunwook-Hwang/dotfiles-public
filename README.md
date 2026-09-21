@@ -1,6 +1,6 @@
 # Dotfiles
 
-macOS-focused dotfiles for zsh, git, Herdr, tmux, and Neovim.
+macOS-focused dotfiles for zsh, git, Herdr, tmux, Neovim, and Vim.
 
 ## Package-free Native Neovim
 
@@ -15,6 +15,13 @@ Optional language servers, formatters, and command-line search tools are used
 only when already installed. See the feature guide in
 [English](docs/nvim-offline-features.md) or
 [한국어](docs/nvim-offline-features.ko.md).
+
+For **Vim 9.0+**, [`vim/.vimrc`](vim/.vimrc) provides a standalone, plugin-free
+Vimscript counterpart with the same core shortcuts. It uses **ctags instead of
+LSP**, with native commenting, completion, pickers, netrw, Git, formatting,
+dashboard, Sticky Scroll, sessions, and undo previews. No Lua support is needed.
+See the Vim guide in [English](docs/vim-offline-features.md) or
+[한국어](docs/vim-offline-features.ko.md).
 
 ## Setup
 
@@ -70,6 +77,7 @@ Link or unlink dotfiles on either platform:
 - `herdr`: terminal multiplexer keybindings
 - `tmux`: tmux keybindings and theme
 - `nvim`: Neovim config
+- `vim`: single-file offline Vim 9.0+ config (`~/.vimrc`)
 
 ## Git identity
 

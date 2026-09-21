@@ -689,7 +689,7 @@ do
 		end
 	end
 	local function queue()
-		if queued then
+		if not enabled or queued then
 			return
 		end
 		queued = true
@@ -1148,6 +1148,34 @@ end
 do
 	local enabled = true
 	local expression = "%{%v:lua.dropbar()%}"
+	local path_cache = {}
+	local path_source = {
+		get_symbols = function(buf, win, cursor)
+			local key = { buf, vim.api.nvim_buf_get_name(buf), vim.fn.getcwd(win), vim.bo[buf].modified }
+			local cached = path_cache[win]
+			if not cached or not vim.deep_equal(cached.key, key) then
+				cached = { key = key, symbols = require("dropbar.sources.path").get_symbols(buf, win, cursor) }
+				path_cache[win] = cached
+			end
+			-- Bars truncate symbols and attach menus; give each draw fresh instances.
+			return vim.tbl_map(function(symbol)
+				return symbol:merge({})
+			end, cached.symbols)
+		end,
+	}
+	local group = vim.api.nvim_create_augroup("online-dropbar", { clear = true })
+	vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermClose" }, {
+		group = group,
+		callback = function()
+			path_cache = {}
+		end,
+	})
+	vim.api.nvim_create_autocmd("WinClosed", {
+		group = group,
+		callback = function(args)
+			path_cache[tonumber(args.match)] = nil
+		end,
+	})
 	local function eligible(buf, win)
 		return enabled
 			and vim.bo[buf].buftype == ""
@@ -1164,9 +1192,11 @@ do
 		},
 		bar = {
 			enable = eligible,
+			-- The LSP source also uses these events to request document symbols.
+			update_events = { buf = { "TextChanged", "FileChangedShellPost", "BufFilePost" } },
 			sources = function()
 				local sources = require("dropbar.sources")
-				return { sources.path, sources.lsp }
+				return { path_source, sources.lsp }
 			end,
 		},
 	})
@@ -1181,13 +1211,14 @@ do
 		end
 	end
 	vim.api.nvim_create_autocmd("BufWinEnter", {
-		group = vim.api.nvim_create_augroup("online-dropbar", { clear = true }),
+		group = group,
 		callback = function()
 			refresh_window(vim.api.nvim_get_current_win())
 		end,
 	})
 	vim.keymap.set("n", "<leader>Td", function()
 		enabled = not enabled
+		path_cache = {}
 		if not enabled then
 			local bars = {}
 			for _, windows in pairs(require("dropbar.utils.bar").get()) do
@@ -1209,6 +1240,7 @@ end
 
 -- Persistent outline with cursor tracking in both directions.
 require("aerial").setup({
+	lazy_load = true,
 	backends = { "lsp", "markdown", "asciidoc", "man" },
 	layout = { default_direction = "right", max_width = { 40, 0.25 } },
 	attach_mode = "global",
@@ -1217,6 +1249,27 @@ require("aerial").setup({
 	show_guides = true,
 	nerd_font = false,
 	icons = { Collapsed = ">" },
+	on_attach = function(buf)
+		-- Aerial keeps its cursor listener after closing; only track a visible outline.
+		for _, autocmd in
+			ipairs(vim.api.nvim_get_autocmds({ group = "AerialBuffer", event = "CursorMoved", buffer = buf }))
+		do
+			local callback = autocmd.callback
+			if type(callback) == "function" then
+				vim.api.nvim_del_autocmd(autocmd.id)
+				vim.api.nvim_create_autocmd("CursorMoved", {
+					group = "AerialBuffer",
+					buffer = buf,
+					desc = autocmd.desc,
+					callback = function(args)
+						if require("aerial").is_open() then
+							return callback(args)
+						end
+					end,
+				})
+			end
+		end
+	end,
 })
 vim.keymap.set("n", "<leader>o", "<Cmd>AerialToggle<CR>", { desc = "Toggle symbols outline" })
 
@@ -1311,15 +1364,20 @@ for key, direction in pairs({ ["<Tab>"] = 1, ["<S-Tab>"] = -1 }) do
 	end, { desc = "Snippet tabstop / completion / " .. key })
 end
 -- Buffers without completion providers use words/tags; connected providers use the async engine.
+local completion_buffers = {}
 local function buffer_completion(buf)
 	vim.bo[buf].autocomplete = vim.bo[buf].buftype == ""
 		and not vim.b[buf].large_file
 		and #vim.lsp.get_clients({ bufnr = buf, method = "textDocument/completion" }) == 0
+	completion_buffers[buf] = vim.bo[buf].buftype
 end
 local pending_completion = {}
 vim.api.nvim_create_autocmd({ "BufEnter", "FileType", "LspDetach" }, {
 	callback = function(args)
-		if pending_completion[args.buf] then
+		if
+			pending_completion[args.buf]
+			or (args.event == "BufEnter" and completion_buffers[args.buf] == vim.bo[args.buf].buftype)
+		then
 			return
 		end
 		pending_completion[args.buf] = true
@@ -1329,6 +1387,11 @@ vim.api.nvim_create_autocmd({ "BufEnter", "FileType", "LspDetach" }, {
 				buffer_completion(args.buf)
 			end
 		end)
+	end,
+})
+vim.api.nvim_create_autocmd("BufWipeout", {
+	callback = function(args)
+		completion_buffers[args.buf], pending_completion[args.buf] = nil, nil
 	end,
 })
 
@@ -2256,6 +2319,7 @@ end
 -- Statusline: native renderer from init.offline.lua
 -- -------------------------------------
 do
+	local git_mode_group
 	local function set_git_mode_highlight()
 		local mode = vim.fn.mode():sub(1, 1)
 		local group = "Identifier"
@@ -2264,6 +2328,10 @@ do
 		elseif mode == "v" or mode == "V" or mode == "\22" then
 			group = "Constant"
 		end
+		if git_mode_group == group then
+			return false
+		end
+		git_mode_group = group
 		local normal = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
 		local accent = vim.api.nvim_get_hl(0, { name = group, link = false })
 		local bg = (accent.reverse and accent.bg or accent.fg) or normal.fg or 0x808080
@@ -2298,6 +2366,7 @@ do
 			reverse = false,
 			nocombine = true,
 		})
+		return true
 	end
 	local function set_online_status_highlights()
 		local inactive = vim.api.nvim_get_hl(0, { name = "StatusLineNC", link = false })
@@ -2308,6 +2377,7 @@ do
 		vim.api.nvim_set_hl(0, "StatusLineNC", inactive)
 		vim.api.nvim_set_hl(0, "OnlineLspMissing", { fg = "#ffffff", bg = "#af0000", bold = true })
 		vim.api.nvim_set_hl(0, "OnlineLspMissingNC", { fg = "#ffffff", bg = "#af0000", bold = false, nocombine = true })
+		git_mode_group = nil
 		set_git_mode_highlight()
 		for _, suffix in ipairs({ "", "NC" }) do
 			local error_hl = vim.api.nvim_get_hl(0, { name = "StatusLine" .. suffix, link = false })
@@ -2337,8 +2407,9 @@ do
 	vim.api.nvim_create_autocmd("ModeChanged", {
 		group = "online-status-highlights",
 		callback = function()
-			set_git_mode_highlight()
-			vim.cmd("redrawstatus")
+			if set_git_mode_highlight() then
+				vim.cmd("redrawstatus")
+			end
 		end,
 	})
 	vim.opt.laststatus = 2
@@ -2385,6 +2456,7 @@ do
 		end
 		return table.concat(parts, " ")
 	end
+	local lsp_status_cache, format_status_cache = {}, {}
 	function _G.OnlineLspStatus()
 		if not language_status_visible then
 			return ""
@@ -2394,29 +2466,45 @@ do
 		if vim.bo[buf].buftype ~= "" then
 			return ""
 		end
-		local names = {}
-		for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
-			if not client:is_stopped() then
-				names[client.name:gsub("[%c]", " ")] = true
+		local state = lsp_status_cache[buf]
+		if not state then
+			state = { clients = vim.lsp.get_clients({ bufnr = buf }) }
+			lsp_status_cache[buf] = state
+		end
+		-- Preserve immediate stop detection without scanning every workspace client.
+		for i = #state.clients, 1, -1 do
+			if state.clients[i]:is_stopped() then
+				table.remove(state.clients, i)
+				state.text = nil
 			end
 		end
-		local sorted = vim.fn.sort(vim.tbl_keys(names))
+		if not state.text then
+			local names = {}
+			for _, client in ipairs(state.clients) do
+				names[client.name:gsub("[%c]", " ")] = true
+			end
+			local sorted = vim.fn.sort(vim.tbl_keys(names))
+			state.text = #sorted > 0 and ("[LSP: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]") or ""
+		end
 		local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
 		local missing_group = win == active and "OnlineLspMissing" or "OnlineLspMissingNC"
-		return #sorted > 0 and ("[LSP: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]")
-			or ("%#" .. missing_group .. "#[LSP X]%*")
+		return state.text ~= "" and state.text or ("%#" .. missing_group .. "#[LSP X]%*")
 	end
-	vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
+	vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach", "BufWipeout" }, {
 		group = vim.api.nvim_create_augroup("online-lsp-status", { clear = true }),
-		callback = function()
+		callback = function(args)
+			lsp_status_cache[args.buf], format_status_cache[args.buf] = nil, nil
+			if args.event == "BufWipeout" then
+				return
+			end
 			-- LspDetach fires before the client is removed from the buffer.
 			vim.schedule(function()
+				lsp_status_cache[args.buf], format_status_cache[args.buf] = nil, nil
 				vim.cmd("redrawstatus")
 			end)
 		end,
 	})
-	local format_status_cache = {}
-	vim.api.nvim_create_autocmd({ "FileType", "BufFilePost", "BufWritePost", "LspAttach", "LspDetach", "BufWipeout" }, {
+	vim.api.nvim_create_autocmd({ "FileType", "BufFilePost", "BufWritePost" }, {
 		group = vim.api.nvim_create_augroup("online-format-status", { clear = true }),
 		callback = function(args)
 			format_status_cache[args.buf] = nil

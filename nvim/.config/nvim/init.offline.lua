@@ -378,6 +378,7 @@ local function picker_selection_highlight()
 		bold = true,
 	})
 end
+local git_mode_group
 local function set_git_mode_highlight()
 	local mode = vim.fn.mode():sub(1, 1)
 	local group = "Identifier"
@@ -386,6 +387,10 @@ local function set_git_mode_highlight()
 	elseif mode == "v" or mode == "V" or mode == "\22" then
 		group = "Constant"
 	end
+	if git_mode_group == group then
+		return false
+	end
+	git_mode_group = group
 	local normal = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
 	local accent = vim.api.nvim_get_hl(0, { name = group, link = false })
 	local bg = (accent.reverse and accent.bg or accent.fg) or normal.fg or 0x808080
@@ -414,6 +419,7 @@ local function set_git_mode_highlight()
 		fg = fg, bg = bg, ctermfg = ctermfg, ctermbg = ctermbg or normal.ctermfg or 8,
 		bold = true, reverse = false, nocombine = true,
 	})
+	return true
 end
 local function set_offline_status_highlights()
 	local inactive = vim.api.nvim_get_hl(0, { name = "StatusLineNC", link = false })
@@ -424,6 +430,7 @@ local function set_offline_status_highlights()
 	vim.api.nvim_set_hl(0, "StatusLineNC", inactive)
 	vim.api.nvim_set_hl(0, "OfflineLspMissing", { fg = "#ffffff", bg = "#af0000", bold = true })
 	vim.api.nvim_set_hl(0, "OfflineLspMissingNC", { fg = "#ffffff", bg = "#af0000", bold = false, nocombine = true })
+	git_mode_group = nil
 	set_git_mode_highlight()
 	for _, suffix in ipairs({ "", "NC" }) do
 		local error_hl = vim.api.nvim_get_hl(0, { name = "StatusLine" .. suffix, link = false })
@@ -454,8 +461,9 @@ vim.api.nvim_create_autocmd("ColorScheme", {
 vim.api.nvim_create_autocmd("ModeChanged", {
 	group = "offline-status-highlights",
 	callback = function()
-		set_git_mode_highlight()
-		vim.cmd("redrawstatus")
+		if set_git_mode_highlight() then
+			vim.cmd("redrawstatus")
+		end
 	end,
 })
 vim.opt.whichwrap:append("<,>,[,],h,l")
@@ -467,6 +475,28 @@ vim.opt.wildmode = "longest:full,full"
 vim.opt.wildignore:append({ "*/.git/*", "*/node_modules/*", "*/__pycache__/*" })
 vim.opt.laststatus = 2
 local language_status_visible = true
+local diagnostic_counts, lsp_status_cache, format_status_cache = {}, {}, {}
+vim.api.nvim_create_autocmd({ "DiagnosticChanged", "BufWipeout" }, {
+	group = vim.api.nvim_create_augroup("offline-diagnostic-status", { clear = true }),
+	callback = function(args)
+		diagnostic_counts[args.buf] = nil
+	end,
+})
+local function status_clients(buf)
+	local state = lsp_status_cache[buf]
+	if not state then
+		state = { clients = vim.lsp.get_clients({ bufnr = buf }) }
+		lsp_status_cache[buf] = state
+	end
+	-- Keep stop detection immediate without scanning every workspace client.
+	for i = #state.clients, 1, -1 do
+		if state.clients[i]:is_stopped() then
+			table.remove(state.clients, i)
+			state.text = nil
+		end
+	end
+	return state
+end
 function _G.OfflineGitStatus()
 	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 	local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
@@ -484,7 +514,12 @@ function _G.OfflineDiagnosticStatus()
 	local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
 	local error_group = win == active and "OfflineStatusError" or "OfflineStatusErrorNC"
 	local warn_group = win == active and "OfflineStatusWarn" or "OfflineStatusWarnNC"
-	local counts = vim.diagnostic.count(vim.api.nvim_win_get_buf(win))
+	local buf = vim.api.nvim_win_get_buf(win)
+	local counts = diagnostic_counts[buf]
+	if not counts then
+		counts = vim.diagnostic.count(buf)
+		diagnostic_counts[buf] = counts
+	end
 	local parts = {}
 	for _, item in ipairs({ { "ERROR", "E:" }, { "WARN", "W:" }, { "HINT", "H:" } }) do
 		local count = counts[vim.diagnostic.severity[item[1]]] or 0
@@ -505,23 +540,29 @@ function _G.OfflineLspStatus()
 	if vim.bo[buf].buftype ~= "" then
 		return ""
 	end
-	local names = {}
-	for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
-		if not client:is_stopped() then
+	local state = status_clients(buf)
+	if not state.text then
+		local names = {}
+		for _, client in ipairs(state.clients) do
 			names[client.name:gsub("[%c]", " ")] = true
 		end
+		local sorted = vim.fn.sort(vim.tbl_keys(names))
+		state.text = #sorted > 0 and ("[LSP: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]") or ""
 	end
-	local sorted = vim.fn.sort(vim.tbl_keys(names))
 	local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
 	local missing_group = win == active and "OfflineLspMissing" or "OfflineLspMissingNC"
-	return #sorted > 0 and ("[LSP: " .. table.concat(sorted, ", ") .. "]")
-		or ("%#" .. missing_group .. "#[LSP X]%*")
+	return state.text ~= "" and state.text or ("%#" .. missing_group .. "#[LSP X]%*")
 end
-vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach" }, {
+vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach", "BufWipeout" }, {
 	group = vim.api.nvim_create_augroup("offline-lsp-status", { clear = true }),
-	callback = function()
+	callback = function(args)
+		lsp_status_cache[args.buf] = nil
+		if args.event == "BufWipeout" then
+			return
+		end
 		-- LspDetach fires before the client is removed from the buffer.
 		vim.schedule(function()
+			lsp_status_cache[args.buf] = nil
 			vim.cmd("redrawstatus")
 		end)
 	end,
@@ -1026,19 +1067,34 @@ for key, direction in pairs({ ["<Tab>"] = 1, ["<S-Tab>"] = -1 }) do
 	end, { desc = "Snippet tabstop / completion / " .. key })
 end
 -- Buffers without completion providers use words/tags; connected providers use the async engine.
+local completion_buffers, pending_completion = {}, {}
 local function buffer_completion(buf)
 	vim.bo[buf].autocomplete = vim.bo[buf].buftype == ""
 		and vim.bo[buf].filetype ~= "netrw"
 		and not vim.b[buf].offline_large_file
 		and #vim.lsp.get_clients({ bufnr = buf, method = "textDocument/completion" }) == 0
+	completion_buffers[buf] = vim.bo[buf].buftype
 end
 vim.api.nvim_create_autocmd({ "BufEnter", "FileType", "LspDetach" }, {
 	callback = function(args)
+		if
+			pending_completion[args.buf]
+			or (args.event == "BufEnter" and completion_buffers[args.buf] == vim.bo[args.buf].buftype)
+		then
+			return
+		end
+		pending_completion[args.buf] = true
 		vim.schedule(function()
-			if vim.api.nvim_buf_is_valid(args.buf) then
+			pending_completion[args.buf] = nil
+			if vim.api.nvim_buf_is_loaded(args.buf) then
 				buffer_completion(args.buf)
 			end
 		end)
+	end,
+})
+vim.api.nvim_create_autocmd("BufWipeout", {
+	callback = function(args)
+		completion_buffers[args.buf], pending_completion[args.buf] = nil, nil
 	end,
 })
 
@@ -1375,7 +1431,13 @@ end
 -- =========================================
 -- Python 패키지·표준 라이브러리 경계 안에서 Git을 찾고, 일반 파일은 Git을 우선합니다.
 -- 트리·검색·LSP가 같은 기준을 쓰며 BufEnter에서 편집 창의 lcd와 트리를 맞춥니다.
+-- Reuse roots until project/external changes; :OfflineRefresh also forces discovery.
+local git_roots, project_roots = {}, {}
 local function find_git_root(dir)
+	local cached = git_roots[dir]
+	if cached then
+		return cached[1], cached[2]
+	end
 	local path = dir:gsub("/+$", "") .. "/"
 	local packages, relative = path:match("^(.-/site%-packages/)(.*)$")
 	if not packages then
@@ -1387,9 +1449,11 @@ local function find_git_root(dir)
 	local stop = library_root and vim.fs.dirname(library_root)
 	local current = vim.fs.normalize(dir)
 	local next_parent = vim.fs.parents(current)
+	local git_root
 	while current and current ~= stop do
 		if vim.uv.fs_stat(current .. "/.git") then
-			return current, library_root
+			git_root = current
+			break
 		end
 		-- Recognize the standard library by its contents, independent of Python version/layout.
 		if
@@ -1397,34 +1461,42 @@ local function find_git_root(dir)
 			and vim.fn.filereadable(current .. "/os.py") == 1
 			and vim.fn.filereadable(current .. "/importlib/__init__.py") == 1
 		then
-			return nil, current
+			library_root = current
+			break
 		end
 		current = next_parent(nil, current)
 	end
-	return nil, library_root
+	git_roots[dir] = { git_root, library_root }
+	return git_root, library_root
 end
 
 local function find_project(dir)
+	local cached = project_roots[dir]
+	if cached then
+		return unpack(cached)
+	end
 	local git_root, library_root = find_git_root(dir)
 	if git_root then
-		return git_root, true, true
+		cached = { git_root, true, true }
+	elseif library_root then
+		cached = { library_root, false, true }
+	else
+		local marker = vim.fs.find({
+			"CMakeLists.txt",
+			"compile_commands.json",
+			"Makefile",
+			"package.json",
+			"pyproject.toml",
+			"Cargo.toml",
+			"WORKSPACE",
+			"WORKSPACE.bazel",
+			"MODULE.bazel",
+			"buf.yaml",
+		}, { path = dir, upward = true, type = "file", limit = 1 })[1]
+		cached = { marker and vim.fs.dirname(marker) or dir, false, marker ~= nil }
 	end
-	if library_root then
-		return library_root, false, true
-	end
-	local marker = vim.fs.find({
-		"CMakeLists.txt",
-		"compile_commands.json",
-		"Makefile",
-		"package.json",
-		"pyproject.toml",
-		"Cargo.toml",
-		"WORKSPACE",
-		"WORKSPACE.bazel",
-		"MODULE.bazel",
-		"buf.yaml",
-	}, { path = dir, upward = true, type = "file", limit = 1 })[1]
-	return marker and vim.fs.dirname(marker) or dir, false, marker ~= nil
+	project_roots[dir] = cached
+	return unpack(cached)
 end
 
 -- Use the current file/tree's project or package, independent of the startup cwd.
@@ -1484,6 +1556,31 @@ vim.api.nvim_create_autocmd("BufEnter", {
 		syncing_project = false
 	end,
 })
+local function invalidate_project_roots()
+	git_roots, project_roots = {}, {}
+end
+vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermLeave", "TermClose" }, {
+	group = "offline-project-context",
+	callback = invalidate_project_roots,
+})
+vim.api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
+	group = "offline-project-context",
+	pattern = {
+		".git", "CMakeLists.txt", "compile_commands.json", "Makefile", "package.json", "pyproject.toml",
+		"Cargo.toml", "WORKSPACE", "WORKSPACE.bazel", "MODULE.bazel", "buf.yaml", "os.py", "__init__.py",
+	},
+	callback = invalidate_project_roots,
+})
+vim.api.nvim_create_autocmd("User", {
+	group = "offline-project-context",
+	pattern = { "OfflineRefresh", "OfflineNetrwRedraw" },
+	callback = invalidate_project_roots,
+})
+vim.api.nvim_create_user_command("OfflineRefresh", function()
+	vim.api.nvim_exec_autocmds("User", { pattern = "OfflineRefresh", modeline = false })
+	vim.api.nvim_exec_autocmds("BufEnter", { group = "offline-project-context", buffer = 0, modeline = false })
+	vim.cmd("redrawstatus")
+end, { desc = "Refresh project roots and formatter availability" })
 
 -- =========================================
 -- ========= ASYNC COMMAND RUNNER ========
@@ -3106,9 +3203,15 @@ local function refresh_netrw_git()
 end
 
 local function queue_netrw_git()
-	if netrw_git_timer == -1 then
-		local delay = math.max(100, 1000 - (vim.uv.now() - netrw_git_updated))
-		netrw_git_timer = vim.fn.timer_start(delay, refresh_netrw_git)
+	if netrw_git_timer ~= -1 then
+		return
+	end
+	for _, win in ipairs(vim.api.nvim_list_wins()) do
+		if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "netrw" then
+			local delay = math.max(100, 1000 - (vim.uv.now() - netrw_git_updated))
+			netrw_git_timer = vim.fn.timer_start(delay, refresh_netrw_git)
+			return
+		end
 	end
 end
 
@@ -3151,14 +3254,19 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
 	end,
 })
 
-local function refresh_git_status(buf)
+local function refresh_git_status(buf, force)
 	if not vim.api.nvim_buf_is_loaded(buf) then
 		return
 	end
 	local key = "git-status:" .. buf
-	cancel_command(key)
 	local file = vim.api.nvim_buf_get_name(buf)
 	local root = vim.bo[buf].buftype == "" and file ~= "" and find_git_root(vim.fs.dirname(file))
+	local task = running[key]
+	-- Navigation can join an identical pending read; writes/external changes must replace it.
+	if not force and task and task.file == file and task.root == root then
+		return
+	end
+	cancel_command(key)
 	if not root or vim.fn.executable("git") == 0 then
 		vim.b[buf].offline_git_status = nil
 		return
@@ -3193,18 +3301,21 @@ local function refresh_git_status(buf)
 			vim.cmd("redrawstatus")
 		end
 	end)
+	if running[key] then
+		running[key].file, running[key].root = file, root
+	end
 end
-vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained", "TermLeave", "TermClose" }, {
+vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained", "ShellCmdPost", "TermLeave", "TermClose" }, {
 	group = vim.api.nvim_create_augroup("offline-git-status", { clear = true }),
 	callback = function(args)
 		if args.event == "TermLeave" or args.event == "TermClose" then
 			for _, buf in ipairs(vim.api.nvim_list_bufs()) do
 				if vim.fn.bufwinid(buf) ~= -1 then
-					refresh_git_status(buf)
+					refresh_git_status(buf, true)
 				end
 			end
 		else
-			refresh_git_status(args.buf)
+			refresh_git_status(args.buf, args.event ~= "BufEnter")
 		end
 	end,
 })
@@ -3447,6 +3558,7 @@ local function clear_inline_blame(buf)
 	end
 end
 local function stop_inline_blame()
+	inline_blame.buf, inline_blame.line = nil, nil
 	if inline_blame.timer ~= -1 then
 		vim.fn.timer_stop(inline_blame.timer)
 		inline_blame.timer = -1
@@ -3519,6 +3631,8 @@ local function queue_inline_blame(delay)
 	if not inline_blame.enabled then
 		return
 	end
+	inline_blame.buf = vim.api.nvim_get_current_buf()
+	inline_blame.line = vim.api.nvim_win_get_cursor(0)[1]
 	inline_blame.timer = vim.fn.timer_start(delay or 150, refresh_inline_blame)
 end
 map("n", "<leader>gb", function()
@@ -3533,9 +3647,25 @@ map("n", "<leader>gb", function()
 	end
 	vim.notify("Inline blame: " .. (inline_blame.enabled and "on" or "off"))
 end, "Toggle inline blame")
-vim.api.nvim_create_autocmd({ "CursorMoved", "BufEnter", "BufWritePost" }, {
+vim.api.nvim_create_autocmd({
+	"CursorMoved",
+	"BufEnter",
+	"BufWritePost",
+	"BufFilePost",
+	"FocusGained",
+	"ShellCmdPost",
+	"TermLeave",
+	"TermClose",
+}, {
 	group = vim.api.nvim_create_augroup("offline-inline-blame", { clear = true }),
-	callback = function()
+	callback = function(args)
+		if
+			args.event == "CursorMoved"
+			and inline_blame.buf == args.buf
+			and inline_blame.line == vim.api.nvim_win_get_cursor(0)[1]
+		then
+			return
+		end
 		queue_inline_blame()
 	end,
 })
@@ -3906,6 +4036,24 @@ local formatters = {
 	plaintex = { { "latexindent", "-" } },
 	rust = { { "rustfmt", "--emit=stdout", "--edition=2021" } },
 }
+vim.api.nvim_create_autocmd({ "FileType", "BufFilePost", "BufWritePost", "BufWipeout" }, {
+	group = vim.api.nvim_create_augroup("offline-format-status", { clear = true }),
+	callback = function(args)
+		format_status_cache[args.buf] = nil
+	end,
+})
+local function invalidate_format_status()
+	format_status_cache = {}
+end
+vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermLeave", "TermClose" }, {
+	group = "offline-format-status",
+	callback = invalidate_format_status,
+})
+vim.api.nvim_create_autocmd("User", {
+	group = "offline-format-status",
+	pattern = "OfflineRefresh",
+	callback = invalidate_format_status,
+})
 function _G.OfflineFormatStatus()
 	if not language_status_visible then
 		return ""
@@ -3921,14 +4069,24 @@ function _G.OfflineFormatStatus()
 	then
 		return "[FORMAT X]"
 	end
-	for _, candidate in ipairs(formatters[vim.bo[buf].filetype] or {}) do
-		if resolve_tool(candidate[1]) ~= "" then
-			return "[FORMAT: " .. candidate[1] .. "]"
+	local key = { vim.bo[buf].filetype, vim.env.PATH or "", vim.fn.getcwd(win) }
+	local cached = format_status_cache[buf]
+	if not cached or not vim.deep_equal(cached.key, key) then
+		cached = { key = key }
+		for _, candidate in ipairs(formatters[vim.bo[buf].filetype] or {}) do
+			if resolve_tool(candidate[1]) ~= "" then
+				cached.formatter = candidate[1]
+				break
+			end
 		end
+		format_status_cache[buf] = cached
+	end
+	if cached.formatter then
+		return "[FORMAT: " .. cached.formatter .. "]"
 	end
 	local names = {}
-	for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf, method = "textDocument/formatting" })) do
-		if not client:is_stopped() then
+	for _, client in ipairs(status_clients(buf).clients) do
+		if client:supports_method("textDocument/formatting", buf) then
 			names[client.name:gsub("[%c]", " ")] = true
 		end
 	end
@@ -4451,10 +4609,10 @@ vim.api.nvim_create_autocmd("BufEnter", {
 })
 local function ensure_tag_completion(buf)
 	if
-		#vim.lsp.get_clients({ bufnr = buf, method = "textDocument/completion" }) > 0
-		or vim.b[buf].offline_tags_requested
+		vim.b[buf].offline_tags_requested
 		or vim.b[buf].offline_large_file
 		or not vim.tbl_contains({ "c", "cpp", "python" }, vim.bo[buf].filetype)
+		or #vim.lsp.get_clients({ bufnr = buf, method = "textDocument/completion" }) > 0
 	then
 		return
 	end
@@ -5389,7 +5547,7 @@ local function check_large_file(buf, first, last)
 end
 local function queue_large_file_check(buf, first, last, added)
 	local state = watched_buffers[buf]
-	if not state then
+	if not state or vim.b[buf].offline_large_file then
 		return
 	end
 	state.first = math.min(state.first or first, first)
@@ -5757,7 +5915,7 @@ do
 		end
 	end
 	local function queue()
-		if queued then
+		if not enabled or queued then
 			return
 		end
 		queued = true

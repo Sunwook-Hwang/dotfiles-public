@@ -3294,10 +3294,39 @@ map("n", "<leader>sg", function()
 	end)
 end, "Git commits")
 map("n", "<leader>gg", function()
+	if vim.fn.executable("lazygit") == 1 then
+		local root = project_root()
+		vim.cmd("botright new")
+		local buf, win = vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win()
+		vim.bo[buf].buflisted = false
+		vim.bo[buf].bufhidden = "wipe"
+		local function close()
+			if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == buf then
+				vim.api.nvim_win_close(win, true)
+			end
+			if vim.api.nvim_buf_is_valid(buf) then
+				vim.api.nvim_buf_delete(buf, { force = true })
+			end
+		end
+		local job = vim.fn.jobstart({ "lazygit" }, {
+			term = true,
+			cwd = root,
+			on_exit = function()
+				vim.schedule(close)
+			end,
+		})
+		if job > 0 then
+			vim.cmd("startinsert")
+		else
+			close()
+			vim.notify("Could not start lazygit", vim.log.levels.ERROR)
+		end
+		return
+	end
 	git({ "status", "--short", "--branch", "--untracked-files=normal" }, function(output)
 		show_output(records(output, "\n"), "git")
 	end)
-end, "Git status")
+end, "Lazygit / Git status")
 for key, revision in pairs({ gd = ":", gD = "HEAD:" }) do
 	map("n", "<leader>" .. key, function()
 		local file, buf, win =

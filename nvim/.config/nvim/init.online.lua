@@ -1992,6 +1992,19 @@ do
 			end)
 		end,
 	})
+	local format_status_cache = {}
+	vim.api.nvim_create_autocmd({ "FileType", "BufFilePost", "BufWritePost", "LspAttach", "LspDetach", "BufWipeout" }, {
+		group = vim.api.nvim_create_augroup("online-format-status", { clear = true }),
+		callback = function(args)
+			format_status_cache[args.buf] = nil
+		end,
+	})
+	vim.api.nvim_create_autocmd({ "DirChanged", "FocusGained" }, {
+		group = "online-format-status",
+		callback = function()
+			format_status_cache = {}
+		end,
+	})
 	function _G.OnlineFormatStatus()
 		if not language_status_visible then
 			return ""
@@ -2007,6 +2020,12 @@ do
 		then
 			return "[FORMAT X]"
 		end
+		-- Conform probes executable paths and project roots; do not repeat on every redraw.
+		local now = vim.uv.hrtime()
+		local cached = format_status_cache[buf]
+		if cached and now - cached.time < 5e9 then
+			return cached.text
+		end
 		local formatters, lsp = require("conform").list_formatters_to_run(buf)
 		local names = {}
 		for _, formatter in ipairs(formatters) do
@@ -2020,7 +2039,9 @@ do
 			end
 		end
 		local sorted = vim.fn.sort(vim.tbl_keys(names))
-		return #sorted > 0 and ("[FORMAT: " .. table.concat(sorted, ", ") .. "]") or "[FORMAT X]"
+		local text = #sorted > 0 and ("[FORMAT: " .. table.concat(sorted, ", ") .. "]") or "[FORMAT X]"
+		format_status_cache[buf] = { time = now, text = text }
+		return text
 	end
 	function _G.OnlineStatusline()
 		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()

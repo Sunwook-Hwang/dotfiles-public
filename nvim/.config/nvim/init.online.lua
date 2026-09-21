@@ -877,24 +877,29 @@ do
 			end,
 		},
 	})
-	local function refresh()
-		for _, win in ipairs(vim.api.nvim_list_wins()) do
-			local buf = vim.api.nvim_win_get_buf(win)
-			if eligible(buf, win) then
+	local function refresh_window(win)
+		local buf = vim.api.nvim_win_get_buf(win)
+		if eligible(buf, win) then
+			if vim.wo[win].winbar ~= expression then
 				vim.wo[win][0].winbar = expression
-			elseif vim.wo[win].winbar == expression then
-				vim.wo[win][0].winbar = ""
 			end
+		elseif vim.wo[win].winbar == expression then
+			vim.wo[win][0].winbar = ""
 		end
-		align_context_popups()
 	end
 	vim.api.nvim_create_autocmd("BufWinEnter", {
 		group = vim.api.nvim_create_augroup("online-dropbar", { clear = true }),
-		callback = refresh,
+		callback = function()
+			refresh_window(vim.api.nvim_get_current_win())
+			align_context_popups()
+		end,
 	})
 	vim.keymap.set("n", "<leader>Td", function()
 		enabled = not enabled
-		refresh()
+		for _, win in ipairs(vim.api.nvim_list_wins()) do
+			refresh_window(win)
+		end
+		align_context_popups()
 	end, { desc = "Toggle breadcrumb bar" })
 end
 
@@ -1027,6 +1032,7 @@ vim.api.nvim_create_autocmd({ "BufEnter", "FileType", "LspDetach" }, {
 -- File explorer: Snacks, with the existing Git-first project root policy.
 -- -------------------------------------
 do
+	local roots = {}
 	vim.api.nvim_create_autocmd("BufEnter", {
 		group = vim.api.nvim_create_augroup("online-project-root", { clear = true }),
 		callback = function(args)
@@ -1035,19 +1041,47 @@ do
 				return
 			end
 			local dir = vim.fs.dirname(file)
-			local root = vim.fs.root(dir, ".git")
-			if not root then
-				local marker = vim.fs.find(
-					{ "CMakeLists.txt", "compile_commands.json", "Makefile", "package.json", "pyproject.toml" },
-					{ path = dir, upward = true, type = "file", limit = 1 }
-				)[1]
-				root = marker and vim.fs.dirname(marker)
+			local cached = roots[dir]
+			if not cached then
+				local root = vim.fs.root(dir, ".git")
+				if not root then
+					local marker = vim.fs.find(
+						{ "CMakeLists.txt", "compile_commands.json", "Makefile", "package.json", "pyproject.toml" },
+						{ path = dir, upward = true, type = "file", limit = 1 }
+					)[1]
+					root = marker and vim.fs.dirname(marker)
+				end
+				cached = { root = root }
+				roots[dir] = cached
 			end
+			local root = cached.root
 			if root and vim.fn.getcwd() ~= root then
 				vim.cmd.lcd(vim.fn.fnameescape(root))
 			end
 		end,
 	})
+	local function invalidate_roots()
+		roots = {}
+	end
+	vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermClose" }, {
+		group = "online-project-root",
+		callback = invalidate_roots,
+	})
+	vim.api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
+		group = "online-project-root",
+		pattern = { ".git", "CMakeLists.txt", "compile_commands.json", "Makefile", "package.json", "pyproject.toml" },
+		callback = invalidate_roots,
+	})
+	vim.api.nvim_create_autocmd("User", {
+		group = "online-project-root",
+		pattern = "OnlineRefresh",
+		callback = invalidate_roots,
+	})
+	vim.api.nvim_create_user_command("OnlineRefresh", function()
+		vim.api.nvim_exec_autocmds("User", { pattern = "OnlineRefresh", modeline = false })
+		vim.api.nvim_exec_autocmds("BufEnter", { group = "online-project-root", buffer = 0, modeline = false })
+		vim.cmd("redrawstatus")
+	end, { desc = "Refresh project root and formatter availability" })
 	vim.keymap.set("n", "<leader>e", function()
 		Snacks.explorer()
 	end, { desc = "Toggle file explorer" })
@@ -1999,12 +2033,21 @@ do
 			format_status_cache[args.buf] = nil
 		end,
 	})
-	vim.api.nvim_create_autocmd({ "DirChanged", "FocusGained" }, {
+	local function invalidate_format_status()
+		format_status_cache = {}
+	end
+	vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermClose" }, {
 		group = "online-format-status",
-		callback = function()
-			format_status_cache = {}
-		end,
+		callback = invalidate_format_status,
 	})
+	vim.api.nvim_create_autocmd("User", {
+		group = "online-format-status",
+		pattern = "OnlineRefresh",
+		callback = invalidate_format_status,
+	})
+	for _, event in ipairs({ "package:install:success", "package:uninstall:success" }) do
+		require("mason-registry"):on(event, vim.schedule_wrap(invalidate_format_status))
+	end
 	function _G.OnlineFormatStatus()
 		if not language_status_visible then
 			return ""
@@ -2021,10 +2064,10 @@ do
 			return "[FORMAT X]"
 		end
 		-- Conform probes executable paths and project roots; do not repeat on every redraw.
-		local now = vim.uv.hrtime()
-		local cached = format_status_cache[buf]
-		if cached and now - cached.time < 5e9 then
-			return cached.text
+		local cwd = vim.fn.getcwd(vim.fn.win_id2win(win))
+		local by_cwd = format_status_cache[buf] or {}
+		if by_cwd[cwd] then
+			return by_cwd[cwd]
 		end
 		local formatters, lsp = require("conform").list_formatters_to_run(buf)
 		local names = {}
@@ -2040,7 +2083,8 @@ do
 		end
 		local sorted = vim.fn.sort(vim.tbl_keys(names))
 		local text = #sorted > 0 and ("[FORMAT: " .. table.concat(sorted, ", ") .. "]") or "[FORMAT X]"
-		format_status_cache[buf] = { time = now, text = text }
+		by_cwd[cwd] = text
+		format_status_cache[buf] = by_cwd
 		return text
 	end
 	function _G.OnlineStatusline()

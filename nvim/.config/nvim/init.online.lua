@@ -503,7 +503,7 @@ Snacks.setup({
 		animate = { enabled = false },
 	},
 	scroll = {
-		enabled = true,
+		enabled = false,
 		filter = function(buf)
 			return vim.bo[buf].buftype == ""
 				and not vim.b[buf].large_file
@@ -555,6 +555,7 @@ Snacks.setup({
 			end
 		end,
 		sources = {
+			explorer = { diagnostics = false, git_status = true },
 			undo = {
 				config = function()
 					-- Snacks writes undo previews here, including on a fresh installation.
@@ -896,6 +897,19 @@ do
 	})
 	vim.keymap.set("n", "<leader>Td", function()
 		enabled = not enabled
+		if not enabled then
+			local bars = {}
+			for _, windows in pairs(require("dropbar.utils.bar").get()) do
+				for _, bar in pairs(windows) do
+					bars[#bars + 1] = bar
+				end
+			end
+			for _, bar in ipairs(bars) do
+				-- Invalidate queued updates before removing the hidden bar.
+				bar.last_update_request_time = nil
+				bar:del()
+			end
+		end
 		for _, win in ipairs(vim.api.nvim_list_wins()) do
 			refresh_window(win)
 		end

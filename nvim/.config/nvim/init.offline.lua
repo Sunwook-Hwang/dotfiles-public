@@ -2451,7 +2451,7 @@ end, "Toggle LSP / formatter status")
 
 -- Space TS: animate native Ctrl-d/u views, including wrapped lines and folds.
 do
-	local enabled, animation = true, nil
+	local enabled, animation = false, nil
 	local keys_ns = vim.api.nvim_create_namespace("offline-smooth-scroll")
 	local function stop(finish)
 		local state = animation

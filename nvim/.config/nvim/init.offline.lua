@@ -3292,10 +3292,20 @@ end, "Git commits")
 map("n", "<leader>gg", function()
 	if vim.fn.executable("lazygit") == 1 then
 		local root = project_root()
-		vim.cmd("botright new")
-		local buf, win = vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win()
-		vim.bo[buf].buflisted = false
+		local width = math.max(1, math.floor(vim.o.columns * 0.9))
+		local height = math.max(1, math.floor(vim.o.lines * 0.9))
+		local buf = vim.api.nvim_create_buf(false, true)
 		vim.bo[buf].bufhidden = "wipe"
+		local win = vim.api.nvim_open_win(buf, true, {
+			relative = "editor",
+			width = width,
+			height = height,
+			row = math.floor((vim.o.lines - height) / 2),
+			col = math.floor((vim.o.columns - width) / 2),
+			style = "minimal",
+			border = "none",
+		})
+		vim.wo[win][0].winhighlight = "Normal:Normal,NormalNC:Normal"
 		local function close()
 			if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == buf then
 				vim.api.nvim_win_close(win, true)

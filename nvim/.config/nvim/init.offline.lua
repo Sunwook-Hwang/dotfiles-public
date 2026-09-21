@@ -1735,6 +1735,12 @@ open_picker = function(title, opts)
 	local preview_buf, preview_win
 	if list_width < width then
 		preview_buf, preview_win = pane("preview", row + 3, col + list_width + 2, width - list_width - 2, height, false)
+		if not opts.preview then
+			vim.b[preview_buf].offline_preview_first = 1
+			vim.wo[preview_win][0].number = true
+			vim.wo[preview_win][0].signcolumn = "yes:1"
+			vim.wo[preview_win][0].statuscolumn = "%s%{v:lnum + b:offline_preview_first - 1}  "
+		end
 	end
 	local query_buf, query_win = pane("query", row, col, width, 1, true)
 	vim.wo[list_win][0].cursorline = true
@@ -1768,9 +1774,6 @@ open_picker = function(title, opts)
 		end
 		vim.api.nvim_buf_clear_namespace(preview_buf, preview_ns, 0, -1)
 		fill(preview_buf, { "" })
-		vim.wo[preview_win][0].number = false
-		vim.wo[preview_win][0].signcolumn = "no"
-		vim.wo[preview_win][0].statuscolumn = ""
 		if not item then
 			vim.bo[preview_buf].syntax = ""
 			return
@@ -1787,11 +1790,8 @@ open_picker = function(title, opts)
 			end
 			fill(preview_buf, chunk)
 			vim.b[preview_buf].offline_preview_first = first or start
-			vim.wo[preview_win][0].number = true
-			vim.wo[preview_win][0].statuscolumn = "%s%{v:lnum + b:offline_preview_first - 1}  "
 			local selected = line - (first or start)
 			if selected >= 0 and selected < #chunk then
-				vim.wo[preview_win][0].signcolumn = "yes:1"
 				vim.api.nvim_buf_set_extmark(preview_buf, preview_ns, selected, 0, {
 					sign_text = ">",
 					sign_hl_group = "Search",
@@ -5266,12 +5266,18 @@ vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "LspAttach", "LspDetac
 			return
 		end
 		if args.event == "BufEnter" then
+			local same_source = state.source == args.buf
 			state.source, state.source_win = args.buf, vim.api.nvim_get_current_win()
+			if same_source then
+				return
+			end
 			vim.wo[state.win][0].winbar = " Outline: "
 				.. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(args.buf), ":t"):gsub("%%", "%%%%")
 		end
-		if args.buf == state.source then
+		if args.buf == state.source and not state.refresh_pending then
+			state.refresh_pending = true
 			vim.schedule(function()
+				state.refresh_pending = false
 				if outline == state then
 					refresh_outline(state)
 				end

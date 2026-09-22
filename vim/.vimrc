@@ -29,6 +29,15 @@ let &packpath = $VIMRUNTIME
 let s:offline_data = exists('$VIM_OFFLINE_DATA') && $VIM_OFFLINE_DATA !=# ''
       \ ? expand($VIM_OFFLINE_DATA) : expand('~/.vim/offline')
 set nobackup
+" Editing defaults that Neovim supplies even without an init.lua.
+set autoindent autoread
+set backspace=indent,eol,start
+set incsearch nojoinspaces nostartofline smarttab
+set nrformats-=octal
+set formatoptions+=j
+set sidescroll=1
+set ttimeout ttimeoutlen=50
+set history=10000
 " Desktop clipboard locally; SSH yanks use OSC52 to reach the client terminal.
 let s:ssh = !empty($SSH_TTY) || !empty($SSH_CONNECTION)
 let &clipboard = !s:ssh && has('clipboard') && (has('mac') || has('win32') || !empty($DISPLAY)) ? 'unnamedplus' : ''
@@ -50,12 +59,18 @@ set pumheight=10
 set showmode
 set showtabline=2
 set smartcase
-set smartindent
+set nosmartindent
 set splitbelow
 set splitright
 set noswapfile
 if exists('+termguicolors')
   set termguicolors
+endif
+" Terminal Vim uses these mode sequences instead of Neovim's 'guicursor'.
+if has('cursorshape') && !has('gui_running') && &term !=# 'dumb'
+  let &t_SI = "\e[6 q" " Insert: steady bar
+  let &t_SR = "\e[4 q" " Replace: steady underline
+  let &t_EI = "\e[2 q" " Normal: steady block
 endif
 set title
 if exists('+undodir') && exists('+undofile')
@@ -135,6 +150,8 @@ let mapleader = ' '
 " ============== KEYMAPS: BASE ============
 " =========================================
 inoremap <silent> jk <Esc>
+inoremap <C-u> <C-g>u<C-u>
+inoremap <C-w> <C-g>u<C-w>
 nnoremap <silent> <Esc> :nohlsearch<CR>
 nnoremap <silent> + <C-a>
 nnoremap <silent> - <C-x>
@@ -173,6 +190,22 @@ nnoremap <silent> <S-Left> :vertical resize -5<CR>
 nnoremap <silent> <S-Right> :vertical resize +5<CR>
 
 nnoremap <silent> x "_x
+nnoremap Y y$
+nnoremap & :&&<CR>
+" Vim exposes the active recording register, but not Neovim's reg_recorded().
+let s:last_recorded = ''
+function! s:MacroKey(key) abort
+  if a:key ==# 'q'
+    if !empty(reg_recording()) | let s:last_recorded = tolower(reg_recording()) | endif
+    return 'q'
+  endif
+  if empty(s:last_recorded) | return "\<Esc>" | endif
+  return mode() ==# 'V' ? ':normal! @' . s:last_recorded . "\<CR>" : '@' . s:last_recorded
+endfunction
+nnoremap <expr> q <SID>MacroKey('q')
+nnoremap <expr> Q <SID>MacroKey('Q')
+xnoremap <silent><expr> Q <SID>MacroKey('Q')
+xnoremap <silent><expr> @ mode() ==# 'V' ? ':normal! @' . getcharstr() . '<CR>' : '@'
 xnoremap <silent> p "_dP
 xnoremap <silent> P "_dP
 nnoremap <silent> n nzzzv
@@ -180,7 +213,25 @@ nnoremap <silent> N Nzzzv
 nnoremap <silent> <leader>w :windo diffthis<CR>
 nnoremap <silent> <leader>a ggVG
 
-function! s:VisualSubstitute(range) abort
+" Keep Neovim's list navigation, including numeric counts, on native Ex commands.
+for [s:key, s:command, s:count_command] in [
+      \ ['[q', 'cprevious', 'cprevious'], [']q', 'cnext', 'cnext'],
+      \ ['[Q', 'crewind', 'crewind'], [']Q', 'clast', 'clast'],
+      \ ['[<C-q>', 'cpfile', 'cpfile'], [']<C-q>', 'cnfile', 'cnfile'],
+      \ ['[l', 'lprevious', 'lprevious'], [']l', 'lnext', 'lnext'],
+      \ ['[L', 'lrewind', 'lrewind'], [']L', 'llast', 'llast'],
+      \ ['[<C-l>', 'lpfile', 'lpfile'], [']<C-l>', 'lnfile', 'lnfile'],
+      \ ['[a', 'previous', 'previous'], [']a', 'next', 'next'],
+      \ ['[A', 'rewind', 'argument'], [']A', 'last', 'argument'],
+      \ ['[t', 'tprevious', 'tprevious'], [']t', 'tnext', 'tnext'],
+      \ ['[T', 'trewind', 'trewind'], [']T', 'tlast', 'trewind'],
+      \ ['[<C-t>', 'ptprevious', 'ptprevious'], [']<C-t>', 'ptnext', 'ptnext'],
+      \ ['[B', 'brewind', 'buffer'], [']B', 'blast', 'buffer']]
+  execute 'nnoremap <silent> ' . s:key . ' :<C-u>execute v:count ? v:count . "' . s:count_command . '" : "' . s:command . '"<CR>'
+endfor
+unlet s:key s:command s:count_command
+
+function! s:VisualText() abort
   " Yank into the unnamed register's backing register, leaving register 0 intact.
   if exists('*getreginfo')
     let reg = getreginfo('"').points_to
@@ -197,10 +248,29 @@ function! s:VisualSubstitute(range) abort
   let saved = getreg(reg, 1, 1)
   let regtype = getregtype(reg)
   silent execute 'normal! gv"' . reg . 'y'
-  let pattern = substitute(escape(getreg(reg), '\/'), "\n", '\\n', 'g')
+  let text = getreg(reg)
   call setreg(reg, saved, regtype)
+  return text
+endfunction
+
+function! s:VisualSubstitute(range) abort
+  let pattern = substitute(escape(s:VisualText(), '\/'), "\n", '\\n', 'g')
   call feedkeys(':' . a:range . 's/\V' . pattern . '/', 'n')
 endfunction
+
+function! s:VisualSearch(forward, count) abort
+  let start = getpos("'<")
+  let text = s:VisualText()
+  if visualmode() ==# 'V' | let text = substitute(text, "\n$", '', '') | endif
+  if empty(text) | return | endif
+  let @/ = '\V' . substitute(escape(text, '\'), "\n", '\\n', 'g')
+  call histadd('/', @/)
+  let v:searchforward = a:forward
+  call setpos('.', start)
+  execute 'normal! ' . a:count . 'n'
+endfunction
+xnoremap <silent> * :<C-u>call <SID>VisualSearch(1, v:count1)<CR>
+xnoremap <silent> # :<C-u>call <SID>VisualSearch(0, v:count1)<CR>
 
 nnoremap <leader>Sa :%s/\<<C-r><C-w>\>/
 nnoremap <leader>Sf :.,$s/\<<C-r><C-w>\>/
@@ -314,6 +384,22 @@ xnoremap <silent><expr> gc <SID>CommentOperator()
 nnoremap <silent><expr> gcc <SID>CommentOperator() . '_'
 onoremap <silent> gc :<C-u>call <SID>CommentTextObject()<CR>
 
+function! s:BlankLines(above, ...) abort
+  if !a:0
+    let &operatorfunc = s:sid . (a:above ? 'BlankAbove' : 'BlankBelow')
+    return 'g@l'
+  endif
+  call append(line('.') - a:above, repeat([''], v:count1))
+endfunction
+function! s:BlankAbove(type) abort
+  call s:BlankLines(1, a:type)
+endfunction
+function! s:BlankBelow(type) abort
+  call s:BlankLines(0, a:type)
+endfunction
+nnoremap <silent><expr> [<Space> <SID>BlankLines(1)
+nnoremap <silent><expr> ]<Space> <SID>BlankLines(0)
+
 function! s:ClearYankHighlight(winid, matchids, timer) abort
   if win_id2tabwin(a:winid)[0] > 0
     for id in a:matchids
@@ -380,6 +466,7 @@ augroup END
 " Built-in display, completion, and file browsing.
 filetype plugin indent on
 syntax enable
+packadd matchit
 " Older Vim runtimes may not ship retrobox yet.
 if !empty(globpath(&runtimepath, 'colors/retrobox.vim'))
   colorscheme retrobox
@@ -751,10 +838,59 @@ function! s:SidebarWidth() abort
   endif
 endfunction
 
+function! s:NetrwHelpFilter(id, key) abort
+  let previous = getwinvar(a:id, 'offline_help_key', '')
+  call setwinvar(a:id, 'offline_help_key', a:key)
+  if index(['q', "\<Esc>", "\<C-c>"], a:key) >= 0 || (previous ==# 'g' && a:key ==# '?')
+    call popup_close(a:id)
+  elseif a:key ==# 'g' && previous ==# 'g'
+    call win_execute(a:id, 'normal! gg')
+  else
+    let motions = {'j': 'j', 'k': 'k', 'G': 'G', "\<Down>": 'j', "\<Up>": 'k',
+          \ "\<C-d>": "\<C-d>", "\<C-u>": "\<C-u>", "\<C-f>": "\<C-f>", "\<C-b>": "\<C-b>"}
+    if has_key(motions, a:key)
+      call win_execute(a:id, 'normal! ' . motions[a:key])
+    endif
+  endif
+  return 1
+endfunction
+
+function! s:NetrwHelp() abort
+  let lines = [
+        \ 'netrw file explorer · Offline Vim', '',
+        \ 'Navigation / Opening',
+        \ '  j / k             Move down / up',
+        \ '  gg / G            First / last line',
+        \ '  Enter / l         Expand or collapse directory / open file',
+        \ '  h / -             Collapse branch / go to parent directory',
+        \ '  gn / :Ntree PATH  Use cursor directory / chosen path as root',
+        \ '  o / v / t         Open in horizontal split / vertical split / tab',
+        \ '  p                 Preview file',
+        \ '  Ctrl-h/j/k/l      Move between windows',
+        \ '  Space e           Toggle file explorer', '',
+        \ 'Display / Refresh',
+        \ '  Space nr          Refresh tree',
+        \ '  gh                Toggle hidden files',
+        \ '  Space nh          Edit file hiding patterns',
+        \ '  s / r             Change sort order / reverse sorting', '',
+        \ 'File Operations',
+        \ '  % / d             New file in editor / new directory',
+        \ '  R / D             Rename / delete (D also accepts a selection)',
+        \ '  mf / mu           Toggle file mark / unmark all files',
+        \ '  mt                Set cursor directory as copy/move target',
+        \ '  mc / mm           Copy / move marked files to target', '',
+        \ 'g? / q / Esc: Close help · j/k, Ctrl-d/u, gg/G: Scroll']
+  call popup_create(lines, {'title': ' netrw help ', 'pos': 'center',
+        \ 'maxwidth': max([1, min([78, &columns - 4])]), 'maxheight': max([1, &lines - 6]),
+        \ 'border': [1], 'padding': [0, 1, 0, 1], 'wrap': 1, 'mapping': 0, 'zindex': 250,
+        \ 'filter': function('<SID>NetrwHelpFilter')})
+endfunction
+
 function! s:NetrwSetup() abort
   let w:netrw_liststyle = 3
   command! -buffer -nargs=? -complete=dir Ntree call <SID>NetrwSetRoot(<q-args>)
   nnoremap <silent><buffer> gn :Ntree<CR>
+  nnoremap <silent><buffer> g? :call <SID>NetrwHelp()<CR>
   nnoremap <silent><buffer> <Plug>NetrwRefresh :call <SID>NetrwRefresh()<CR>
   nnoremap <silent><buffer> % :call <SID>NetrwCreate(0)<CR>
   nnoremap <silent><buffer> d :call <SID>NetrwCreate(1)<CR>
@@ -2653,7 +2789,8 @@ function! s:ToggleTerminal() abort
   endif
   execute 'botright ' . max([5, &lines / 3]) . 'split'
   if s:terminal_buf <= 0 || !bufexists(s:terminal_buf)
-    let s:terminal_buf = term_start(&shell, {'curwin': 1, 'cwd': s:ProjectRoot().root, 'term_finish': 'close'})
+    " Hiding keeps the shell alive; quitting Vim may stop it without E947.
+    let s:terminal_buf = term_start(&shell, {'curwin': 1, 'cwd': s:ProjectRoot().root, 'term_finish': 'close', 'term_kill': 'kill'})
   else
     execute 'buffer ' . s:terminal_buf
   endif

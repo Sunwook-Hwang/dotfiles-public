@@ -37,6 +37,15 @@ directory. Third-party directories are excluded from `runtimepath` and
 | `gc` + motion | Toggle comments over a motion, e.g. `gcj` or `gcap` |
 | Visual `gc` | Toggle comments on selected lines |
 | `.` | Repeat the comment operation |
+| `Y` / `yy` | Copy from the cursor to end of line / copy the whole line, matching Neovim |
+| `Q` | Repeat the last macro recorded with `q`; supports a count |
+| Linewise Visual `Q` / `@a` | Run the last recorded macro / register `a` on each selected line |
+| Insert `Ctrl-u` / `Ctrl-w` | Delete preceding input / word with a separate undo point |
+| `&` | Repeat the last substitution, preserving flags such as `g` |
+| Visual `*` / `#` | Search the selected text literally, forward / backward, preserving registers |
+| `[Space` / `]Space` | Add blank lines above / below; supports counts, undo, and `.` |
+| `[q` / `]q`, `[l` / `]l`, `[a` / `]a`, `[t` / `]t` | Previous / next quickfix item, location item, argument, or tag match |
+| `[Q` / `]Q`, `[L` / `]L`, `[A` / `]A`, `[T` / `]T`, `[B` / `]B` | First / last item in those lists or the buffer list |
 | `>>` / `<<` | Shift the current line right / left, including first-column Python comments |
 | Visual `>` / `<` | Shift selected lines and keep the selection for repeated shifts |
 | `Ctrl-s` | Save from Normal or Insert mode |
@@ -51,6 +60,14 @@ Comments use the current filetype's `commentstring`. Brackets, quotes, and
 backticks pair automatically; existing closers are skipped and Backspace removes
 empty pairs. Syntax colors and indentation come from Vim's bundled runtime.
 The theme is `retrobox` when bundled, otherwise `desert`.
+In compatible terminals, the cursor is a block in Normal mode, a vertical bar in
+Insert mode, and an underline in Replace mode.
+
+Basic editing defaults also match offvi: incremental search, one space when `J`
+joins sentences, comment-leader removal on joins, retained cursor columns for
+`gg`/`G`, decimal handling of zero-prefixed numbers, and filetype-based indentation.
+Vim's bundled matchit extends `%`/`g%` to language constructs and HTML tags.
+LSP/diagnostic/Tree-sitter mappings are not emulated.
 
 ## ctags instead of LSP
 
@@ -92,6 +109,7 @@ newlines cannot be indexed by this line-oriented ctags integration.
 | Dashboard `:` | Close the overlay and start an Ex command; `:q` exits when no other window exists |
 | `Space` | Show a guide to actual Space mappings after the mapping timeout |
 | `Space e` | Toggle netrw in a left sidebar |
+| Tree `g?` | Open shortcut help; `g?`, `q`, or `Esc` closes it; `j/k` and `Ctrl-d/u` scroll |
 | `Space f`, `Space Enter` | Find project files / Git-tracked files |
 | `Space st`, `Space t` | Live text search / search the cursor word |
 | `Space s/` | Search the saved contents of open files |
@@ -149,6 +167,11 @@ found. Installing an executable does not add unsupported filetypes automatically
 | `Space pr/pl/pS/pd` | Restore directory session / last session / pick session / stop saving |
 | `Ctrl-t` | Toggle the reusable bottom terminal split (`+terminal`) |
 | Terminal `Esc Esc` or `Ctrl-w N` | Enter Terminal-Normal mode; `i` returns to terminal input |
+
+Hiding the terminal keeps its shell running and removes it from buffer lists.
+`:qa` closes the reusable terminal with Vim; unsaved files still prevent quitting.
+Vim checks buffers in order, so its shell may already stop before an unsaved file
+cancels quitting.
 
 Git signs include **unsaved** changes on Vim 9.0, using asynchronous snapshot
 diffs. Cached index contents are reused while typing and refreshed on file

@@ -475,6 +475,44 @@ else
 endif
 set whichwrap+=<,>,[,],h,l
 set iskeyword+=-
+" Space Th: idle-only word highlighting; disabled until explicitly toggled.
+let s:cursor_word_enabled = 0
+highlight default link CursorWord Visual
+function! s:ClearCursorWord(winid) abort
+  let id = getwinvar(a:winid, 'cursor_word_match', 0)
+  if id > 0
+    silent! call matchdelete(id, a:winid)
+    call setwinvar(a:winid, 'cursor_word_match', 0)
+  endif
+endfunction
+function! s:HighlightCursorWord() abort
+  if !s:cursor_word_enabled || &buftype !=# '' || get(b:, 'offline_large_file', 0) || mode() !=# 'n'
+    return
+  endif
+  let word = expand('<cword>')
+  if empty(word) || empty(matchstr(getline('.'), '\%' . col('.') . 'c\k'))
+    return
+  endif
+  call s:ClearCursorWord(win_getid())
+  let w:cursor_word_match = matchadd('CursorWord', '\C\V\<' . escape(word, '\') . '\>', -1)
+endfunction
+function! s:ToggleCursorWord() abort
+  let s:cursor_word_enabled = !s:cursor_word_enabled
+  if s:cursor_word_enabled
+    call s:HighlightCursorWord()
+  else
+    for info in getwininfo()
+      call s:ClearCursorWord(info.winid)
+    endfor
+  endif
+endfunction
+nnoremap <silent> <leader>Th :call <SID>ToggleCursorWord()<CR>
+augroup OfflineCursorWord
+  autocmd!
+  autocmd ColorScheme * highlight default link CursorWord Visual
+  autocmd CursorHold * call <SID>HighlightCursorWord()
+  autocmd CursorMoved,InsertEnter,ModeChanged,WinLeave,BufLeave,TextChanged * if s:cursor_word_enabled | call <SID>ClearCursorWord(win_getid()) | endif
+augroup END
 let &path = '.,'
 set wildmenu
 set wildmode=longest:full,full
@@ -4007,7 +4045,7 @@ let s:guide_labels = {
       \ 'A': 'Dashboard', 'f': 'Find files', 'e': 'File tree', 'o': 'Ctags outline', 'u': 'Undo preview',
       \ 't': 'Search word', 'c': 'Force-close buffer', 'a': 'Select all', 'w': 'Compare windows', '<CR>': 'Git files',
       \ 'b': 'Buffers', 'g': 'Git', 's': 'Search', 'S': 'Substitute', 'T': 'Toggles', 'p': 'Sessions', 'l': 'Language tools', 'n': 'File tree',
-      \ 'Ts': 'Sticky context', 'TS': 'Smooth paging', 'Ti': 'Indent guides', 'Tl': 'Tool status',
+      \ 'Ts': 'Sticky context', 'TS': 'Smooth paging', 'Ti': 'Indent guides', 'Tl': 'Tool status', 'Th': 'Cursor word highlight',
       \ 'gg': 'Lazygit / Git status', 'gd': 'Diff index', 'gD': 'Diff HEAD', 'gb': 'Inline blame', 'gn': 'Next hunk', 'gp': 'Previous hunk',
       \ 'lf': 'Format buffer', 'nr': 'Refresh tree', 'nh': 'Edit hidden-file patterns',
       \ 'pr': 'Restore directory session', 'pl': 'Restore last session', 'pS': 'Select session', 'pd': 'Stop saving session',
@@ -4033,6 +4071,7 @@ function! s:GuideMappings(prefix) abort
   return sort(values(result), {a, b -> a.key ==# b.key ? 0 : a.key ># b.key ? 1 : -1})
 endfunction
 function! s:GuideFilter(id, key) abort
+  if a:key ==# "\<CursorHold>" | return 1 | endif
   if index(["\<Esc>", "\<C-C>"], a:key) >= 0 | call popup_close(a:id) | return 1 | endif
   let prefix = getwinvar(a:id, 'offline_prefix') . a:key
   call popup_close(a:id)

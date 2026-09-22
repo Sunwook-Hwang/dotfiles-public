@@ -217,6 +217,60 @@ vim.keymap.set("v", "P", [["_dP]], { noremap = true, silent = true })
 vim.keymap.set("n", "n", "nzzzv", { noremap = true, silent = true })
 vim.keymap.set("n", "N", "Nzzzv", { noremap = true, silent = true })
 
+-- Space Th: highlight the word under the cursor after a short idle pause.
+do
+	local enabled = false
+	local function clear(win)
+		if not vim.api.nvim_win_is_valid(win) then
+			return
+		end
+		local id = vim.w[win].cursor_word_match
+		if id then
+			pcall(vim.fn.matchdelete, id, win)
+			vim.w[win].cursor_word_match = nil
+		end
+	end
+	local function highlight()
+		if not enabled then
+			return
+		end
+		local win, buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
+		if vim.bo[buf].buftype ~= "" or vim.b[buf].large_file or vim.fn.mode() ~= "n" then
+			return
+		end
+		local word = vim.fn.expand("<cword>")
+		if word == "" or vim.fn.matchstr(vim.api.nvim_get_current_line(), "\\%" .. vim.fn.col(".") .. "c\\k") == "" then
+			return
+		end
+		clear(win)
+		vim.w[win].cursor_word_match = vim.fn.matchadd("CursorWord", "\\C\\V\\<" .. vim.fn.escape(word, "\\") .. "\\>", -1)
+	end
+	vim.cmd("highlight default link CursorWord Visual")
+	local group = vim.api.nvim_create_augroup("online-cursor-word", { clear = true })
+	vim.api.nvim_create_autocmd("ColorScheme", { group = group, callback = function()
+		vim.cmd("highlight default link CursorWord Visual")
+	end })
+	vim.api.nvim_create_autocmd("CursorHold", { group = group, callback = highlight })
+	vim.api.nvim_create_autocmd({ "CursorMoved", "InsertEnter", "ModeChanged", "WinLeave", "BufLeave", "TextChanged" }, {
+		group = group,
+		callback = function()
+			if enabled then
+				clear(vim.api.nvim_get_current_win())
+			end
+		end,
+	})
+	vim.keymap.set("n", "<leader>Th", function()
+		enabled = not enabled
+		if enabled then
+			highlight()
+		else
+			for _, win in ipairs(vim.api.nvim_list_wins()) do
+				clear(win)
+			end
+		end
+	end, { desc = "Toggle cursor word highlight" })
+end
+
 -- Diff all windows
 vim.keymap.set("n", "<leader>w", ":windo diffthis<CR>", {
 	noremap = true,

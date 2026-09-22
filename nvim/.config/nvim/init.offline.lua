@@ -2539,6 +2539,59 @@ local function undo_picker()
 	end
 end
 map("n", "<leader>u", undo_picker, "Preview undo states (Enter to apply)")
+-- Space Th: show other occurrences only while resting on a word.
+do
+	local enabled = false
+	local function clear(win)
+		if not vim.api.nvim_win_is_valid(win) then
+			return
+		end
+		local id = vim.w[win].cursor_word_match
+		if id then
+			pcall(vim.fn.matchdelete, id, win)
+			vim.w[win].cursor_word_match = nil
+		end
+	end
+	local function highlight()
+		if not enabled then
+			return
+		end
+		local win, buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
+		if vim.bo[buf].buftype ~= "" or vim.b[buf].offline_large_file or vim.fn.mode() ~= "n" then
+			return
+		end
+		local word = vim.fn.expand("<cword>")
+		if word == "" or vim.fn.matchstr(vim.api.nvim_get_current_line(), "\\%" .. vim.fn.col(".") .. "c\\k") == "" then
+			return
+		end
+		clear(win)
+		vim.w[win].cursor_word_match = vim.fn.matchadd("CursorWord", "\\C\\V\\<" .. vim.fn.escape(word, "\\") .. "\\>", -1)
+	end
+	vim.cmd("highlight default link CursorWord Visual")
+	local group = vim.api.nvim_create_augroup("offline-cursor-word", { clear = true })
+	vim.api.nvim_create_autocmd("ColorScheme", { group = group, callback = function()
+		vim.cmd("highlight default link CursorWord Visual")
+	end })
+	vim.api.nvim_create_autocmd("CursorHold", { group = group, callback = highlight })
+	vim.api.nvim_create_autocmd({ "CursorMoved", "InsertEnter", "ModeChanged", "WinLeave", "BufLeave", "TextChanged" }, {
+		group = group,
+		callback = function()
+			if enabled then
+				clear(vim.api.nvim_get_current_win())
+			end
+		end,
+	})
+	map("n", "<leader>Th", function()
+		enabled = not enabled
+		if enabled then
+			highlight()
+		else
+			for _, win in ipairs(vim.api.nvim_list_wins()) do
+				clear(win)
+			end
+		end
+	end, "Toggle cursor word highlight")
+end
 -- Space Ti: 내장 들여쓰기 가이드와 탭·후행 공백 표시 토글.
 map("n", "<leader>Ti", "<Cmd>set list!<CR>", "Toggle indent guides / whitespace markers")
 map("n", "<leader>Tl", function()

@@ -814,6 +814,11 @@ end
 
 -- Snacks owns the explorer, pickers, dashboard, terminal and utility UI.
 local Snacks = require("snacks")
+local terminal_cwd
+local function toggle_bottom_terminal()
+	terminal_cwd = terminal_cwd or vim.fn.getcwd()
+	Snacks.terminal.toggle(nil, { cwd = terminal_cwd, count = 1 })
+end
 Snacks.setup({
 	bigfile = {
 		enabled = true,
@@ -901,7 +906,14 @@ Snacks.setup({
 			end
 		end,
 		sources = {
-			explorer = { diagnostics = false, git_status = true },
+			explorer = {
+				diagnostics = false,
+				git_status = true,
+				win = {
+					list = { keys = { ["<c-t>"] = toggle_bottom_terminal } },
+					input = { keys = { ["<c-t>"] = { toggle_bottom_terminal, mode = { "n", "i" } } } },
+				},
+			},
 			undo = {
 				config = function()
 					-- Snacks writes undo previews here, including on a fresh installation.
@@ -1332,13 +1344,7 @@ require("aerial").setup({
 vim.keymap.set("n", "<leader>o", "<Cmd>AerialToggle<CR>", { desc = "Toggle symbols outline" })
 
 -- Keep a single bottom terminal even when the editor's cwd changes.
-do
-	local terminal_cwd
-	vim.keymap.set({ "n", "t" }, "<C-t>", function()
-		terminal_cwd = terminal_cwd or vim.fn.getcwd()
-		Snacks.terminal.toggle(nil, { cwd = terminal_cwd, count = 1 })
-	end, { desc = "Toggle bottom terminal" })
-end
+vim.keymap.set({ "n", "t" }, "<C-t>", toggle_bottom_terminal, { desc = "Toggle bottom terminal" })
 
 -- Toggle lazygit independently of the bottom shell terminal.
 vim.keymap.set("n", "<leader>gg", function()

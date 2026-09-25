@@ -194,6 +194,12 @@ nnoremap <silent> <S-Up> :resize -5<CR>
 nnoremap <silent> <S-Down> :resize +5<CR>
 nnoremap <silent> <S-Left> :vertical resize -5<CR>
 nnoremap <silent> <S-Right> :vertical resize +5<CR>
+if has('terminal')
+  tnoremap <silent> <S-Up> <C-W>:resize -5<CR>
+  tnoremap <silent> <S-Down> <C-W>:resize +5<CR>
+  tnoremap <silent> <S-Left> <C-W>:vertical resize -5<CR>
+  tnoremap <silent> <S-Right> <C-W>:vertical resize +5<CR>
+endif
 
 nnoremap <silent> x "_x
 nnoremap Y y$

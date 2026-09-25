@@ -201,6 +201,9 @@ vim.keymap.set("n", "<C-h>", "<C-w>h", { noremap = true, silent = true })
 vim.keymap.set("n", "<C-j>", "<C-w>j", { noremap = true, silent = true })
 vim.keymap.set("n", "<C-k>", "<C-w>k", { noremap = true, silent = true })
 vim.keymap.set("n", "<C-l>", "<C-w>l", { noremap = true, silent = true })
+for _, direction in ipairs({ "h", "j", "k", "l" }) do
+	vim.keymap.set("t", "<C-" .. direction .. ">", "<C-\\><C-n><C-w>" .. direction, { silent = true })
+end
 
 -- Resize with arrows
 vim.keymap.set("n", "<S-Up>", ":resize -5<CR>", { noremap = true, silent = true })

@@ -183,6 +183,12 @@ nnoremap <silent> <C-h> <C-w>h
 nnoremap <silent> <C-j> <C-w>j
 nnoremap <silent> <C-k> <C-w>k
 nnoremap <silent> <C-l> <C-w>l
+if has('terminal')
+  tnoremap <silent> <C-h> <C-W>N<C-w>h
+  tnoremap <silent> <C-j> <C-W>N<C-w>j
+  tnoremap <silent> <C-k> <C-W>N<C-w>k
+  tnoremap <silent> <C-l> <C-W>N<C-w>l
+endif
 
 nnoremap <silent> <S-Up> :resize -5<CR>
 nnoremap <silent> <S-Down> :resize +5<CR>

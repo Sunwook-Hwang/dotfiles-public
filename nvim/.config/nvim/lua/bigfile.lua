@@ -1,7 +1,19 @@
--- Keep growth/long-line protection in addition to Snacks bigfile detection.
+-- Snacks handles files on open; retain protection for growth and isolated long lines.
 local protect_large_file
 do
 	local watched_buffers = {}
+	local function protect_options(buf)
+		-- Filetype scripts can re-enable these while opening a buffer.
+		vim.bo[buf].syntax = "OFF"
+		vim.bo[buf].indentexpr = ""
+		vim.bo[buf].autocomplete = false
+		for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+			-- Change only this buffer's window options, not defaults inherited by new buffers.
+			for name, value in pairs({ foldmethod = "manual", cursorcolumn = false, cursorline = false, wrap = false }) do
+				vim.api.nvim_set_option_value(name, value, { win = win, scope = "local" })
+			end
+		end
+	end
 	protect_large_file = function(buf)
 		if not vim.api.nvim_buf_is_loaded(buf) then
 			return
@@ -13,18 +25,10 @@ do
 		vim.b[buf].snacks_scroll = false
 		vim.b[buf].snacks_words = false
 		pcall(vim.treesitter.stop, buf)
-		vim.bo[buf].syntax = "OFF"
-		vim.bo[buf].indentexpr = ""
-		vim.bo[buf].autocomplete = false
 		for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
 			vim.lsp.buf_detach_client(buf, client.id)
 		end
-		for _, win in ipairs(vim.fn.win_findbuf(buf)) do
-			-- Change only this buffer's window options, not defaults inherited by new buffers.
-			for name, value in pairs({ foldmethod = "manual", cursorcolumn = false, cursorline = false, wrap = false }) do
-				vim.api.nvim_set_option_value(name, value, { win = win, scope = "local" })
-			end
-		end
+		protect_options(buf)
 	end
 	local function check_large_file(buf, first, last)
 		if vim.b[buf].large_file or not vim.api.nvim_buf_is_loaded(buf) then
@@ -77,16 +81,18 @@ do
 			end
 		end)
 	end
-	vim.api.nvim_create_autocmd("BufReadPre", {
-		callback = function(args)
-			local stat = vim.uv.fs_stat(vim.api.nvim_buf_get_name(args.buf))
-			vim.b[args.buf].large_file = stat and stat.size > 2 * 1024 * 1024 or false
-		end,
-	})
 	vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile", "FileType", "BufWinEnter" }, {
 		callback = function(args)
 			local buf = args.buf
 			if vim.bo[buf].buftype ~= "" then
+				return
+			end
+			if vim.b[buf].large_file then
+				protect_options(buf)
+				return
+			end
+			-- The native bigfile FileType callback runs after this supplemental listener.
+			if vim.bo[buf].filetype == "bigfile" then
 				return
 			end
 			if not watched_buffers[buf] then
@@ -109,11 +115,16 @@ do
 					watched_buffers[buf] = nil
 				end
 			end
-			if vim.b[buf].large_file then
-				protect_large_file(buf)
-			end
 		end,
 	})
 end
 
-return protect_large_file
+return {
+	enabled = true,
+	size = 2 * 1024 * 1024,
+	line_length = 10000, -- Snacks checks the average; the supplement checks individual lines.
+	setup = function(ctx)
+		vim.b[ctx.buf].large_file = true
+		protect_large_file(ctx.buf)
+	end,
+}

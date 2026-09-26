@@ -4,13 +4,17 @@ local Snacks = require("snacks")
 -- LSP: native client and buffer mappings
 -- -------------------------------------
 do
-	local keymap = vim.keymap
 	vim.api.nvim_create_autocmd("LspAttach", {
 		group = vim.api.nvim_create_augroup("UserLspConfig", {}),
 		callback = function(ev)
 			local client = vim.lsp.get_client_by_id(ev.data.client_id)
 			if vim.b[ev.buf].large_file then
-				vim.lsp.buf_detach_client(ev.buf, client.id)
+				-- Neovim completes attachment after LspAttach callbacks return.
+				vim.schedule(function()
+					if vim.lsp.buf_is_attached(ev.buf, client.id) then
+						vim.lsp.buf_detach_client(ev.buf, client.id)
+					end
+				end)
 				return
 			end
 			if client:supports_method("textDocument/completion") then
@@ -26,69 +30,70 @@ do
 				vim.bo[ev.buf].autocomplete = false
 			end
 			vim.diagnostic.enable(true, { bufnr = ev.buf })
-			local opts = { buffer = ev.buf, silent = true }
-
-			opts.desc = "Go to definition"
-			keymap.set("n", "gd", function()
-				Snacks.picker.lsp_definitions()
-			end, opts)
-
-			opts.desc = "References"
-			keymap.set("n", "gr", function()
-				Snacks.picker.lsp_references()
-			end, opts)
-
-			opts.desc = "Show LSP references"
-			keymap.set("n", "gR", function()
-				Snacks.picker.lsp_references()
-			end, opts)
-
-			opts.desc = "Go to declaration"
-			keymap.set("n", "gD", function()
-				Snacks.picker.lsp_declarations()
-			end, opts)
-
-			opts.desc = "Show LSP implementations"
-			keymap.set("n", "gi", function()
-				Snacks.picker.lsp_implementations()
-			end, opts)
-
-			opts.desc = "Show LSP type definitions"
-			keymap.set("n", "gt", function()
-				Snacks.picker.lsp_type_definitions()
-			end, opts)
-
-			opts.desc = "See available code actions"
-			keymap.set({ "n", "v" }, "<leader>la", vim.lsp.buf.code_action, opts)
-
-			opts.desc = "Go to previous diagnostic"
-			keymap.set("n", "[d", function()
-				vim.diagnostic.jump({ count = -1, float = false })
-			end, opts)
-
-			opts.desc = "Go to next diagnostic"
-			keymap.set("n", "]d", function()
-				vim.diagnostic.jump({ count = 1, float = false })
-			end, opts)
-
-			opts.desc = "Show documentation for what is under cursor"
-			keymap.set("n", "K", vim.lsp.buf.hover, opts)
-
-			opts.desc = "Restart LSP"
-			keymap.set("n", "<leader>ls", "<Cmd>lsp restart<CR>", opts)
-
-			opts.desc = "Smart rename"
-			keymap.set("n", "<leader>lr", vim.lsp.buf.rename, opts)
-
-			opts.desc = "Show buffer diagnostics"
-			keymap.set("n", "<leader>lD", function()
-				Snacks.picker.diagnostics_buffer()
-			end, opts)
-
-			opts.desc = "Show line diagnostics"
-			keymap.set("n", "<leader>ld", vim.diagnostic.open_float, opts)
 		end,
 	})
+
+	-- Register once; Snacks applies each mapping to clients supporting its method.
+	for _, mapping in ipairs({
+		{ "gd", "definition", "lsp_definitions", "Go to definition" },
+		{ "gr", "references", "lsp_references", "References" },
+		{ "gR", "references", "lsp_references", "Show LSP references" },
+		{ "gD", "declaration", "lsp_declarations", "Go to declaration" },
+		{ "gi", "implementation", "lsp_implementations", "Show LSP implementations" },
+		{ "gt", "typeDefinition", "lsp_type_definitions", "Show LSP type definitions" },
+	}) do
+		Snacks.keymap.set("n", mapping[1], function()
+			Snacks.picker[mapping[3]]()
+		end, {
+			lsp = { method = "textDocument/" .. mapping[2] },
+			enabled = function(buf)
+				return not vim.b[buf].large_file
+			end,
+			desc = mapping[4],
+		})
+	end
+	for _, mapping in ipairs({
+		{ { "n", "v" }, "<leader>la", "codeAction", vim.lsp.buf.code_action, "See available code actions" },
+		{ "n", "K", "hover", vim.lsp.buf.hover, "Show documentation for what is under cursor" },
+		{ "n", "<leader>lr", "rename", vim.lsp.buf.rename, "Smart rename" },
+		{ "n", "<leader>ls", false, "<Cmd>lsp restart<CR>", "Restart LSP" },
+		{
+			"n",
+			"[d",
+			false,
+			function()
+				vim.diagnostic.jump({ count = -1, float = false })
+			end,
+			"Go to previous diagnostic",
+		},
+		{
+			"n",
+			"]d",
+			false,
+			function()
+				vim.diagnostic.jump({ count = 1, float = false })
+			end,
+			"Go to next diagnostic",
+		},
+		{
+			"n",
+			"<leader>lD",
+			false,
+			function()
+				Snacks.picker.diagnostics_buffer()
+			end,
+			"Show buffer diagnostics",
+		},
+		{ "n", "<leader>ld", false, vim.diagnostic.open_float, "Show line diagnostics" },
+	}) do
+		Snacks.keymap.set(mapping[1], mapping[2], mapping[4], {
+			lsp = mapping[3] and { method = "textDocument/" .. mapping[3] } or {},
+			enabled = function(buf)
+				return not vim.b[buf].large_file
+			end,
+			desc = mapping[5],
+		})
+	end
 
 	-- Diagnostic config (default)
 	vim.diagnostic.config({})

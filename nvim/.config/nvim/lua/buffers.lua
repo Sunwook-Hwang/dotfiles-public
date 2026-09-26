@@ -188,6 +188,7 @@ do
 			focus_editor()
 			local current = vim.api.nvim_get_current_buf()
 			local index = buffer_index(current)
+			local targets = {}
 			for position, b in ipairs(buffers()) do
 				if
 					b ~= current
@@ -197,12 +198,16 @@ do
 						or (side == "right" and position > index)
 					)
 				then
-					local is_terminal = vim.bo[b].buftype == "terminal"
-					if is_terminal or not vim.bo[b].modified then
-						Snacks.bufdelete({ buf = b, force = is_terminal, wipe = true })
-					end
+					targets[b] = true
 				end
 			end
+			Snacks.bufdelete({
+				wipe = true,
+				force = true,
+				filter = function(buf)
+					return targets[buf] and (vim.bo[buf].buftype == "terminal" or not vim.bo[buf].modified)
+				end,
+			})
 		end, "Close " .. side .. " buffers (keep modified)")
 	end
 end

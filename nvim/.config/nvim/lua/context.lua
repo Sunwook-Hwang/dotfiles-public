@@ -1,3 +1,5 @@
+local Snacks = require("snacks")
+
 -- =========================================
 -- =========== STICKY SCROLL =============
 -- =========================================
@@ -348,12 +350,18 @@ do
 			end
 		end,
 	})
-	vim.keymap.set("n", "<leader>Ts", function()
-		enabled = not enabled
-		if enabled then
-			queue()
-		else
-			close()
-		end
-	end, { desc = "Toggle sticky scroll" })
+	Snacks.toggle({
+		name = "Sticky scroll",
+		get = function()
+			return enabled
+		end,
+		set = function(state)
+			enabled = state
+			if enabled then
+				queue()
+			else
+				close()
+			end
+		end,
+	}):map("<leader>Ts")
 end

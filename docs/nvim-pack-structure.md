@@ -1,7 +1,7 @@
 # Pack configuration structure
 
 `nvim/.config/nvim/init.lua` loads the feature modules directly from
-`nvim/.config/nvim/lua/`, in the same order as the previous single-file setup.
+`nvim/.config/nvim/lua/`. Snacks is configured before modules register its toggles.
 It resolves its own file location, including symlinks, so `nvim -u /path/to/init.lua`
 also works when the adjacent `lua/` directory is present.
 
@@ -15,7 +15,7 @@ from these configuration files and must also be available on a network-isolated 
 | ----------------- | ---------------------------------------------------------------- |
 | `options.lua`     | Disable defaults, editor options, leader                         |
 | `keymaps.lua`     | Editing, window movement/resizing, cursor word highlight         |
-| `bigfile.lua`     | Large-file safeguards and related events                         |
+| `bigfile.lua`     | Snacks bigfile configuration and supplemental growth checks      |
 | `plugins.lua`     | `vim.pack` package registration                                  |
 | `context.lua`     | Native sticky context and its update lifecycle                   |
 | `ui.lua`          | Snacks setup: dashboard, indent, picker styling, terminal layout |
@@ -30,13 +30,16 @@ from these configuration files and must also be available on a network-isolated 
 | `format.lua`      | Conform formatter registration and formatting                    |
 | `completion.lua`  | Native completion and snippets                                   |
 | `explorer.lua`    | Explorer root discovery and toggle                               |
-| `lsp.lua`         | Native LSP, server definitions, Python environment, Mason        |
+| `lsp.lua`         | Native LSP, Snacks capability-aware keys, servers, Python, Mason |
 | `buffers.lua`     | Tabline, buffer selection and deletion                           |
 | `statusline.lua`  | Statusline rendering and invalidation                            |
 | `theme.lua`       | Final editor commands and colorscheme                            |
 
-`ui.lua` imports the safeguard function from `bigfile.lua` and calls the cached
+`ui.lua` passes the configuration from `bigfile.lua` to Snacks and calls the cached
 terminal toggle from `terminal.lua` when an explorer terminal shortcut is pressed.
+Snacks also manages capability-aware LSP keymaps, feature toggle bindings, and
+filtered bulk buffer deletion. Sticky context, breadcrumbs, and statusline
+rendering keep their existing implementations and default states.
 Modules that use Snacks import the installed
 `snacks` plugin directly. Configuration module names intentionally differ from
 plugin entry points such as `snacks` and `dropbar`.

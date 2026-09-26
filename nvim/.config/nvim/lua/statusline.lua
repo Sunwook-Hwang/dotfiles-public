@@ -1,3 +1,5 @@
+local Snacks = require("snacks")
+
 -- -------------------------------------
 -- Statusline: native renderer from nvim-nopack/init.lua
 -- -------------------------------------
@@ -255,8 +257,14 @@ do
 		return "%{%v:lua.PackGitStatus()%} %f %m%r%h %= %{%v:lua.PackDiagnosticStatus()%} %{%v:lua.PackLspStatus()%} %{v:lua.PackFormatStatus()} %y | %4l:%3c | %3p%% "
 	end
 	vim.opt.statusline = "%!v:lua.PackStatusline()"
-	vim.keymap.set("n", "<leader>Tl", function()
-		language_status_visible = not language_status_visible
-		vim.cmd("redrawstatus")
-	end, { desc = "Toggle LSP / formatter status" })
+	Snacks.toggle({
+		name = "LSP / formatter status",
+		get = function()
+			return language_status_visible
+		end,
+		set = function(state)
+			language_status_visible = state
+			vim.cmd("redrawstatus")
+		end,
+	}):map("<leader>Tl")
 end

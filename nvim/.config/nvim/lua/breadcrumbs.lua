@@ -1,3 +1,5 @@
+local Snacks = require("snacks")
+
 -- LSP breadcrumbs without Treesitter or font icons.
 do
 	local enabled = true
@@ -70,24 +72,30 @@ do
 			refresh_window(vim.api.nvim_get_current_win())
 		end,
 	})
-	vim.keymap.set("n", "<leader>Td", function()
-		enabled = not enabled
-		path_cache = {}
-		if not enabled then
-			local bars = {}
-			for _, windows in pairs(require("dropbar.utils.bar").get()) do
-				for _, bar in pairs(windows) do
-					bars[#bars + 1] = bar
+	Snacks.toggle({
+		name = "Breadcrumb bar",
+		get = function()
+			return enabled
+		end,
+		set = function(state)
+			enabled = state
+			path_cache = {}
+			if not enabled then
+				local bars = {}
+				for _, windows in pairs(require("dropbar.utils.bar").get()) do
+					for _, bar in pairs(windows) do
+						bars[#bars + 1] = bar
+					end
+				end
+				for _, bar in ipairs(bars) do
+					-- Invalidate queued updates before removing the hidden bar.
+					bar.last_update_request_time = nil
+					bar:del()
 				end
 			end
-			for _, bar in ipairs(bars) do
-				-- Invalidate queued updates before removing the hidden bar.
-				bar.last_update_request_time = nil
-				bar:del()
+			for _, win in ipairs(vim.api.nvim_list_wins()) do
+				refresh_window(win)
 			end
-		end
-		for _, win in ipairs(vim.api.nvim_list_wins()) do
-			refresh_window(win)
-		end
-	end, { desc = "Toggle breadcrumb bar" })
+		end,
+	}):map("<leader>Td")
 end

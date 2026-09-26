@@ -11,17 +11,17 @@ local packages = {
 	{ src = "https://github.com/rose-pine/neovim", name = "rose-pine" },
 	{ src = "https://github.com/projekt0n/github-nvim-theme" },
 
-	-- UIs
+	-- UI & sessions
 	{ src = "https://github.com/folke/snacks.nvim" },
 	{ src = "https://github.com/folke/persistence.nvim" },
 	{ src = "https://github.com/folke/which-key.nvim" },
 
-	-- git && navigation
+	-- git & navigation
 	{ src = "https://github.com/lewis6991/gitsigns.nvim" },
 	{ src = "https://github.com/stevearc/aerial.nvim" },
 	{ src = "https://github.com/Bekaboo/dropbar.nvim" },
 
-	-- lsp && format
+	-- formatting & tool management
 	{ src = "https://github.com/stevearc/conform.nvim" },
 	{ src = "https://github.com/WhoIsSethDaniel/mason-tool-installer.nvim" },
 	{ src = "https://github.com/mason-org/mason.nvim" },

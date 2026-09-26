@@ -164,3 +164,9 @@ See the offline feature overview in [English](docs/nvim-offline-features.md) or
 [한국어](docs/nvim-offline-features.ko.md),
 [implementation details, ctags setup, and limits](docs/nvim-offline.md), and
 [LSP/formatter installation and offline transfer](docs/nvim-offline-tools.md).
+
+## Formatting
+
+Project formatter configuration is stored in the repository and used by onvi,
+offvi, and Vim. See [Formatting rules](docs/formatting.md) for per-language settings
+and reuse in other projects.

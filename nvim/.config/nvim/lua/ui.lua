@@ -2,6 +2,9 @@ local protect_large_file = require("bigfile")
 
 -- Snacks owns the explorer, pickers, dashboard, terminal and utility UI.
 local Snacks = require("snacks")
+local function toggle_bottom_terminal()
+	return require("terminal")()
+end
 Snacks.setup({
 	bigfile = {
 		enabled = true,

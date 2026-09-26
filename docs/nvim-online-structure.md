@@ -33,8 +33,9 @@ from these configuration files and must also be available on an offline server.
 | `statusline.lua`  | Statusline rendering and invalidation                            |
 | `theme.lua`       | Final editor commands and colorscheme                            |
 
-The only configuration module dependency is `ui.lua` importing the safeguard
-function from `bigfile.lua`. Modules that use Snacks import the installed
+`ui.lua` imports the safeguard function from `bigfile.lua` and calls the cached
+terminal toggle from `terminal.lua` when an explorer terminal shortcut is pressed.
+Modules that use Snacks import the installed
 `snacks` plugin directly. Configuration module names intentionally differ from
 plugin entry points such as `snacks` and `dropbar`.
 

@@ -13,3 +13,5 @@ vim.keymap.set({ "n", "t" }, "<C-t>", toggle_bottom_terminal, { desc = "Toggle b
 vim.keymap.set("n", "<leader>gg", function()
 	Snacks.lazygit()
 end, { desc = "Toggle lazygit" })
+
+return toggle_bottom_terminal

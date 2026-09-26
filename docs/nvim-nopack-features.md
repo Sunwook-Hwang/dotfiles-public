@@ -2,15 +2,16 @@
 
 [English](nvim-nopack-features.md) | [한국어](nvim-nopack-features.ko.md)
 
-`nvim-nopack/init.lua` is a **package-free, native Neovim configuration** built as a
-single Lua file for Neovim 0.12+. It has no plugin manager, no external Lua
+`nvim-nopack/init.lua` is a **package-free, native Neovim configuration** organized
+into feature modules for Neovim 0.12+. It has no plugin manager, no external Lua
 plugins, and no parser download step. It uses only Neovim's built-in APIs,
 bundled runtime, and system commands that are already installed.
 
 LSP servers and formatters are optional executables. The configuration detects
 the tools it knows about but never downloads, installs, or updates them.
 
-- Configuration: `nvim-nopack/.config/nvim-nopack/init.lua`
+- Configuration: `nvim-nopack/.config/nvim-nopack/init.lua` and its adjacent `lua/` directory
+- Module structure: [Nopack configuration structure](nvim-nopack-structure.md)
 - Required version: Neovim 0.12 or newer
 - Implementation details and limits: [Nopack Neovim 0.12](nvim-nopack.md)
 - Preparing optional tools: [LSP and formatter setup](nvim-nopack-tools.md)

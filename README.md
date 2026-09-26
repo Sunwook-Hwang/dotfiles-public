@@ -5,7 +5,7 @@ macOS-focused dotfiles for zsh, git, Herdr, tmux, Neovim, and Vim.
 ## Package-free Native Neovim
 
 This repository includes [`nvim-nopack/init.lua`](nvim-nopack/.config/nvim-nopack/init.lua),
-a **single-file, package-free Native Neovim configuration** for Neovim 0.12+.
+a **package-free Native Neovim configuration** for Neovim 0.12+.
 It uses no plugin manager and no external Lua plugins, and it performs no plugin
 or parser downloads. Built-in replacements provide a dashboard, fuzzy pickers,
 a file tree, a Space-key guide, Sticky Scroll, Git signs and inline blame, LSP,
@@ -77,7 +77,7 @@ Link or unlink dotfiles on either platform:
 - `herdr`: terminal multiplexer keybindings
 - `tmux`: tmux keybindings and theme
 - `nvim`: pack Neovim config
-- `nvim-nopack`: single-file nopack Neovim config
+- `nvim-nopack`: modular, package-free Neovim config
 - `neovide-terminal`: standalone Neovide terminal config
 - `vim`: single-file nopack Vim 9.0+ config (`~/.vimrc`)
 
@@ -96,7 +96,7 @@ settings instead of adding them to the shared configuration.
 ## Nopack Neovim
 
 For restricted servers, use [`nvim-nopack/init.lua`](nvim-nopack/.config/nvim-nopack/init.lua).
-It requires **Neovim 0.12+** and runs from a single configuration file using
+It requires **Neovim 0.12+** and uses feature modules under its own `lua/` directory with
 Neovim's bundled runtime and existing system tools. It does not download
 plugins, parsers, language servers, or formatters.
 
@@ -106,15 +106,16 @@ With the Stow setup:
 NVIM_APPNAME=nvim-nopack nvim
 ```
 
-On a server, copy that one file and run it directly:
+On a server, copy `init.lua` and its adjacent `lua/` directory together, then run:
 
 ```sh
 nvim -u /path/to/init.lua
 ```
 
 Pack configuration is installed at `~/.config/nvim/init.lua`, with feature
-modules in its adjacent `lua/` directory. Nopack is a standalone file at
-`~/.config/nvim-nopack/init.lua`.
+modules in its adjacent `lua/` directory. Nopack is installed separately at
+`~/.config/nvim-nopack/`, with its own `init.lua` and `lua/` directory.
+See [Nopack configuration structure](docs/nvim-nopack-structure.md) for module responsibilities.
 
 `pvi` selects pack mode; `npvi` selects nopack mode. Both start Neovim and
 save the choice. After that, `vi` uses the last selection, including in a new

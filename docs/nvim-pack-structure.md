@@ -5,8 +5,9 @@
 It resolves its own file location, including symlinks, so `nvim -u /path/to/init.lua`
 also works when the adjacent `lua/` directory is present.
 
-`nvim-nopack/init.lua` stays independent: it does not import any of these modules
-and can still be copied alone. The installed `pvi`/`npvi` aliases select named
+`nvim-nopack/init.lua` stays independent: it loads feature modules from its own
+`lua/` directory and does not import any Pack modules. Copy its whole profile directory
+when moving it to a server. The installed `pvi`/`npvi` aliases select named
 configurations through shell functions in `.zshrc`; `vi` retains the last selection. Pack plugin packages and Mason tools are separate
 from these configuration files and must also be available on a network-isolated server.
 

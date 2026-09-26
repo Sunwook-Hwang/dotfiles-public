@@ -506,57 +506,56 @@ shared.map("n", "gd", function()
 			return
 		end
 		stop()
-		-- A late response must not redirect a different file or a moved cursor.
+		-- A late response must not redirect another window, file, or a moved cursor.
 		if
 			not vim.api.nvim_win_is_valid(win)
+			or vim.api.nvim_get_current_win() ~= win
 			or vim.api.nvim_win_get_buf(win) ~= buf
 			or vim.api.nvim_buf_get_changedtick(buf) ~= tick
 			or not vim.deep_equal(vim.api.nvim_win_get_cursor(win), position)
 		then
 			return
 		end
-		vim.api.nvim_win_call(win, function()
-			local locations = {}
-			for id, response in pairs(results) do
-				local client = vim.lsp.get_client_by_id(id)
-				local result = response.result
-				if client and not response.err and result and result ~= vim.NIL then
-					for _, location in ipairs(vim.islist(result) and result or { result }) do
-						locations[#locations + 1] = { location = location, encoding = client.offset_encoding }
-					end
+		local locations = {}
+		for id, response in pairs(results) do
+			local client = vim.lsp.get_client_by_id(id)
+			local result = response.result
+			if client and not response.err and result and result ~= vim.NIL then
+				for _, location in ipairs(vim.islist(result) and result or { result }) do
+					locations[#locations + 1] = { location = location, encoding = client.offset_encoding }
 				end
 			end
-			if #locations > 1 and source_word ~= "" then
-				local exact = {}
-				for _, item in ipairs(locations) do
-					if definition_target_name(item) == source_word then
-						exact[#exact + 1] = item
-					end
-				end
-				if #exact > 0 then
-					locations = exact
+		end
+		if #locations > 1 and source_word ~= "" then
+			local exact = {}
+			for _, item in ipairs(locations) do
+				if definition_target_name(item) == source_word then
+					exact[#exact + 1] = item
 				end
 			end
-			if #locations == 0 then
-				ctags_definition()
-			elseif #locations == 1 then
-				vim.lsp.util.show_document(locations[1].location, locations[1].encoding, { focus = true })
-			else
-				vim.ui.select(locations, {
-					prompt = "Definitions:",
-					format_item = function(item)
-						local loc = item.location
-						return vim.uri_to_fname(loc.uri or loc.targetUri)
-							.. ":"
-							.. ((loc.range or loc.targetSelectionRange).start.line + 1)
-					end,
-				}, function(item)
-					if item then
-						vim.lsp.util.show_document(item.location, item.encoding, { focus = true })
-					end
-				end)
+			if #exact > 0 then
+				locations = exact
 			end
-		end)
+		end
+		if #locations == 0 then
+			ctags_definition()
+		elseif #locations == 1 then
+			vim.lsp.util.show_document(locations[1].location, locations[1].encoding, { focus = true })
+		else
+			vim.ui.select(locations, {
+				prompt = "Definitions:",
+				format_item = function(item)
+					local loc = item.location
+					return vim.uri_to_fname(loc.uri or loc.targetUri)
+						.. ":"
+						.. ((loc.range or loc.targetSelectionRange).start.line + 1)
+				end,
+			}, function(item)
+				if item then
+					vim.lsp.util.show_document(item.location, item.encoding, { focus = true })
+				end
+			end)
+		end
 	end
 	cancel = vim.lsp.buf_request_all(buf, "textDocument/definition", function(client)
 		return vim.lsp.util.make_position_params(win, client.offset_encoding)

@@ -446,7 +446,18 @@ local servers = {
 	},
 	eslint = {
 		cmd = { "vscode-eslint-language-server", "--stdio" },
-		filetypes = { "html", "typescriptreact", "javascriptreact", "css", "sass", "scss", "less", "svelte" },
+		filetypes = {
+			"html",
+			"javascript",
+			"typescript",
+			"typescriptreact",
+			"javascriptreact",
+			"css",
+			"sass",
+			"scss",
+			"less",
+			"svelte",
+		},
 		root_markers = {
 			"eslint.config.js",
 			"eslint.config.mjs",

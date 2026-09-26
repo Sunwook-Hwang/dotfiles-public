@@ -76,9 +76,9 @@ pair_mapping("<BS>", function()
 end, "Delete an empty pair")
 
 -- Window navigation (insert-mode alt-arrows)
-vim.keymap.set("i", "<A-Up>", "<C-\\><C-N><C-w>h", { noremap = true, silent = true })
+vim.keymap.set("i", "<A-Up>", "<C-\\><C-N><C-w>k", { noremap = true, silent = true })
 vim.keymap.set("i", "<A-Down>", "<C-\\><C-N><C-w>j", { noremap = true, silent = true })
-vim.keymap.set("i", "<A-Left>", "<C-\\><C-N><C-w>k", { noremap = true, silent = true })
+vim.keymap.set("i", "<A-Left>", "<C-\\><C-N><C-w>h", { noremap = true, silent = true })
 vim.keymap.set("i", "<A-Right>", "<C-\\><C-N><C-w>l", { noremap = true, silent = true })
 
 -- Move line/block with Alt-j/k
@@ -204,29 +204,20 @@ vim.keymap.set("n", "<leader>a", "gg<S-v>G", {
 	desc = "Select entire file",
 })
 
--- Substitute helpers (visual and word under cursor)
-vim.keymap.set("v", "<leader>Sa", [[<ESC>:%s/<c-r>=GetVisual()<CR>/]], {
-	noremap = true,
-	silent = true,
-	desc = "Substitute (visual) in entire file",
-})
-vim.keymap.set("n", "<leader>Sa", [[:%s/\<<C-r><C-w>\>/]], {
-	noremap = true,
-	silent = true,
-	desc = "Substitute word in entire file",
-})
-
--- Substitute from current line to end
-vim.keymap.set("v", "<leader>Sf", [[<ESC>:.,$s/<c-r>=GetVisual()<CR>/]], {
-	noremap = true,
-	silent = true,
-	desc = "Substitute (visual) to end of file",
-})
-vim.keymap.set("n", "<leader>Sf", [[:.,$s/\<<C-r><C-w>\>/]], {
-	noremap = true,
-	silent = true,
-	desc = "Substitute word to end of file",
-})
+-- Substitute helpers: preserve registers and escape selected text literally.
+for suffix, range in pairs({ Sa = "%", Sf = ".,$" }) do
+	vim.keymap.set("n", "<leader>" .. suffix, ":" .. range .. "s/\\<<C-r><C-w>\\>/", { desc = "Substitute word" })
+	vim.keymap.set("x", "<leader>" .. suffix, function()
+		local saved = vim.fn.getreginfo('"')
+		local zero = vim.fn.getreginfo("0")
+		vim.cmd("normal! y")
+		local pattern = vim.fn.escape(vim.fn.getreg('"'), [[\/]]):gsub("\n", [[\n]])
+		vim.fn.setreg("0", zero)
+		vim.fn.setreg('"', saved)
+		local keys = ":" .. range .. "s/\\V" .. pattern .. "/"
+		vim.api.nvim_feedkeys(keys, "ni", true)
+	end, { desc = "Substitute selection" })
+end
 
 -- Keep selection when indenting
 vim.keymap.set("v", "<", "<gv", { noremap = true, silent = true })

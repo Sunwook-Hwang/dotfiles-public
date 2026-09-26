@@ -275,7 +275,7 @@ endfunction
 
 function! s:VisualSubstitute(range) abort
   let pattern = substitute(escape(s:VisualText(), '\/'), "\n", '\\n', 'g')
-  call feedkeys(':' . a:range . 's/\V' . pattern . '/', 'n')
+  call feedkeys(':' . a:range . 's/\V' . pattern . '/', 'ni')
 endfunction
 
 function! s:VisualSearch(forward, count) abort

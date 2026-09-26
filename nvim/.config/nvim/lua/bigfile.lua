@@ -20,10 +20,10 @@ do
 			vim.lsp.buf_detach_client(buf, client.id)
 		end
 		for _, win in ipairs(vim.fn.win_findbuf(buf)) do
-			vim.wo[win].foldmethod = "manual"
-			vim.wo[win].cursorcolumn = false
-			vim.wo[win].cursorline = false
-			vim.wo[win].wrap = false
+			-- Change only this buffer's window options, not defaults inherited by new buffers.
+			for name, value in pairs({ foldmethod = "manual", cursorcolumn = false, cursorline = false, wrap = false }) do
+				vim.api.nvim_set_option_value(name, value, { win = win, scope = "local" })
+			end
 		end
 	end
 	local function check_large_file(buf, first, last)

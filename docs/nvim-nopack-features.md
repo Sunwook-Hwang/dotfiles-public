@@ -272,6 +272,10 @@ Zsh. Format-on-save and range formatting are disabled.
 
 ## Undo, sessions, and terminal
 
+Pack and Nopack share persistent undo at
+`${XDG_STATE_HOME:-$HOME/.local/state}/nvim/undo`. Saved file history remains
+available when switching modes; live editing sessions do not merge their undo trees.
+
 | Key                | Action                                             |
 | ------------------ | -------------------------------------------------- |
 | `Space u`          | Preview undo states and apply the selected state   |

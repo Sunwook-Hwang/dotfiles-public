@@ -31,7 +31,9 @@ if vim.fn.isdirectory(legacy_data) == 1 and vim.fn.isdirectory(shared.nopack_dat
 		shared.nopack_data = legacy_data
 	end
 end
-vim.fn.mkdir(shared.nopack_data .. "/undo", "p")
+-- Share persistent undo across Pack and Nopack, independently of NVIM_APPNAME.
+local undo_dir = (vim.env.XDG_STATE_HOME or vim.fn.expand("~/.local/state")) .. "/nvim/undo"
+vim.fn.mkdir(undo_dir, "p")
 shared.is_ssh = vim.env.SSH_CONNECTION ~= nil or vim.env.SSH_TTY ~= nil
 
 -- Use PATH first, then existing Mason installations; never install tools here.
@@ -73,7 +75,7 @@ local default_options = {
 	swapfile = false, -- do not create swap files
 	termguicolors = true, -- set term gui colors (most terminals support this)
 	title = true, -- set the title of window to the value of the titlestring
-	undodir = shared.nopack_data .. "/undo", -- enable persistent undo
+	undodir = undo_dir, -- shared persistent undo
 	undofile = true, -- enable persistent undo
 	updatetime = 250, -- idle time before CursorHold
 	writebackup = false, -- do not create a temporary backup while writing

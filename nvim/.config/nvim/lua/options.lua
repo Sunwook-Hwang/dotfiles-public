@@ -24,6 +24,9 @@ vim.g.loaded_netrwSettings = 1
 -- ============== CORE OPTIONS =============
 -- =========================================
 HOME_PATH = vim.loop.os_homedir()
+-- Share persistent undo across Pack and Nopack, independently of NVIM_APPNAME.
+local undo_dir = (vim.env.XDG_STATE_HOME or vim.fn.expand("~/.local/state")) .. "/nvim/undo"
+vim.fn.mkdir(undo_dir, "p")
 
 local default_options = {
 	backup = false, -- creates a backup file
@@ -55,7 +58,7 @@ local default_options = {
 	termguicolors = true, -- set term gui colors (most terminals support this)
 	title = true, -- set the title of window to the value of the titlestring
 	-- -- opt.titlestring = "%<%F%=%l/%L - nvim" -- what the title of the window will be set to
-	undodir = HOME_PATH .. "/.config/undo", -- set an undo directory
+	undodir = undo_dir, -- shared persistent undo
 	undofile = true, -- enable persistent undo
 	updatetime = 250, -- CursorHold/write delay; completion uses autocompletedelay
 	writebackup = false, -- if a file is being edited by another program (or was written to file while editing with another program), it is not allowed to be edited

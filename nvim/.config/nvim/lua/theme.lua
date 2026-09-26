@@ -13,7 +13,16 @@ cmd([[set iskeyword+=-]])
 -- =========================================
 -- ============== COLORSCHEME ==============
 -- =========================================
-vim.cmd([[colorscheme kanagawa]])
+-- GitHub themes hide inactive statuslines by default; configure only when selected.
+vim.api.nvim_create_autocmd("ColorSchemePre", {
+	pattern = "github_*",
+	once = true,
+	callback = function()
+		require("github-theme").setup({ options = { hide_nc_statusline = false } })
+	end,
+})
+
+vim.cmd([[colorscheme github_dark_default]])
 
 -- =========================================
 -- ============== OPTIONAL THEME ===========

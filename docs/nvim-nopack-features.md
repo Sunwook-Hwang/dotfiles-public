@@ -1,8 +1,8 @@
-# Native Offline Neovim Features
+# Native Nopack Neovim Features
 
-[English](nvim-offline-features.md) | [한국어](nvim-offline-features.ko.md)
+[English](nvim-nopack-features.md) | [한국어](nvim-nopack-features.ko.md)
 
-`init.offline.lua` is a **package-free, native Neovim configuration** built as a
+`nvim-nopack/init.lua` is a **package-free, native Neovim configuration** built as a
 single Lua file for Neovim 0.12+. It has no plugin manager, no external Lua
 plugins, and no parser download step. It uses only Neovim's built-in APIs,
 bundled runtime, and system commands that are already installed.
@@ -10,15 +10,15 @@ bundled runtime, and system commands that are already installed.
 LSP servers and formatters are optional executables. The configuration detects
 the tools it knows about but never downloads, installs, or updates them.
 
-- Configuration: `nvim/.config/nvim/init.offline.lua`
+- Configuration: `nvim-nopack/.config/nvim-nopack/init.lua`
 - Required version: Neovim 0.12 or newer
-- Implementation details and limits: [Offline Neovim 0.12](nvim-offline.md)
-- Preparing optional tools: [LSP and formatter setup](nvim-offline-tools.md)
+- Implementation details and limits: [Nopack Neovim 0.12](nvim-nopack.md)
+- Preparing optional tools: [LSP and formatter setup](nvim-nopack-tools.md)
 
 ## Starting Neovim and the dashboard
 
 ```sh
-nvim -u ~/.config/nvim/init.offline.lua
+NVIM_APPNAME=nvim-nopack nvim
 ```
 
 Starting without a file opens a native dashboard. Move with `j/k` or the arrow
@@ -188,7 +188,7 @@ line after 150 ms of inactivity. It hides during unsaved edits to avoid incorrec
 line attribution and returns after saving. It is disabled for large files.
 
 Mutating Git operations are deliberately absent: hunk stage/reset/undo, buffer
-stage/reset, deleted-line restoration, and hunk text objects. Offline Git support
+stage/reset, deleted-line restoration, and hunk text objects. Nopack Git support
 focuses on inspection and navigation without changing the worktree or index.
 
 ## LSP, completion, and diagnostics
@@ -319,7 +319,7 @@ the terminal's paste shortcut.
 | SSH OSC52 copy            | Over 100,000 bytes is skipped with a warning    |
 
 Large files disable LSP, syntax, completion, ctags, Git signs, Sticky Scroll,
-formatting, wrapping, and cursor crosshair highlighting. `:OfflineCancel` cancels
+formatting, wrapping, and cursor crosshair highlighting. `:NopackCancel` cancels
 running search, Git, and ctags jobs plus scheduled refreshes.
 
 ## Deliberately unsupported
@@ -332,5 +332,5 @@ running search, Git, and ctags jobs plus scheduled refreshes.
 - Debug Adapter Protocol (DAP)
 - Automatic Treesitter parser installation
 
-These are outside the offline configuration's scope because they add network
+These are outside the nopack configuration's scope because they add network
 dependencies, platform-specific behavior, worktree mutation, or maintenance cost.

@@ -1,22 +1,22 @@
-# Offline Neovim 기능 안내
+# Nopack Neovim 기능 안내
 
-[English](nvim-offline-features.md) | [한국어](nvim-offline-features.ko.md)
+[English](nvim-nopack-features.md) | [한국어](nvim-nopack-features.ko.md)
 
-`init.offline.lua`는 **패키지가 전혀 필요 없는 순수 Native Neovim 설정**입니다.
+`nvim-nopack/init.lua`는 **패키지가 전혀 필요 없는 순수 Native Neovim 설정**입니다.
 Neovim 0.12 내장 API와 시스템 명령만 사용하는 단일 Lua 파일로 구성되어 있습니다.
 플러그인 매니저, 외부 Lua 플러그인, Treesitter 파서 다운로드 없이 실행할 수 있습니다.
 LSP·포매터·Git·검색 도구는 설치되어 있을 때만 사용하며 자동으로 내려받지 않습니다.
 
-- 설정 파일: `nvim/.config/nvim/init.offline.lua`
+- 설정 파일: `nvim-nopack/.config/nvim-nopack/init.lua`
 - 요구 버전: Neovim 0.12 이상
-- English documentation: [Native Offline Neovim Features](nvim-offline-features.md)
-- 상세 구현과 제한: [Offline Neovim 0.12](nvim-offline.md)
-- 외부 도구 준비: [LSP·포맷터 설치 가이드](nvim-offline-tools.md)
+- English documentation: [Native Nopack Neovim Features](nvim-nopack-features.md)
+- 상세 구현과 제한: [Nopack Neovim 0.12](nvim-nopack.md)
+- 외부 도구 준비: [LSP·포맷터 설치 가이드](nvim-nopack-tools.md)
 
 ## 실행과 시작 화면
 
 ```sh
-nvim -u ~/.config/nvim/init.offline.lua
+NVIM_APPNAME=nvim-nopack nvim
 ```
 
 파일 인자 없이 실행하면 네이티브 dashboard가 열립니다. `j/k` 또는 방향키로 선택하고
@@ -182,7 +182,7 @@ Inline blame은 저장된 파일의 작성자, 날짜와 커밋 메시지를 현
 
 다음 Git 변경 기능은 제공하지 않습니다: hunk stage/reset/undo, buffer stage/reset,
 삭제 줄 복원 표시, hunk text object. 작업 파일이나 index를 실수로 변경하지 않도록
-현재 offline Git 기능은 조회와 탐색 중심입니다.
+현재 nopack Git 기능은 조회와 탐색 중심입니다.
 
 ## LSP·완성·진단
 
@@ -310,7 +310,7 @@ Neovim 내부 레지스터를 사용합니다. 다른 앱에서 복사한 내용
 | SSH OSC52 복사 | 100,000바이트 초과 시 경고 후 전송 생략      |
 
 큰 파일에서는 LSP, syntax, 자동완성, ctags, Git sign, Sticky Scroll과 포맷팅을 중지하고
-wrap과 커서 십자 강조도 끕니다. `:OfflineCancel`은 실행 중인 검색·Git·ctags 작업과 예약된
+wrap과 커서 십자 강조도 끕니다. `:NopackCancel`은 실행 중인 검색·Git·ctags 작업과 예약된
 갱신을 취소합니다.
 
 ## 의도적으로 제공하지 않는 기능
@@ -324,4 +324,4 @@ wrap과 커서 십자 강조도 끕니다. `:OfflineCancel`은 실행 중인 검
 - Treesitter parser 자동 설치
 
 이 기능들은 네트워크 의존성, 플랫폼 차이, 작업 내용 변경 위험 또는 유지 비용 때문에
-offline 설정의 기본 범위에서 제외합니다.
+nopack 설정의 기본 범위에서 제외합니다.

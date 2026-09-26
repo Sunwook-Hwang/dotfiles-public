@@ -1,4 +1,4 @@
-" Standalone offline config: Vim 9.0+ with +timers/+cryptv, no third-party plugins/downloads.
+" Standalone nopack config: Vim 9.0+ with +timers/+cryptv, no third-party plugins/downloads.
 " Try: vim -Nu /path/to/.vimrc
 " Only bundled runtime plugins (netrw, matchit, etc.) are loaded.
 
@@ -26,8 +26,16 @@ let &packpath = $VIMRUNTIME
 " =========================================
 " ============== CORE OPTIONS =============
 " =========================================
-let s:offline_data = exists('$VIM_OFFLINE_DATA') && $VIM_OFFLINE_DATA !=# ''
-      \ ? expand($VIM_OFFLINE_DATA) : expand('~/.vim/offline')
+let s:nopack_data = exists('$VIM_NOPACK_DATA') && $VIM_NOPACK_DATA !=# ''
+      \ ? expand($VIM_NOPACK_DATA) : expand('~/.vim/nopack')
+" Preserve the former custom data path and existing sessions/undo files.
+if empty($VIM_NOPACK_DATA) && !empty($VIM_OFFLINE_DATA)
+  let s:nopack_data = expand($VIM_OFFLINE_DATA)
+elseif empty($VIM_NOPACK_DATA) && isdirectory(expand('~/.vim/offline')) && !isdirectory(s:nopack_data)
+  if rename(expand('~/.vim/offline'), s:nopack_data) != 0
+    let s:nopack_data = expand('~/.vim/offline')
+  endif
+endif
 set nobackup
 " Editing defaults that Neovim supplies even without an init.lua.
 set autoindent autoread
@@ -74,8 +82,8 @@ if has('cursorshape') && !has('gui_running') && &term !=# 'dumb'
 endif
 set title
 if exists('+undodir') && exists('+undofile')
-  call mkdir(s:offline_data . '/undo', 'p')
-  let &undodir = s:offline_data . '/undo'
+  call mkdir(s:nopack_data . '/undo', 'p')
+  let &undodir = s:nopack_data . '/undo'
   set undofile
 endif
 set updatetime=250
@@ -131,7 +139,7 @@ function! s:RestoreAllNumbers() abort
   endfor
 endfunction
 
-augroup OfflineLineNumbers
+augroup NopackLineNumbers
   autocmd!
   autocmd BufWinEnter,WinEnter * call <SID>ShowLineNumbers(win_getid())
   autocmd FileType * call timer_start(0, function('<SID>RestoreBufferNumbers', [str2nr(expand('<abuf>'))]))
@@ -467,7 +475,7 @@ function! s:Osc52Yank() abort
   endif
 endfunction
 
-augroup OfflineYank
+augroup NopackYank
   autocmd!
   if exists('##TextYankPost')
     autocmd TextYankPost * call <SID>HighlightYank()
@@ -498,7 +506,7 @@ function! s:ClearCursorWord(winid) abort
   endif
 endfunction
 function! s:HighlightCursorWord() abort
-  if !s:cursor_word_enabled || &buftype !=# '' || get(b:, 'offline_large_file', 0) || mode() !=# 'n'
+  if !s:cursor_word_enabled || &buftype !=# '' || get(b:, 'nopack_large_file', 0) || mode() !=# 'n'
     return
   endif
   let word = expand('<cword>')
@@ -519,7 +527,7 @@ function! s:ToggleCursorWord() abort
   endif
 endfunction
 nnoremap <silent> <leader>Th :call <SID>ToggleCursorWord()<CR>
-augroup OfflineCursorWord
+augroup NopackCursorWord
   autocmd!
   autocmd ColorScheme * highlight default link CursorWord Visual
   autocmd CursorHold * call <SID>HighlightCursorWord()
@@ -530,7 +538,7 @@ set wildmenu
 set wildmode=longest:full,full
 set wildignore+=*/.git/*,*/node_modules/*,*/__pycache__/*
 set laststatus=2
-set statusline=%!OfflineStatusline()
+set statusline=%!NopackStatusline()
 set list
 let s:base_listchars = 'tab:┊ ,trail:·,extends:>,precedes:<'
 let &listchars = s:base_listchars
@@ -543,13 +551,13 @@ function! s:UpdateIndentGuides() abort
   let &l:listchars = markers
 endfunction
 call s:UpdateIndentGuides()
-augroup OfflineIndentGuides
+augroup NopackIndentGuides
   autocmd!
   autocmd FileType,BufWinEnter * call <SID>UpdateIndentGuides()
   autocmd OptionSet shiftwidth,tabstop,vartabstop call <SID>UpdateIndentGuides()
 augroup END
 
-augroup OfflineFiletypes
+augroup NopackFiletypes
   autocmd!
   autocmd FileType * setlocal indentkeys-=0# cinkeys-=0#
   autocmd FileType python setlocal nosmartindent
@@ -593,12 +601,12 @@ let g:netrw_liststyle = 3
 let g:netrw_winsize = 25
 let g:netrw_browse_split = 4
 let g:netrw_keepdir = 1
-let g:netrw_home = s:offline_data
+let g:netrw_home = s:nopack_data
 let g:netrw_bufsettings = 'noma nomod nu nobl nowrap ro nornu'
 " Recent netrw uses <unique> when assigning Ctrl-H/L.  Declare alternate
 " targets before netrw loads so our window-navigation mappings can coexist.
-nmap <silent> <Plug>OfflineNetrwHide <Plug>NetrwHideEdit
-nmap <silent> <Plug>OfflineNetrwRefresh <Plug>NetrwRefresh
+nmap <silent> <Plug>NopackNetrwHide <Plug>NetrwHideEdit
+nmap <silent> <Plug>NopackNetrwRefresh <Plug>NetrwRefresh
 
 function! s:CompletionEnter() abort
   return pumvisible() && complete_info().selected >= 0 ? "\<C-Y>" : "\<CR>"
@@ -611,13 +619,13 @@ inoremap <expr> <S-Tab> pumvisible() ? "\<C-P>" : "\<S-Tab>"
 
 " Native completion combines buffer words and the project ctags index.
 function! s:BufferCompletion() abort
-  let &l:autocomplete = &l:buftype ==# '' && &l:filetype !=# 'netrw' && !get(b:, 'offline_large_file', 0)
+  let &l:autocomplete = &l:buftype ==# '' && &l:filetype !=# 'netrw' && !get(b:, 'nopack_large_file', 0)
 endfunction
 if exists('+autocomplete')
   if exists('+autocompletedelay')
     set autocompletedelay=150
   endif
-  augroup OfflineCompletion
+  augroup NopackCompletion
     autocmd!
     autocmd BufEnter,FileType * call <SID>BufferCompletion()
   augroup END
@@ -642,7 +650,7 @@ else
 
   function! s:QueueCompletion() abort
     call s:CancelCompletion()
-    if &buftype !=# '' || &filetype ==# 'netrw' || get(b:, 'offline_large_file', 0) || pumvisible()
+    if &buftype !=# '' || &filetype ==# 'netrw' || get(b:, 'nopack_large_file', 0) || pumvisible()
       return
     endif
     if strpart(getline('.'), 0, col('.') - 1) =~# '\k\{2,}$'
@@ -650,7 +658,7 @@ else
     endif
   endfunction
 
-  augroup OfflineCompletion
+  augroup NopackCompletion
     autocmd!
     autocmd TextChangedI * call <SID>QueueCompletion()
     autocmd InsertLeave,CompleteDone * call <SID>CancelCompletion()
@@ -876,21 +884,21 @@ function! s:NetrwTransfer(command) abort
 endfunction
 
 function! s:SidebarWidth() abort
-  if exists('w:offline_sidebar') && w:offline_sidebar.buf != bufnr('%')
-    let &l:winfixwidth = w:offline_sidebar.value
-    unlet w:offline_sidebar
+  if exists('w:nopack_sidebar') && w:nopack_sidebar.buf != bufnr('%')
+    let &l:winfixwidth = w:nopack_sidebar.value
+    unlet w:nopack_sidebar
   endif
   if &filetype ==# 'netrw'
-    if !exists('w:offline_sidebar')
-      let w:offline_sidebar = {'buf': bufnr('%'), 'value': &l:winfixwidth}
+    if !exists('w:nopack_sidebar')
+      let w:nopack_sidebar = {'buf': bufnr('%'), 'value': &l:winfixwidth}
     endif
     setlocal winfixwidth conceallevel=2 concealcursor=nvic
   endif
 endfunction
 
 function! s:NetrwHelpFilter(id, key) abort
-  let previous = getwinvar(a:id, 'offline_help_key', '')
-  call setwinvar(a:id, 'offline_help_key', a:key)
+  let previous = getwinvar(a:id, 'nopack_help_key', '')
+  call setwinvar(a:id, 'nopack_help_key', a:key)
   if index(['q', "\<Esc>", "\<C-c>"], a:key) >= 0 || (previous ==# 'g' && a:key ==# '?')
     call popup_close(a:id)
   elseif a:key ==# 'g' && previous ==# 'g'
@@ -907,7 +915,7 @@ endfunction
 
 function! s:NetrwHelp() abort
   let lines = [
-        \ 'netrw file explorer · Offline Vim', '',
+        \ 'netrw file explorer · Nopack Vim', '',
         \ 'Navigation / Opening',
         \ '  j / k             Move down / up',
         \ '  gg / G            First / last line',
@@ -967,13 +975,13 @@ function! s:NetrwSetup() abort
   nnoremap <silent><buffer> h :call <SID>NetrwAction('NetrwTreeSqueeze')<CR>
 endfunction
 
-augroup OfflineNetrw
+augroup NopackNetrw
   autocmd!
   autocmd FileType netrw call <SID>NetrwSetup()
   autocmd BufWinEnter,WinEnter * call <SID>SidebarWidth()
   autocmd Syntax netrw syntax match Conceal /[|│]/ contained containedin=netrwTreeBar conceal cchar=┊
-  autocmd BufWritePre * let b:offline_new_write = getftype(expand('%:p')) ==# ''
-  autocmd BufWritePost * if get(b:, 'offline_new_write', 0) | call timer_start(0, function('<SID>NetrwNewFile', [expand('%:p')])) | let b:offline_new_write = 0 | endif
+  autocmd BufWritePre * let b:nopack_new_write = getftype(expand('%:p')) ==# ''
+  autocmd BufWritePost * if get(b:, 'nopack_new_write', 0) | call timer_start(0, function('<SID>NetrwNewFile', [expand('%:p')])) | let b:nopack_new_write = 0 | endif
 augroup END
 
 function! s:NetrwNewFile(path, timer) abort
@@ -1171,7 +1179,7 @@ function! s:SyncProjectContext() abort
   endtry
 endfunction
 
-augroup OfflineProjectContext
+augroup NopackProjectContext
   autocmd!
   autocmd BufEnter * call <SID>SyncProjectContext()
   autocmd BufWritePost,FocusGained,ShellCmdPost,DirChanged * let s:project_roots = {}
@@ -1218,8 +1226,8 @@ function! s:BufferIndex(buf) abort
 endfunction
 
 function! s:FocusEditor() abort
-  if !empty(get(b:, 'offline_outline', {}))
-    if win_gotoid(b:offline_outline.target)
+  if !empty(get(b:, 'nopack_outline', {}))
+    if win_gotoid(b:nopack_outline.target)
       return
     endif
   elseif &l:filetype !=# 'netrw'
@@ -1248,7 +1256,7 @@ function! s:SelectBuffer(buf) abort
   execute 'buffer ' . a:buf
 endfunction
 
-function! OfflineTabline() abort
+function! NopackTabline() abort
   if !empty(s:tabline_cache) | return s:tabline_cache | endif
   let items = []
   let index = 1
@@ -1268,13 +1276,13 @@ endfunction
 
 let s:tabline_cache = ''
 function! s:TablineModified() abort
-  if get(b:, 'offline_tab_modified', -1) != &modified
-    let b:offline_tab_modified = &modified
+  if get(b:, 'nopack_tab_modified', -1) != &modified
+    let b:nopack_tab_modified = &modified
     let s:tabline_cache = ''
   endif
 endfunction
-set tabline=%!OfflineTabline()
-augroup OfflineTabline
+set tabline=%!NopackTabline()
+augroup NopackTabline
   autocmd!
   autocmd BufAdd,BufDelete,BufEnter,BufFilePost,FileType * let s:tabline_cache = ''
   autocmd TextChanged,TextChangedI,BufWritePost * call <SID>TablineModified()
@@ -1651,9 +1659,9 @@ function! s:OutputLines(output, limited, ...) abort
   return lines
 endfunction
 
-command! OfflineCancel call <SID>CancelCommands() | call <SID>CloseActivePicker()
+command! NopackCancel call <SID>CancelCommands() | call <SID>CloseActivePicker()
 
-augroup OfflineCommands
+augroup NopackCommands
   autocmd!
   autocmd VimLeavePre * call <SID>CancelCommands()
 augroup END
@@ -2353,8 +2361,8 @@ let s:ctags_command = ''
 
 function! s:CtagsCandidates() abort
   let candidates = []
-  if exists('g:offline_ctags') && g:offline_ctags !=# ''
-    call add(candidates, expand(g:offline_ctags))
+  if exists('g:nopack_ctags') && g:nopack_ctags !=# ''
+    call add(candidates, expand(g:nopack_ctags))
   endif
   for directory in split($PATH, has('win32') ? ';' : ':')
     call add(candidates, directory . (directory =~# '[\\/]$' ? '' : '/') . (has('win32') ? 'ctags.exe' : 'ctags'))
@@ -2391,7 +2399,7 @@ function! s:CtagsAvailable(...) abort
     endif
   endif
   if s:ctags_kind ==# '' && !(a:0 && a:1)
-    call s:Warn('Universal or Exuberant Ctags is required; check ctags --version or set g:offline_ctags to its executable')
+    call s:Warn('Universal or Exuberant Ctags is required; check ctags --version or set g:nopack_ctags to its executable')
   endif
   return s:ctags_kind !=# ''
 endfunction
@@ -2421,13 +2429,13 @@ endfunction
 
 function! s:OutlineJump() abort
   let index = line('.') - 4
-  let items = b:offline_outline.items
+  let items = b:nopack_outline.items
   if index < 0 || index >= len(items)
     return
   endif
   let item = items[index]
-  let target = b:offline_outline.target
-  let source = b:offline_outline.source
+  let target = b:nopack_outline.target
+  let source = b:nopack_outline.source
   if !bufexists(source) || !win_gotoid(target)
     call s:Warn('The original editor window was closed; reopen the outline')
     return
@@ -2444,7 +2452,7 @@ function! s:OutlineShow(source, target, items) abort
   setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile
   setlocal nonumber norelativenumber nowrap winfixwidth nocursorcolumn cursorline
   setlocal nospell nolist signcolumn=no foldcolumn=0
-  let b:offline_outline = {'source': a:source, 'target': a:target, 'items': a:items}
+  let b:nopack_outline = {'source': a:source, 'target': a:target, 'items': a:items}
   let &l:statusline = ' Ctags outline · saved file'
   let labels = map(copy(a:items), 'v:val.label')
   call setline(1, ['Outline: ' . fnamemodify(bufname(a:source), ':t'), 'Enter: jump   q: close', '']
@@ -2458,7 +2466,7 @@ function! s:OutlineShow(source, target, items) abort
 endfunction
 
 function! s:OutlineRefresh() abort
-  let outline = b:offline_outline
+  let outline = b:nopack_outline
   call s:OutlineClose()
   if win_gotoid(outline.target) && bufnr('%') == outline.source
     call s:CtagsOpen('outline')
@@ -2634,7 +2642,7 @@ endfunction
 function! s:CtagsOpen(mode) abort
   if a:mode ==# 'outline'
     for winid in s:TabWindows()
-      if !empty(getbufvar(winbufnr(winid), 'offline_outline', {}))
+      if !empty(getbufvar(winbufnr(winid), 'nopack_outline', {}))
         let origin = win_getid()
         call win_gotoid(winid)
         call s:OutlineClose()
@@ -2656,8 +2664,8 @@ function! s:CtagsOpen(mode) abort
     call s:Info('Ctags uses saved files; save changes to update definitions and line numbers')
   endif
   if !has_key(s:tag_projects, root)
-    call mkdir(s:offline_data . '/tags', 'p')
-    let s:tag_projects[root] = {'path': s:offline_data . '/tags/' . sha256(root), 'ready': 0, 'timer': -1, 'pending': {}, 'callbacks': [], 'full': 0, 'busy': 0, 'building_full': 0}
+    call mkdir(s:nopack_data . '/tags', 'p')
+    let s:tag_projects[root] = {'path': s:nopack_data . '/tags/' . sha256(root), 'ready': 0, 'timer': -1, 'pending': {}, 'callbacks': [], 'full': 0, 'busy': 0, 'building_full': 0}
   endif
   let After = function('<SID>TagsShow', [bufnr('%'), win_getid(), root, a:mode, word])
   if a:mode ==# 'refresh'
@@ -2696,11 +2704,11 @@ endfunction
 function! s:TagsCompletion() abort
   " Index the current file on first editing use, never on individual keystrokes.
   if &buftype !=# '' || empty(&filetype)
-        \ || expand('%:p') ==# '' || get(b:, 'offline_large_file', 0)
+        \ || expand('%:p') ==# '' || get(b:, 'nopack_large_file', 0)
     return
   endif
-  if !get(b:, 'offline_tags_requested', 0) && s:CtagsAvailable(1)
-    let b:offline_tags_requested = 1
+  if !get(b:, 'nopack_tags_requested', 0) && s:CtagsAvailable(1)
+    let b:nopack_tags_requested = 1
     call s:CtagsOpen('completion')
   endif
   call s:TagsAttach(bufnr('%'))
@@ -2714,9 +2722,9 @@ function! s:CtagsClearAll() abort
     call s:CancelTask('ctags:' . root)
   endfor
   let s:tag_projects = {}
-  call delete(s:offline_data . '/tags', 'rf')
+  call delete(s:nopack_data . '/tags', 'rf')
   for info in getbufinfo()
-    call setbufvar(info.bufnr, 'offline_tags_requested', 0)
+    call setbufvar(info.bufnr, 'nopack_tags_requested', 0)
   endfor
   call s:Info('Cleared all managed ctags caches')
 endfunction
@@ -2727,7 +2735,7 @@ nnoremap <silent> g<C-t> :pop<CR>
 nnoremap <silent> <leader>o :call <SID>CtagsOpen('outline')<CR>
 command! CtagsUpdate call <SID>CtagsOpen('refresh')
 command! CtagsClearAll call <SID>CtagsClearAll()
-augroup OfflineCtags
+augroup NopackCtags
   autocmd!
   autocmd InsertEnter * call <SID>TagsCompletion()
   autocmd BufEnter * call <SID>TagsAttach(str2nr(expand('<abuf>')))
@@ -2857,7 +2865,7 @@ endif
 " =========================================
 " ================ SESSIONS ===============
 " =========================================
-let s:session_dir = s:offline_data . '/sessions/'
+let s:session_dir = s:nopack_data . '/sessions/'
 call mkdir(s:session_dir, 'p')
 let s:save_session = 1
 
@@ -2932,7 +2940,7 @@ nnoremap <silent> <leader>pl :call <SID>RestoreLastSession()<CR>
 nnoremap <silent> <leader>pd :call <SID>DisableSessionSave()<CR>
 nnoremap <silent> <leader>pS :call <SID>PickSession()<CR>
 
-augroup OfflineSessions
+augroup NopackSessions
   autocmd!
   autocmd VimLeavePre * silent! call <SID>WriteSession()
 augroup END
@@ -2973,7 +2981,7 @@ function! s:DrawNetrwGit(win, buf, top, statuses) abort
   endif
   let s:netrw_git_cache[a:top] = a:statuses
   let existing = {}
-  for sign in sign_getplaced(a:buf, {'group': 'offline-netrw-git'})[0].signs
+  for sign in sign_getplaced(a:buf, {'group': 'nopack-netrw-git'})[0].signs
     let existing[sign.id] = sign
   endfor
   let parents = {0: substitute(a:top, '/\+$', '', '')}
@@ -2996,7 +3004,7 @@ function! s:DrawNetrwGit(win, buf, top, statuses) abort
     if xy ==# ''
       continue
     endif
-    let sign = 'OfflineTreeGit' . char2nr(xy[0]) . '_' . char2nr(xy[1])
+    let sign = 'NopackTreeGit' . char2nr(xy[0]) . '_' . char2nr(xy[1])
     let highlight = xy =~# 'U\|AA\|DD' ? 'ErrorMsg' : xy ==# '**' ? 'Directory'
           \ : xy =~# 'D' ? 'DiffDelete' : xy =~# '[A?]' ? 'DiffAdd' : 'DiffChange'
     if empty(sign_getdefined(sign))
@@ -3005,13 +3013,13 @@ function! s:DrawNetrwGit(win, buf, top, statuses) abort
     let previous = has_key(existing, row) ? remove(existing, row) : {}
     if get(previous, 'lnum', 0) != row || get(previous, 'name', '') !=# sign
       if !empty(previous)
-        call sign_unplace('offline-netrw-git', {'buffer': a:buf, 'id': row})
+        call sign_unplace('nopack-netrw-git', {'buffer': a:buf, 'id': row})
       endif
-      call sign_place(row, 'offline-netrw-git', sign, a:buf, {'lnum': row, 'priority': 20})
+      call sign_place(row, 'nopack-netrw-git', sign, a:buf, {'lnum': row, 'priority': 20})
     endif
   endfor
   for sign in values(existing)
-    call sign_unplace('offline-netrw-git', {'buffer': a:buf, 'id': sign.id})
+    call sign_unplace('nopack-netrw-git', {'buffer': a:buf, 'id': sign.id})
   endfor
 endfunction
 
@@ -3064,7 +3072,7 @@ function! s:QueueNetrwGit() abort
   let s:netrw_git_timer = timer_start(100, function('<SID>RefreshNetrwGit'))
 endfunction
 
-augroup OfflineNetrwGit
+augroup NopackNetrwGit
   autocmd!
   if exists('*sign_place') && exists('*job_start')
     autocmd FileType netrw call <SID>QueueNetrwGit()
@@ -3101,8 +3109,8 @@ function! s:GitStatusResult(buf, file, output, limited) abort
     let branch = 'HEAD@' . strpart(oid, 0, 7)
   endif
   let status = branch ==# '' ? '' : '[' . branch . (xy ==# '' ? '' : ' ' . xy) . ']'
-  if getbufvar(a:buf, 'offline_git_status', '') !=# status
-    call setbufvar(a:buf, 'offline_git_status', status)
+  if getbufvar(a:buf, 'nopack_git_status', '') !=# status
+    call setbufvar(a:buf, 'nopack_git_status', status)
     redrawstatus
   endif
 endfunction
@@ -3115,7 +3123,7 @@ function! s:RefreshGitStatus(buf) abort
   let file = fnamemodify(bufname(a:buf), ':p')
   let project = s:ProjectRoot(a:buf)
   if getbufvar(a:buf, '&buftype') !=# '' || bufname(a:buf) ==# '' || !project.git || !executable('git')
-    call setbufvar(a:buf, 'offline_git_status', '')
+    call setbufvar(a:buf, 'nopack_git_status', '')
     return
   endif
   call s:RunCommand('git-status:' . a:buf,
@@ -3129,7 +3137,7 @@ function! s:RefreshVisibleGitStatus() abort
   endfor
 endfunction
 
-augroup OfflineGitStatus
+augroup NopackGitStatus
   autocmd!
   autocmd BufEnter,BufWritePost,FocusGained,ShellCmdPost * call <SID>RefreshGitStatus(str2nr(expand('<abuf>')))
   if exists('##TerminalNormal')
@@ -3196,7 +3204,7 @@ function! s:GitTerminalClosed(id, result) abort
   call s:RefreshVisibleGitStatus()
   call s:QueueNetrwGit()
   for info in getwininfo()
-    call setbufvar(info.bufnr, 'offline_git_base', v:null)
+    call setbufvar(info.bufnr, 'nopack_git_base', v:null)
     call s:QueueGitSigns(info.bufnr)
   endfor
 endfunction
@@ -3229,29 +3237,29 @@ function! s:GitDiffResult(buf, winid, filetype, output, limited) abort
   let source = win_getid()
   diffthis
   call s:ShowOutput(s:OutputLines(a:output, a:limited), a:filetype, 1)
-  let t:offline_diff_base = bufnr('%')
-  let t:offline_diff = 1
+  let t:nopack_diff_base = bufnr('%')
+  let t:nopack_diff = 1
   diffthis
   call win_gotoid(source)
 endfunction
 
 function! s:DiffCleanup(win, timer) abort
-  if win_getid() != a:win || !get(t:, 'offline_diff', 0) | return | endif
+  if win_getid() != a:win || !get(t:, 'nopack_diff', 0) | return | endif
   if winnr('$') == 1
-    let base = get(t:, 'offline_diff_base', -1)
+    let base = get(t:, 'nopack_diff_base', -1)
     diffoff
-    unlet t:offline_diff
+    unlet t:nopack_diff
     if tabpagenr('$') > 1
       tabclose
     endif
     if bufexists(base) | execute 'silent! bwipeout ' . base | endif
   endif
 endfunction
-augroup OfflineDiff
+augroup NopackDiff
   autocmd!
   " Newer Vim locks the layout during a close-triggered WinEnter (E1312).
   " Finish after that operation unwinds, before the next input/redraw cycle.
-  autocmd WinEnter * if get(t:, 'offline_diff', 0) && winnr('$') == 1 | call timer_start(0, function('<SID>DiffCleanup', [win_getid()])) | endif
+  autocmd WinEnter * if get(t:, 'nopack_diff', 0) && winnr('$') == 1 | call timer_start(0, function('<SID>DiffCleanup', [win_getid()])) | endif
 augroup END
 
 function! s:GitDiff(revision) abort
@@ -3280,7 +3288,7 @@ nnoremap <silent> <leader>gp :call <SID>GitHunk(-1)<CR>
 nnoremap <silent> <leader>gb :call <SID>ToggleBlame()<CR>
 
 function! s:GitHunk(direction) abort
-  let signs = sign_getplaced(bufnr('%'), {'group': 'offline-git-signs'})[0].signs
+  let signs = sign_getplaced(bufnr('%'), {'group': 'nopack-git-signs'})[0].signs
   let rows = uniq(sort(map(signs, 'v:val.lnum'), 'n'))
   let starts = filter(copy(rows), 'index(rows, v:val - 1) < 0')
   if empty(starts) | call s:Info('No changes in this buffer') | return | endif
@@ -3293,10 +3301,10 @@ endfunction
 
 " Track unstaged line changes against the index with Vim signs.
 if exists('*sign_define')
-  call sign_define('OfflineGitAdd', {'text': '+', 'texthl': 'DiffAdd'})
-  call sign_define('OfflineGitChange', {'text': '~', 'texthl': 'DiffChange'})
-  call sign_define('OfflineGitDelete', {'text': '-', 'texthl': 'DiffDelete'})
-  call sign_define('OfflineGitChangeDelete', {'text': '~-', 'texthl': 'DiffChange'})
+  call sign_define('NopackGitAdd', {'text': '+', 'texthl': 'DiffAdd'})
+  call sign_define('NopackGitChange', {'text': '~', 'texthl': 'DiffChange'})
+  call sign_define('NopackGitDelete', {'text': '-', 'texthl': 'DiffDelete'})
+  call sign_define('NopackGitChangeDelete', {'text': '~-', 'texthl': 'DiffChange'})
 endif
 
 let s:git_sign_versions = {}
@@ -3319,13 +3327,13 @@ endfunction
 
 function! s:ClearGitSigns(buf) abort
   if exists('*sign_unplace')
-    silent! call sign_unplace('offline-git-signs', {'buffer': a:buf})
+    silent! call sign_unplace('nopack-git-signs', {'buffer': a:buf})
   else
-    execute 'silent! sign unplace * group=offline-git-signs buffer=' . a:buf
+    execute 'silent! sign unplace * group=nopack-git-signs buffer=' . a:buf
   endif
 endfunction
 
-" Align mixed hunks like the offline Neovim version; bound quadratic work.
+" Align mixed hunks like the nopack Neovim version; bound quadratic work.
 function! s:ChangedLines(old, new, hunk) abort
   let m = a:hunk.from_count
   let n = a:hunk.to_count
@@ -3410,21 +3418,21 @@ function! s:PlaceGitHunks(buf, hunks, ...) abort
     let changed = a:0 == 2 ? s:ChangedLines(a:1, a:2, hunk) : {}
     if added == 0
       let lnum = max([1, min([line_count, start])])
-      call sign_place(sign_id, 'offline-git-signs', 'OfflineGitDelete', a:buf, {'lnum': lnum, 'priority': 5})
+      call sign_place(sign_id, 'nopack-git-signs', 'NopackGitDelete', a:buf, {'lnum': lnum, 'priority': 5})
       let sign_id += 1
       continue
     endif
     for offset in range(0, min([added - 1, 1999]))
       if sign_id > 2000 | break | endif
       if removed == 0 || (a:0 == 2 && !has_key(changed, offset))
-        let name = 'OfflineGitAdd'
+        let name = 'NopackGitAdd'
       elseif removed > added && offset == added - 1
-        let name = 'OfflineGitChangeDelete'
+        let name = 'NopackGitChangeDelete'
       else
-        let name = 'OfflineGitChange'
+        let name = 'NopackGitChange'
       endif
       let lnum = max([1, min([line_count, start + offset])])
-      call sign_place(sign_id, 'offline-git-signs', name, a:buf, {'lnum': lnum, 'priority': 5})
+      call sign_place(sign_id, 'nopack-git-signs', name, a:buf, {'lnum': lnum, 'priority': 5})
       let sign_id += 1
     endfor
   endfor
@@ -3475,7 +3483,7 @@ function! s:GitSignsBase(buf, revision_id, tick, file, root, relative, current, 
     return
   endif
   let base = s:OutputLines(a:output, 0)
-  call setbufvar(a:buf, 'offline_git_base', a:output)
+  call setbufvar(a:buf, 'nopack_git_base', a:output)
   if exists('*diff')
     let hunks = diff(base, a:current, {'output': 'indices'})
     if type(hunks) == v:t_list
@@ -3512,7 +3520,7 @@ function! s:StartGitSigns(buf, revision_id, timer) abort
   let relative = s:RelativePath(file, project.root)
   let tick = getbufvar(a:buf, 'changedtick', -1)
   let current = getbufline(a:buf, 1, '$')
-  let base = getbufvar(a:buf, 'offline_git_base', v:null)
+  let base = getbufvar(a:buf, 'nopack_git_base', v:null)
   if type(base) == v:t_string
     call s:GitSignsBase(a:buf, a:revision_id, tick, file, project.root, relative, current, base, 0)
     return
@@ -3531,7 +3539,7 @@ endfunction
 
 function! s:QueueGitSigns(buf) abort
   if !bufloaded(a:buf) || empty(bufname(a:buf)) || getbufvar(a:buf, '&buftype') !=# ''
-        \ || getbufvar(a:buf, 'offline_large_file', 0)
+        \ || getbufvar(a:buf, 'nopack_large_file', 0)
     call s:ForgetGitSigns(a:buf)
     if bufloaded(a:buf) | call s:ClearGitSigns(a:buf) | endif
     return
@@ -3557,10 +3565,10 @@ function! s:ForgetGitSigns(buf) abort
   call s:CancelTask('git-signs:' . a:buf)
 endfunction
 
-augroup OfflineGitSigns
+augroup NopackGitSigns
   autocmd!
   if exists('*sign_place') && exists('*job_start')
-    autocmd BufEnter,BufWritePost,FocusGained,ShellCmdPost * call setbufvar(str2nr(expand('<abuf>')), 'offline_git_base', v:null) | call <SID>QueueGitSigns(str2nr(expand('<abuf>')))
+    autocmd BufEnter,BufWritePost,FocusGained,ShellCmdPost * call setbufvar(str2nr(expand('<abuf>')), 'nopack_git_base', v:null) | call <SID>QueueGitSigns(str2nr(expand('<abuf>')))
     autocmd TextChanged,TextChangedI * call <SID>QueueGitSigns(str2nr(expand('<abuf>')))
     autocmd BufWipeout * call <SID>ForgetGitSigns(str2nr(expand('<abuf>')))
   endif
@@ -3738,11 +3746,11 @@ nnoremap <silent> <leader>lf :call <SID>FormatBuffer()<CR>
 
 " Keep large files responsive before syntax setup.
 function! s:MarkLargeFile(path) abort
-  let b:offline_large_file = getfsize(a:path) > 2 * 1024 * 1024
+  let b:nopack_large_file = getfsize(a:path) > 2 * 1024 * 1024
 endfunction
 
 function! s:ApplyLargeFileSettings() abort
-  if get(b:, 'offline_large_file', 0)
+  if get(b:, 'nopack_large_file', 0)
     if &l:syntax !=# 'OFF' | setlocal syntax=OFF | endif
     if &l:foldmethod !=# 'manual' | setlocal foldmethod=manual | endif
     if exists('+autocomplete')
@@ -3758,22 +3766,22 @@ function! s:OwnUtilityWindow() abort
   for name in ['number', 'relativenumber', 'cursorline', 'cursorcolumn', 'signcolumn', 'foldcolumn', 'list', 'wrap', 'spell', 'winfixwidth', 'statusline']
     let options[name] = getwinvar(win_getid(), '&' . name)
   endfor
-  let w:offline_utility = {'buf': bufnr('%'), 'options': options}
+  let w:nopack_utility = {'buf': bufnr('%'), 'options': options}
 endfunction
 
 function! s:ReleaseUtilityWindow() abort
-  if exists('w:offline_utility') && w:offline_utility.buf != bufnr('%')
-    let saved = remove(w:, 'offline_utility')
+  if exists('w:nopack_utility') && w:nopack_utility.buf != bufnr('%')
+    let saved = remove(w:, 'nopack_utility')
     for [name, value] in items(saved.options)
       call setwinvar(win_getid(), '&' . name, value)
     endfor
   endif
 endfunction
 
-augroup OfflineLargeFiles
+augroup NopackLargeFiles
   autocmd!
   autocmd BufReadPre * call <SID>MarkLargeFile(expand('<afile>:p'))
-  autocmd BufReadPost,TextChanged,TextChangedI * if &buftype ==# '' && !get(b:, 'offline_large_file', 0) && (line('$') > 50000 || line2byte(line('$') + 1) > 2 * 1024 * 1024) | let b:offline_large_file = 1 | call <SID>ApplyLargeFileSettings() | endif
+  autocmd BufReadPost,TextChanged,TextChangedI * if &buftype ==# '' && !get(b:, 'nopack_large_file', 0) && (line('$') > 50000 || line2byte(line('$') + 1) > 2 * 1024 * 1024) | let b:nopack_large_file = 1 | call <SID>ApplyLargeFileSettings() | endif
   autocmd FileType,BufWinEnter * call <SID>ApplyLargeFileSettings()
   autocmd BufWinEnter * call <SID>ReleaseUtilityWindow()
 augroup END
@@ -3792,15 +3800,15 @@ function! s:StatusHighlights() abort
   let reversed = synIDattr(base, 'reverse') ==# '1'
   let statusfg = s:HighlightColor('StatusLine', reversed ? 'bg#' : 'fg#', fg)
   let statusbg = s:HighlightColor('StatusLine', reversed ? 'fg#' : 'bg#', bg)
-  execute 'hi OfflineStatus gui=bold cterm=bold guifg=' . statusfg . ' guibg=' . statusbg
+  execute 'hi NopackStatus gui=bold cterm=bold guifg=' . statusfg . ' guibg=' . statusbg
   let base = synIDtrans(hlID('StatusLineNC'))
   let reversed = synIDattr(base, 'reverse') ==# '1'
-  execute 'hi OfflineStatusNC gui=NONE cterm=NONE guifg=' . s:HighlightColor('StatusLineNC', reversed ? 'bg#' : 'fg#', fg)
+  execute 'hi NopackStatusNC gui=NONE cterm=NONE guifg=' . s:HighlightColor('StatusLineNC', reversed ? 'bg#' : 'fg#', fg)
         \ . ' guibg=' . s:HighlightColor('StatusLineNC', reversed ? 'fg#' : 'bg#', bg)
   for [mode, group, fallback, terminal] in [['N', 'Function', '#80a0d0', 4], ['I', 'String', '#90b060', 2], ['V', 'Statement', '#d0a060', 3]]
     let color = s:HighlightColor(group, 'fg#', fallback)
     if color ==# statusbg || color ==# bg | let color = fallback | endif
-    execute 'hi OfflineGit' . mode . ' gui=bold cterm=bold guifg=' . bg . ' guibg=' . color . ' ctermfg=0 ctermbg=' . terminal
+    execute 'hi NopackGit' . mode . ' gui=bold cterm=bold guifg=' . bg . ' guibg=' . color . ' ctermfg=0 ctermbg=' . terminal
   endfor
 endfunction
 function! s:ToolStatus(buf) abort
@@ -3810,21 +3818,21 @@ function! s:ToolStatus(buf) abort
   let label = 'X'
   " Strip .cmd/.exe only; Unix executable names may legitimately contain dots.
   if !empty(formatter) | let label = ': ' . substitute(fnamemodify(formatter[0], ':t'), '\.\%(cmd\|exe\)$', '', '') | endif
-  call setbufvar(a:buf, 'offline_format_status', '[FORMAT' . (label ==# 'X' ? ' X' : label) . ']')
+  call setbufvar(a:buf, 'nopack_format_status', '[FORMAT' . (label ==# 'X' ? ' X' : label) . ']')
 endfunction
-function! OfflineStatusline() abort
+function! NopackStatusline() abort
   let target = get(g:, 'statusline_winid', win_getid())
   let buf = winbufnr(target)
   let active = target == s:active_window
-  if !active | return '%#OfflineStatusNC# %f %=%y ' | endif
-  let branch = substitute(getbufvar(buf, 'offline_git_status', ''), '%', '%%', 'g')
+  if !active | return '%#NopackStatusNC# %f %=%y ' | endif
+  let branch = substitute(getbufvar(buf, 'nopack_git_status', ''), '%', '%%', 'g')
   let mode = mode(1)
   let group = mode =~# '^[iRt]' ? 'I' : mode =~# '^[vV\x16sS]' ? 'V' : 'N'
-  let result = empty(branch) ? '%#OfflineStatus# ' : '%#OfflineGit' . group . '#' . branch . '%#OfflineStatus# '
+  let result = empty(branch) ? '%#NopackStatus# ' : '%#NopackGit' . group . '#' . branch . '%#NopackStatus# '
   let result .= '%f %m%r%h %='
   if s:show_tools && getbufvar(buf, '&buftype') ==# ''
     let tags = empty(s:ctags_command) ? 'X' : ': ' . (s:ctags_kind ==# 'universal' ? 'Universal' : 'Exuberant')
-    let result .= '[CTAGS' . (tags ==# 'X' ? ' X' : tags) . '] ' . getbufvar(buf, 'offline_format_status', '[FORMAT X]') . ' '
+    let result .= '[CTAGS' . (tags ==# 'X' ? ' X' : tags) . '] ' . getbufvar(buf, 'nopack_format_status', '[FORMAT X]') . ' '
   endif
   return result . '%y | %6l:%-4c | %3p%% '
 endfunction
@@ -3833,7 +3841,7 @@ function! s:ToggleTools() abort
   redrawstatus
 endfunction
 nnoremap <silent> <leader>Tl :call <SID>ToggleTools()<CR>
-augroup OfflineStatusline
+augroup NopackStatusline
   autocmd!
   autocmd ColorScheme * call <SID>StatusHighlights()
   autocmd WinEnter,VimEnter * let s:active_window = win_getid() | redrawstatus
@@ -3879,7 +3887,7 @@ function! s:QueueBlame() abort
   call s:CloseBlame()
   call s:CancelTask('blame')
   let s:blame_key = key
-  if &buftype !=# '' || &modified || get(b:, 'offline_large_file', 0) || !s:ProjectRoot().git | return | endif
+  if &buftype !=# '' || &modified || get(b:, 'nopack_large_file', 0) || !s:ProjectRoot().git | return | endif
   let s:blame_timer = timer_start(150, function('<SID>BlameStart', [key]))
 endfunction
 function! s:ToggleBlame() abort
@@ -3889,7 +3897,7 @@ function! s:ToggleBlame() abort
   call s:QueueBlame()
   call s:Info('Inline blame: ' . (s:blame_enabled ? 'on' : 'off'))
 endfunction
-augroup OfflineBlame
+augroup NopackBlame
   autocmd!
   autocmd CursorMoved,BufEnter,WinEnter,WinScrolled,BufWritePost * call <SID>QueueBlame()
   autocmd InsertEnter,BufLeave,WinLeave * call <SID>CloseBlame() | let s:blame_key = []
@@ -3942,7 +3950,7 @@ endfunction
 
 function! s:StickyUpdate(timer) abort
   let s:sticky_timer = -1
-  if !s:sticky_enabled || &buftype !=# '' || &filetype ==# 'netrw' || get(b:, 'offline_large_file', 0) || getcmdwintype() !=# ''
+  if !s:sticky_enabled || &buftype !=# '' || &filetype ==# 'netrw' || get(b:, 'nopack_large_file', 0) || getcmdwintype() !=# ''
     call s:CloseSticky()
     return
   endif
@@ -4043,7 +4051,7 @@ function! s:ToggleSticky() abort
   call s:QueueSticky()
 endfunction
 nnoremap <silent> <leader>Ts :call <SID>ToggleSticky()<CR>
-augroup OfflineSticky
+augroup NopackSticky
   autocmd!
   autocmd BufEnter,WinEnter,CursorMoved,CursorMovedI,TextChanged,TextChangedI,WinScrolled,VimResized,FileType * call <SID>QueueSticky()
   autocmd BufLeave,WinLeave,TabLeave * call <SID>CloseSticky()
@@ -4085,7 +4093,7 @@ endfunction
 function! s:GuideFilter(id, key) abort
   if a:key ==# "\<CursorHold>" | return 1 | endif
   if index(["\<Esc>", "\<C-C>"], a:key) >= 0 | call popup_close(a:id) | return 1 | endif
-  let prefix = getwinvar(a:id, 'offline_prefix') . a:key
+  let prefix = getwinvar(a:id, 'nopack_prefix') . a:key
   call popup_close(a:id)
   if !empty(maparg(prefix, 'n'))
     call feedkeys(prefix, 'mi')
@@ -4101,7 +4109,7 @@ function! s:SpaceGuide(prefix) abort
         \ 'line': &lines - 2, 'col': 2, 'pos': 'botleft', 'maxheight': max([4, &lines / 3]),
         \ 'maxwidth': max([20, &columns - 6]), 'border': [1], 'padding': [0, 1, 0, 1],
         \ 'filter': function('<SID>GuideFilter'), 'mapping': 0, 'zindex': 250, 'wrap': 0})
-  call setwinvar(id, 'offline_prefix', a:prefix)
+  call setwinvar(id, 'nopack_prefix', a:prefix)
 endfunction
 nnoremap <silent> <Space> :call <SID>SpaceGuide(' ')<CR>
 
@@ -4177,7 +4185,7 @@ let s:dashboard = 0
 let s:dashboard_items = [['f', 'Find file', ' f'], ['r', 'Recent files', ' sr'], ['p', 'Select session', ' pS'],
       \ ['n', 'New file', ':enew'], ['c', 'Config', ':edit ' . fnameescape(s:vimrc_path)], ['q', 'Quit', ':qa!']]
 function! s:DashboardFilter(id, key) abort
-  let index = getwinvar(a:id, 'offline_selection', 0)
+  let index = getwinvar(a:id, 'nopack_selection', 0)
   if index(['j', "\<Down>", "\<Tab>"], a:key) >= 0
     let index = (index + 1) % len(s:dashboard_items)
   elseif index(['k', "\<Up>", "\<S-Tab>"], a:key) >= 0
@@ -4196,8 +4204,8 @@ function! s:DashboardFilter(id, key) abort
     endif
     return 1
   endif
-  call setwinvar(a:id, 'offline_selection', index)
-  call win_execute(a:id, 'call cursor(' . (getwinvar(a:id, 'offline_menu_start') + index * 2) . ', 1)')
+  call setwinvar(a:id, 'nopack_selection', index)
+  call win_execute(a:id, 'call cursor(' . (getwinvar(a:id, 'nopack_menu_start') + index * 2) . ', 1)')
   return 1
 endfunction
 function! s:DashboardClosed(id, result) abort
@@ -4206,7 +4214,7 @@ endfunction
 function! s:Dashboard() abort
   if s:dashboard && !empty(popup_getpos(s:dashboard)) | return | endif
   let width = max([20, min([100, &columns - 4])])
-  let header = &lines >= 45 && width >= 100 ? copy(s:dashboard_header) : ['VIM · OFFLINE', 'Native Vim 9.0+ · ctags · no plugins']
+  let header = &lines >= 45 && width >= 100 ? copy(s:dashboard_header) : ['VIM · NOPACK', 'Native Vim 9.0+ · ctags · no plugins']
   let rows = []
   for text in header
     call add(rows, repeat(' ', max([0, (width - strdisplaywidth(text)) / 2])) . text)
@@ -4222,8 +4230,8 @@ function! s:Dashboard() abort
   let s:dashboard = popup_create(rows, {'minwidth': width, 'maxwidth': width, 'maxheight': &lines - 2,
         \ 'highlight': 'Normal', 'cursorline': 1, 'mapping': 0, 'wrap': 0, 'zindex': 180,
         \ 'filter': function('<SID>DashboardFilter'), 'callback': function('<SID>DashboardClosed')})
-  call setwinvar(s:dashboard, 'offline_menu_start', first)
-  call setwinvar(s:dashboard, 'offline_selection', 0)
+  call setwinvar(s:dashboard, 'nopack_menu_start', first)
+  call setwinvar(s:dashboard, 'nopack_selection', 0)
   call win_execute(s:dashboard, 'call cursor(' . first . ', 1)')
 endfunction
 function! s:StartupDashboard() abort
@@ -4233,7 +4241,7 @@ function! s:StartupDashboard() abort
   endif
 endfunction
 nnoremap <silent> <leader>A :call <SID>Dashboard()<CR>
-augroup OfflineDashboard
+augroup NopackDashboard
   autocmd!
   autocmd VimEnter * call <SID>StartupDashboard()
 augroup END

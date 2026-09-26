@@ -120,7 +120,7 @@ end
 -- -------------------------------------
 -- LSP server definitions and Mason installation
 -- -------------------------------------
--- Python projects use the same Git-first root discovery as init.offline.lua.
+-- Python projects use the same Git-first root discovery as nvim-nopack/init.lua.
 local function python_project_root(buf)
 	local file = vim.api.nvim_buf_get_name(buf)
 	local dir = file ~= "" and vim.fs.dirname(file) or vim.fn.getcwd()

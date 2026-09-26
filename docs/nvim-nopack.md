@@ -1,21 +1,23 @@
-# Offline Neovim 0.12
+# Nopack Neovim 0.12
 
-서버에 필요한 설정 파일은 `nvim/.config/nvim/init.offline.lua` 하나입니다.
+서버에 필요한 설정 파일은 `nvim-nopack/.config/nvim-nopack/init.lua` 하나입니다.
 Neovim **0.12 이상**을 요구하며, 이전 버전에서는 명확한 오류를 표시합니다.
 플러그인 매니저, 외부 플러그인 파일, 패키지/파서 다운로드는 사용하지 않습니다.
 
-전체 기능과 단축키는 [한국어 기능 안내](nvim-offline-features.ko.md) 또는
-[English feature guide](nvim-offline-features.md)를 참고하세요.
-도구를 준비하려면 [LSP·포맷터 설치 위치, PATH 설정, 오프라인 서버 전송 가이드](nvim-offline-tools.md)를 참고하세요.
+전체 기능과 단축키는 [한국어 기능 안내](nvim-nopack-features.ko.md) 또는
+[English feature guide](nvim-nopack-features.md)를 참고하세요.
+도구를 준비하려면 [LSP·포맷터 설치 위치, PATH 설정, nopack 서버 전송 가이드](nvim-nopack-tools.md)를 참고하세요.
 
 Stow 환경:
 
 ```sh
-nvim -u ~/.config/nvim/init.offline.lua
+NVIM_APPNAME=nvim-nopack nvim
 ```
 
-서버에서는 이 파일을 전송한 경로로 `nvim -u /path/to/init.offline.lua`를 실행하거나,
-기존 설정을 백업하고 `~/.config/nvim/init.lua`에 배치합니다.
+서버에서는 이 파일을 전송한 경로로 `nvim -u /path/to/init.lua`를 실행하거나,
+기존 설정을 백업하고 `~/.config/nvim-nopack/init.lua`라는 이름으로 배치한 뒤
+`NVIM_APPNAME=nvim-nopack nvim`으로 실행합니다. 단독 서버에서 기본 `nvim`으로
+사용하려면 `~/.config/nvim/init.lua`에 이 파일 하나를 배치해도 됩니다.
 플러그인 기반 기본 설정 `init.lua`와는 별개입니다.
 LSP가 없거나 정의·심볼 요청이 실패하면 저장된 파일의 ctags 정보를 사용합니다.
 
@@ -54,7 +56,7 @@ LSP가 없거나 정의·심볼 요청이 실패하면 저장된 파일의 ctags
 ## Space 단축키 안내
 
 일반 모드에서 `Space`를 누르면 하단에 다음 키와 설명이 나타납니다. `Space T`는 토글,
-`Space s`는 검색처럼 online과 같은 그룹으로 표시하며, 다음 키를 누르면 기존 단축키를 실행합니다.
+`Space s`는 검색처럼 pack과 같은 그룹으로 표시하며, 다음 키를 누르면 기존 단축키를 실행합니다.
 빠르게 완성한 단축키에는 안내창을 띄우지 않습니다. `Esc`·`Ctrl-c` 또는 등록되지 않은 키로 취소합니다.
 현재 버퍼의 LSP·netrw 전용 매핑을 우선 반영하며 Visual·입력·터미널 입력 모드에는 개입하지 않습니다.
 외부 플러그인 없이 실제 매핑의 설명을 읽으므로 별도 단축키 목록을 관리할 필요가 없습니다.
@@ -114,7 +116,7 @@ ty에는 `ty.configuration.environment.python`으로 전달하며, 환경을 바
 패키지가 선택한 환경에 설치되어 있어야 하며, Python 소스/타입 스텁이 없는 네이티브 모듈은
 정의로 이동할 수 없는 경우가 있습니다.
 
-파일타입별 외부 포매터 목록은 [기능 안내의 포맷팅 표](nvim-offline-features.md#포맷팅)를 참고하세요.
+파일타입별 외부 포매터 목록은 [기능 안내의 포맷팅 표](nvim-nopack-features.md#포맷팅)를 참고하세요.
 등록된 외부 포매터가 없으면 내장 LSP 포맷팅을 시도합니다.
 저장 시 자동 포맷팅과 선택 영역 포맷팅은 켜지 않습니다.
 외부 포맷팅 도중 버퍼가 바뀌거나 닫히면 결과를 버립니다. 작업은 버퍼별로 취소됩니다.
@@ -186,7 +188,7 @@ C/C++·Python의 정의 이동·완성·아웃라인은 **Universal Ctags 또는
 
 ```sh
 ctags --version
-nvim --cmd "let g:offline_ctags='/path/to/ctags'" -u ~/.config/nvim/init.offline.lua
+NVIM_APPNAME=nvim-nopack nvim --cmd "let g:nopack_ctags='/path/to/ctags'"
 ```
 
 직접 지정하지 않으면 PATH에서 찾습니다. 서버에 복사하는 실행 파일은 서버의 OS·CPU와
@@ -198,7 +200,7 @@ nvim --cmd "let g:offline_ctags='/path/to/ctags'" -u ~/.config/nvim/init.offline
 | `g Ctrl-t`       | ctags 태그 스택에서 이전 위치로 복귀                                               |
 | `:CtagsUpdate`   | 현재 프로젝트 전체 인덱스 재생성                                                   |
 | `:CtagsClearAll` | 관리하는 모든 프로젝트 ctags 캐시 삭제                                             |
-| `:OfflineCancel` | 실행 중인 명령·예약된 태그 갱신·검색창 취소                                        |
+| `:NopackCancel`  | 실행 중인 명령·예약된 태그 갱신·검색창 취소                                        |
 
 - LSP 완성 제공자가 없을 때 첫 입력 모드 진입은 현재 파일을 인덱싱합니다.
 - ctags 아웃라인도 현재 파일을 인덱싱하며, 변경되지 않은 결과는 재사용합니다.
@@ -208,13 +210,13 @@ nvim --cmd "let g:offline_ctags='/path/to/ctags'" -u ~/.config/nvim/init.offline
 - 전체 생성은 120초/64 MiB, 변경 파일 갱신은 10초/16 MiB로 제한합니다.
 - 외부 도구로 변경·삭제한 파일은 `:CtagsUpdate`로 반영합니다.
 
-캐시는 `stdpath('data')/offline/tags/`에 저장합니다. 연결된 경로는 `:setlocal tags?`로
+캐시는 `stdpath('data')/nopack/tags/`에 저장합니다. 연결된 경로는 `:setlocal tags?`로
 확인합니다. 미저장 편집, C++ 오버로드·템플릿, Python 동적 속성을 정확히 분석하지는 않습니다.
 
 ## 제한
 
 검색은 `find`, `git`, `rg` 또는 `grep` 등 설치된 명령을 사용합니다.
-외부 작업은 기본 5초·출력 2 MiB로 제한하고, `:OfflineCancel`로 취소합니다.
+외부 작업은 기본 5초·출력 2 MiB로 제한하고, `:NopackCancel`로 취소합니다.
 파일/검색 후보 최대 10,000개, 표시 결과 최대 200개, 디스크 미리보기 앞 64 KiB입니다.
 파일 탐색은 `.git`, `node_modules`, `__pycache__`, `.venv`, `venv`, `build`,
 `build-*`, `cmake-build-*`, `dist` 디렉터리를 제외합니다.

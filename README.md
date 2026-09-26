@@ -4,7 +4,7 @@ macOS-focused dotfiles for zsh, git, Herdr, tmux, Neovim, and Vim.
 
 ## Package-free Native Neovim
 
-This repository includes [`init.offline.lua`](nvim/.config/nvim/init.offline.lua),
+This repository includes [`nvim-nopack/init.lua`](nvim-nopack/.config/nvim-nopack/init.lua),
 a **single-file, package-free Native Neovim configuration** for Neovim 0.12+.
 It uses no plugin manager and no external Lua plugins, and it performs no plugin
 or parser downloads. Built-in replacements provide a dashboard, fuzzy pickers,
@@ -13,15 +13,15 @@ completion, formatting, sessions, an undo browser, and a reusable terminal.
 
 Optional language servers, formatters, and command-line search tools are used
 only when already installed. See the feature guide in
-[English](docs/nvim-offline-features.md) or
-[한국어](docs/nvim-offline-features.ko.md).
+[English](docs/nvim-nopack-features.md) or
+[한국어](docs/nvim-nopack-features.ko.md).
 
 For **Vim 9.0+**, [`vim/.vimrc`](vim/.vimrc) provides a standalone, plugin-free
 Vimscript counterpart with the same core shortcuts. It uses **ctags instead of
 LSP**, with native commenting, completion, pickers, netrw, Git, formatting,
 dashboard, Sticky Scroll, sessions, and undo previews. No Lua support is needed.
-See the Vim guide in [English](docs/vim-offline-features.md) or
-[한국어](docs/vim-offline-features.ko.md).
+See the Vim guide in [English](docs/vim-nopack-features.md) or
+[한국어](docs/vim-nopack-features.ko.md).
 
 ## Setup
 
@@ -76,8 +76,9 @@ Link or unlink dotfiles on either platform:
 - `git`: git defaults
 - `herdr`: terminal multiplexer keybindings
 - `tmux`: tmux keybindings and theme
-- `nvim`: Neovim config
-- `vim`: single-file offline Vim 9.0+ config (`~/.vimrc`)
+- `nvim`: pack Neovim config
+- `nvim-nopack`: single-file nopack Neovim config
+- `vim`: single-file nopack Vim 9.0+ config (`~/.vimrc`)
 
 ## Git identity
 
@@ -91,9 +92,9 @@ git config --file ~/.gitconfig.local user.email "you@example.com"
 The shared `.gitconfig` includes this optional file. Use it for personal Git
 settings instead of adding them to the shared configuration.
 
-## Offline Neovim
+## Nopack Neovim
 
-For restricted servers, use [`init.offline.lua`](nvim/.config/nvim/init.offline.lua).
+For restricted servers, use [`nvim-nopack/init.lua`](nvim-nopack/.config/nvim-nopack/init.lua).
 It requires **Neovim 0.12+** and runs from a single configuration file using
 Neovim's bundled runtime and existing system tools. It does not download
 plugins, parsers, language servers, or formatters.
@@ -101,25 +102,41 @@ plugins, parsers, language servers, or formatters.
 With the Stow setup:
 
 ```sh
-nvim -u ~/.config/nvim/init.offline.lua
+NVIM_APPNAME=nvim-nopack nvim
 ```
 
 On a server, copy that one file and run it directly:
 
 ```sh
-nvim -u /path/to/init.offline.lua
+nvim -u /path/to/init.lua
 ```
 
-To use it by default, point `${XDG_CONFIG_HOME:-$HOME/.config}/nvim/init.lua`
-at either `init.online.lua` or `init.offline.lua`. This repository defaults to
-`init.offline.lua`. The `onvi` and `offvi` shell aliases switch that symlink and
-then start Neovim. The local `init.lua` symlink is ignored by Git, so switching
-modes does not change the working tree.
+Pack configuration is installed at `~/.config/nvim/init.lua`, with feature
+modules in its adjacent `lua/` directory. Nopack is a standalone file at
+`~/.config/nvim-nopack/init.lua`.
 
-Online configuration is split into feature modules directly under
-`nvim/.config/nvim/lua/`. Keep that directory alongside `init.online.lua` when
-copying the configuration to another machine. Offline remains a standalone file
-and does not load these modules. See [Online configuration structure](docs/nvim-online-structure.md).
+`pvi` selects pack mode; `npvi` selects nopack mode. Both start Neovim and
+save the choice. After that, `vi` uses the last selection, including in a new
+terminal. A fresh installation defaults to nopack mode. The launcher sets
+`NVIM_APPNAME=nvim` or `nvim-nopack`, keeping configuration, cache, and state
+paths separate. Plain `nvim` uses pack mode unless `NVIM_APPNAME` is set.
+
+The selector is stored locally in `${XDG_STATE_HOME:-$HOME/.local/state}/nvim-mode`.
+Existing nopack sessions, undo files, and tags are migrated to
+`~/.local/share/nvim-nopack/nopack` during installation. Existing pack Mason
+tools remain available to nopack through a link; nopack does not load Mason or
+pack plugins.
+
+With the repository’s `.zshrc` loaded:
+
+```sh
+pvi
+npvi
+vi
+```
+
+When copying pack configuration to another machine, include the adjacent
+`lua/` directory. See [Pack configuration structure](docs/nvim-pack-structure.md).
 
 When an update adds or renames configuration files, `git pull` alone does not
 create new file-level Stow links. From the repository, run:
@@ -130,11 +147,11 @@ git pull --ff-only
 ./install_dotfiles.sh
 ```
 
-The installer verifies both Neovim configuration links and repairs a missing or
-dangling `init.lua`. A clean install defaults to offline mode; use `onvi` to select
-online mode. Custom `init.lua` files are preserved.
+The installer verifies both named configuration links and the launcher. Existing
+conflicting files are backed up before installation. Mode selection survives
+clean/reinstall; a fresh install defaults to nopack.
 
-| Feature         | Offline behavior                                                                                                                |
+| Feature         | Nopack behavior                                                                                                                 |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | Completion      | Native LSP completion on server-defined triggers; buffer words and ctags fallback without LSP                                   |
 | Completion keys | `Ctrl-Space` requests candidates, `Ctrl-n/p` selects, `Enter` accepts; `Tab` / `Shift-Tab` navigates snippets or candidates     |
@@ -160,13 +177,13 @@ worker thread, and Git/tree/tabline caches avoid repeated work during editing.
 The built-in picker and outline provide a smaller feature set than Telescope
 and Aerial; a native Space-key guide replaces Which-key, while DAP is not included.
 
-See the offline feature overview in [English](docs/nvim-offline-features.md) or
-[한국어](docs/nvim-offline-features.ko.md),
-[implementation details, ctags setup, and limits](docs/nvim-offline.md), and
-[LSP/formatter installation and offline transfer](docs/nvim-offline-tools.md).
+See the nopack feature overview in [English](docs/nvim-nopack-features.md) or
+[한국어](docs/nvim-nopack-features.ko.md),
+[implementation details, ctags setup, and limits](docs/nvim-nopack.md), and
+[LSP/formatter installation and transfer to network-isolated servers](docs/nvim-nopack-tools.md).
 
 ## Formatting
 
-Project formatter configuration is stored in the repository and used by onvi,
-offvi, and Vim. See [Formatting rules](docs/formatting.md) for per-language settings
+Project formatter configuration is stored in the repository and used by pvi,
+npvi, and Vim. See [Formatting rules](docs/formatting.md) for per-language settings
 and reuse in other projects.

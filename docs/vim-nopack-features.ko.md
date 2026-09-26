@@ -1,9 +1,9 @@
-# 오프라인 Vim 9.0+
+# nopack Vim 9.0+
 
-[English](vim-offline-features.md) · [설정 파일](../vim/.vimrc) · [Neovim 기능](nvim-offline-features.ko.md)
+[English](vim-nopack-features.md) · [설정 파일](../vim/.vimrc) · [Neovim 기능](nvim-nopack-features.ko.md)
 
 **`.vimrc` 한 파일, 외부 플러그인 없음, Lua 불필요, 시작 시 다운로드 없음.**
-offvi의 기본 조작을 Vimscript로 옮겼으며, LSP 대신 ctags를 사용합니다.
+npvi의 기본 조작을 Vimscript로 옮겼으며, LSP 대신 ctags를 사용합니다.
 문법 강조·들여쓰기·netrw·완성·diff·터미널·팝업은 Vim 내장 기능입니다.
 
 ## 실행과 설치
@@ -20,10 +20,10 @@ lazygit 팝업도 사용할 수 있습니다. Python/Lua 인터프리터는 필�
 저장소의 `./install_dotfiles.sh`는 `vim/.vimrc`를 `~/.vimrc`로 연결하며,
 충돌하는 기존 파일은 백업합니다. `./clean_dotfiles.sh`는 링크를 해제합니다.
 서버에는 이 파일 하나를 `~/.vimrc`로 복사해도 됩니다. 실행은 **`vim`**입니다.
-기존 **`onvi`·`offvi`는 계속 Neovim을 실행**합니다.
+기존 **`pvi`·`npvi`는 계속 Neovim을 실행**합니다.
 
-ctags 인덱스·undo·세션·netrw 상태는 `~/.vim/offline`에 저장합니다.
-실행 전에 `VIM_OFFLINE_DATA`를 지정하면 저장 위치를 바꿀 수 있습니다.
+ctags 인덱스·undo·세션·netrw 상태는 `~/.vim/nopack`에 저장합니다.
+실행 전에 `VIM_NOPACK_DATA`를 지정하면 저장 위치를 바꿀 수 있습니다.
 기존 Vim 플러그인 폴더는 로드하지 않고, Vim에 포함된 runtime만 사용합니다.
 
 ## 편집과 ctags
@@ -54,7 +54,7 @@ ctags 인덱스·undo·세션·netrw 상태는 `~/.vim/offline`에 저장합니�
 | `g Ctrl-t`                                                      | 태그 스택에서 이전 위치로 복귀                               |
 | `Space o`                                                       | 오른쪽 ctags 아웃라인. `Enter` 이동, `r` 갱신, `q` 닫기      |
 | `:CtagsUpdate`, `:CtagsClearAll`                                | 프로젝트 전체 인덱스 재생성 / 관리하는 인덱스 삭제           |
-| `:OfflineCancel`                                                | 진행 중인 외부 작업·검색 취소                                |
+| `:NopackCancel`                                                 | 진행 중인 외부 작업·검색 취소                                |
 
 주석은 파일 형식의 `commentstring`을 사용합니다. 괄호·따옴표·백틱 자동 짝,
 기존 닫는 기호 건너뛰기, 빈 짝 Backspace 삭제도 지원합니다.
@@ -65,12 +65,12 @@ Replace는 밑줄로 표시합니다.
 
 입력 중 검색, `J`의 문장 사이 공백 한 칸·중복 주석 기호 제거, `gg/G` 이동 시
 커서 열 유지, 앞에 0이 있는 숫자의 십진수 증감, 파일 형식에 따른 들여쓰기 등도
-offvi에 맞췄습니다. Vim에 포함된 matchit으로 `%`·`g%`의 언어 구문·HTML 태그 이동을 지원합니다.
+npvi에 맞췄습니다. Vim에 포함된 matchit으로 `%`·`g%`의 언어 구문·HTML 태그 이동을 지원합니다.
 LSP·진단·Tree-sitter 전용 키는 흉내 내지 않습니다.
 
 **Universal Ctags를 PATH에 설치하는 것을 권장**합니다. Exuberant Ctags도
 지원하며, macOS의 BSD ctags는 지원하지 않습니다. PATH 전체에서 Universal을
-우선 선택하고, 필요하면 `g:offline_ctags`로 실행 파일을 지정할 수 있습니다.
+우선 선택하고, 필요하면 `g:nopack_ctags`로 실행 파일을 지정할 수 있습니다.
 
 현재 파일 완성용 인덱스는 처음 편집할 때, 프로젝트 전체 인덱스는 정의 탐색 시
 비동기로 만듭니다. 저장 시 변경 파일을 다시 인덱싱하며, 전체 생성과 저장이
@@ -115,11 +115,11 @@ netrw의 Enter/`l`, `h`, `-`, `o/v/t`, `%`, `d`, `D`, `R`, `mf/mu/mt/mc/mm`,
 복사·이동에는 시스템 `cp`·`mv`가 필요합니다. 갱신은 기존 트리에서 이루어집니다.
 트리에서 `:Ntree /경로` 또는 `gn`으로 루트를 직접 바꿀 수 있습니다.
 
-루트 탐색 기준은 offvi와 같습니다. 일반 소스는 Git·프로젝트 마커,
+루트 탐색 기준은 npvi와 같습니다. 일반 소스는 Git·프로젝트 마커,
 `site-packages`/`dist-packages` 내부는 패키지 폴더, Python 표준 라이브러리는
 `os.py`와 `importlib/__init__.py`가 있는 폴더를 사용합니다. Python 버전을 고정하지 않습니다.
 
-스티키는 offvi와 같은 들여쓰기 기반 추정입니다. 여러 줄 Python 함수 선언,
+스티키는 npvi와 같은 들여쓰기 기반 추정입니다. 여러 줄 Python 함수 선언,
 실제 원본 줄 번호, 왼쪽 번호·sign 여백, 인덴트 가이드, syntax 색상을 유지합니다.
 최대 8줄이며, 초과하면 가장 바깥 범위와 함수 이름을 보존하고 가까운 내부 범위를
 남깁니다. 정식 언어 파서는 아니므로 불규칙한 들여쓰기나 화면 위 1,000줄보다

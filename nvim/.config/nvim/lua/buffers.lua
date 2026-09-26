@@ -1,7 +1,7 @@
 local Snacks = require("snacks")
 
 -- -------------------------------------
--- Buffers: native tabline and navigation (from init.offline.lua)
+-- Buffers: native tabline and navigation (from nvim-nopack/init.lua)
 -- -------------------------------------
 do
 	local map = function(mode, lhs, rhs, desc)

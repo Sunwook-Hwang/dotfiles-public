@@ -1,7 +1,7 @@
 local Snacks = require("snacks")
 
 -- -------------------------------------
--- File explorer: use the same package / standard-library / project boundaries as offline.
+-- File explorer: use the same package / standard-library / project boundaries as nopack.
 -- -------------------------------------
 do
 	local function find_git_root(dir)
@@ -65,7 +65,7 @@ do
 		return roots[dir]
 	end
 	vim.api.nvim_create_autocmd("BufEnter", {
-		group = vim.api.nvim_create_augroup("online-project-root", { clear = true }),
+		group = vim.api.nvim_create_augroup("pack-project-root", { clear = true }),
 		callback = function(args)
 			local file = vim.api.nvim_buf_get_name(args.buf)
 			if vim.bo[args.buf].buftype ~= "" or file == "" then
@@ -92,11 +92,11 @@ do
 		roots = {}
 	end
 	vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermClose" }, {
-		group = "online-project-root",
+		group = "pack-project-root",
 		callback = invalidate_roots,
 	})
 	vim.api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
-		group = "online-project-root",
+		group = "pack-project-root",
 		pattern = {
 			".git",
 			"CMakeLists.txt",
@@ -115,13 +115,13 @@ do
 		callback = invalidate_roots,
 	})
 	vim.api.nvim_create_autocmd("User", {
-		group = "online-project-root",
-		pattern = "OnlineRefresh",
+		group = "pack-project-root",
+		pattern = "PackRefresh",
 		callback = invalidate_roots,
 	})
-	vim.api.nvim_create_user_command("OnlineRefresh", function()
-		vim.api.nvim_exec_autocmds("User", { pattern = "OnlineRefresh", modeline = false })
-		vim.api.nvim_exec_autocmds("BufEnter", { group = "online-project-root", buffer = 0, modeline = false })
+	vim.api.nvim_create_user_command("PackRefresh", function()
+		vim.api.nvim_exec_autocmds("User", { pattern = "PackRefresh", modeline = false })
+		vim.api.nvim_exec_autocmds("BufEnter", { group = "pack-project-root", buffer = 0, modeline = false })
 		vim.cmd("redrawstatus")
 	end, { desc = "Refresh project root and formatter availability" })
 	vim.keymap.set("n", "<leader>e", function()

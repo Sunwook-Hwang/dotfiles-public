@@ -7,7 +7,7 @@ do
 	local enabled, queued = false, false
 	local popup, cache, rendered_config
 	local numbers, numbers_config
-	local number_hl = vim.api.nvim_create_namespace("online-sticky-numbers")
+	local number_hl = vim.api.nvim_create_namespace("pack-sticky-numbers")
 	local function close()
 		local windows = { popup, numbers }
 		popup = nil
@@ -298,7 +298,7 @@ do
 			update()
 		end)
 	end
-	local group = vim.api.nvim_create_augroup("online-sticky-scroll", { clear = true })
+	local group = vim.api.nvim_create_augroup("pack-sticky-scroll", { clear = true })
 	vim.api.nvim_create_autocmd({
 		"VimEnter",
 		"BufEnter",

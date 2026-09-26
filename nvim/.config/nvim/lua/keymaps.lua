@@ -159,7 +159,7 @@ do
 			vim.fn.matchadd("CursorWord", "\\C\\V\\<" .. vim.fn.escape(word, "\\") .. "\\>", -1)
 	end
 	vim.cmd("highlight default link CursorWord Visual")
-	local group = vim.api.nvim_create_augroup("online-cursor-word", { clear = true })
+	local group = vim.api.nvim_create_augroup("pack-cursor-word", { clear = true })
 	vim.api.nvim_create_autocmd("ColorScheme", {
 		group = group,
 		callback = function()

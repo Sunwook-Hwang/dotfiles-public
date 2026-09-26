@@ -1,5 +1,5 @@
--- Standalone offline config: Neovim 0.12+, no third-party plugins/downloads.
--- Try: nvim -u /path/to/init.offline.lua
+-- Standalone nopack config: Neovim 0.12+, no third-party plugins/downloads.
+-- Try: nvim -u /path/to/nvim-nopack/init.lua
 -- Only bundled runtime plugins (netrw, matchit, etc.) are loaded.
 --
 -- Sections: runtime -> options -> base keys -> display -> completion -> tree
@@ -13,7 +13,7 @@
 -- =========================================
 -- Neovim 0.12+ 전용. 사용자 플러그인 경로를 제외하고 설치본의 기본 런타임만 사용합니다.
 if vim.fn.has("nvim-0.12") == 0 then
-	error("This offline config requires Neovim 0.12 or newer")
+	error("This nopack config requires Neovim 0.12 or newer")
 end
 vim.opt.packpath = { vim.env.VIMRUNTIME }
 -- Keep the installation's parser directory as well as its runtime scripts.
@@ -37,8 +37,15 @@ end
 -- =========================================
 -- ============== CORE OPTIONS =============
 -- =========================================
-local offline_data = vim.fn.stdpath("data") .. "/offline"
-vim.fn.mkdir(offline_data .. "/undo", "p")
+local nopack_data = vim.fn.stdpath("data") .. "/nopack"
+-- Keep existing sessions and undo files when adopting the nopack name.
+local legacy_data = vim.fn.stdpath("data") .. "/offline"
+if vim.fn.isdirectory(legacy_data) == 1 and vim.fn.isdirectory(nopack_data) == 0 then
+	if vim.fn.rename(legacy_data, nopack_data) ~= 0 then
+		nopack_data = legacy_data
+	end
+end
+vim.fn.mkdir(nopack_data .. "/undo", "p")
 local is_ssh = vim.env.SSH_CONNECTION ~= nil or vim.env.SSH_TTY ~= nil
 
 -- Use PATH first, then existing Mason installations; never install tools here.
@@ -80,7 +87,7 @@ local default_options = {
 	swapfile = false, -- do not create swap files
 	termguicolors = true, -- set term gui colors (most terminals support this)
 	title = true, -- set the title of window to the value of the titlestring
-	undodir = offline_data .. "/undo", -- enable persistent undo
+	undodir = nopack_data .. "/undo", -- enable persistent undo
 	undofile = true, -- enable persistent undo
 	updatetime = 250, -- idle time before CursorHold
 	writebackup = false, -- do not create a temporary backup while writing
@@ -131,7 +138,7 @@ local function show_line_numbers(win)
 	end
 end
 vim.api.nvim_create_autocmd({ "WinEnter", "BufWinEnter", "FileType", "VimEnter", "SessionLoadPost" }, {
-	group = vim.api.nvim_create_augroup("offline-line-numbers", { clear = true }),
+	group = vim.api.nvim_create_augroup("nopack-line-numbers", { clear = true }),
 	callback = function(args)
 		if args.event == "FileType" then
 			-- Apply after filetype plugins, only to windows displaying this buffer.
@@ -167,14 +174,14 @@ local function pair_escaped(text)
 	return #(text:match("\\+$") or "") % 2 == 1
 end
 local function pair_mapping(key, callback, description)
-	local plug = "<Plug>(offline-pair-" .. key:byte() .. ")"
+	local plug = "<Plug>(nopack-pair-" .. key:byte() .. ")"
 	-- Flush preceding typed characters before inspecting the cursor and buffer.
 	vim.keymap.set("i", key, "<Ignore>" .. plug, { desc = description })
 	vim.keymap.set("i", plug, callback, { expr = true })
 end
 for opening, closing in pairs(insert_pairs) do
 	pair_mapping(opening, function()
-		if vim.bo.buftype ~= "" or vim.b.offline_large_file then
+		if vim.bo.buftype ~= "" or vim.b.nopack_large_file then
 			return opening
 		end
 		local line, col = vim.api.nvim_get_current_line(), vim.api.nvim_win_get_cursor(0)[2]
@@ -192,7 +199,7 @@ for opening, closing in pairs(insert_pairs) do
 	end, "Insert " .. opening .. closing .. " pair")
 	if opening ~= closing then
 		pair_mapping(closing, function()
-			if vim.bo.buftype == "" and not vim.b.offline_large_file then
+			if vim.bo.buftype == "" and not vim.b.nopack_large_file then
 				local line, col = vim.api.nvim_get_current_line(), vim.api.nvim_win_get_cursor(0)[2]
 				if line:sub(col + 1, col + 1) == closing and not pair_escaped(line:sub(1, col)) then
 					return "<C-g>U<Right>"
@@ -203,7 +210,7 @@ for opening, closing in pairs(insert_pairs) do
 	end
 end
 pair_mapping("<BS>", function()
-	if vim.bo.buftype == "" and not vim.b.offline_large_file then
+	if vim.bo.buftype == "" and not vim.b.nopack_large_file then
 		local line, col = vim.api.nvim_get_current_line(), vim.api.nvim_win_get_cursor(0)[2]
 		if
 			col > 0
@@ -331,7 +338,7 @@ vim.api.nvim_create_autocmd("TextYankPost", {
 -- Send SSH yanks to the client clipboard; keep p local without OSC52 read requests.
 if is_ssh then
 	vim.api.nvim_create_autocmd("TextYankPost", {
-		group = vim.api.nvim_create_augroup("offline-ssh-yank", { clear = true }),
+		group = vim.api.nvim_create_augroup("nopack-ssh-yank", { clear = true }),
 		callback = function()
 			if vim.v.event.operator == "y" and vim.v.event.regname == "" then
 				local lines = vim.deepcopy(vim.v.event.regcontents)
@@ -372,7 +379,7 @@ local function picker_selection_highlight()
 		local distance =
 			math.max(math.abs(red - selected_red), math.abs(green - selected_green), math.abs(blue - selected_blue))
 		if distance >= 32 then
-			vim.api.nvim_set_hl(0, "OfflinePickerSelection", selected)
+			vim.api.nvim_set_hl(0, "NopackPickerSelection", selected)
 			return
 		end
 	end
@@ -384,7 +391,7 @@ local function picker_selection_highlight()
 	local generated_red, generated_green, generated_blue = shift(red), shift(green), shift(blue)
 	local generated = generated_red * 0x10000 + generated_green * 0x100 + generated_blue
 	local generated_luminance = (generated_red * 299 + generated_green * 587 + generated_blue * 114) / 1000
-	vim.api.nvim_set_hl(0, "OfflinePickerSelection", {
+	vim.api.nvim_set_hl(0, "NopackPickerSelection", {
 		fg = generated_luminance < 128 and 0xffffff or 0x000000,
 		bg = generated,
 		bold = true,
@@ -427,7 +434,7 @@ local function set_git_mode_highlight()
 	if contrast(fg) < 4.5 then
 		fg, ctermfg = background_luminance > 0.179 and 0x000000 or 0xffffff, background_luminance > 0.179 and 0 or 15
 	end
-	vim.api.nvim_set_hl(0, "OfflineGitBranch", {
+	vim.api.nvim_set_hl(0, "NopackGitBranch", {
 		fg = fg,
 		bg = bg,
 		ctermfg = ctermfg,
@@ -438,15 +445,15 @@ local function set_git_mode_highlight()
 	})
 	return true
 end
-local function set_offline_status_highlights()
+local function set_nopack_status_highlights()
 	local inactive = vim.api.nvim_get_hl(0, { name = "StatusLineNC", link = false })
 	inactive.bold = false
 	if inactive.cterm then
 		inactive.cterm.bold = false
 	end
 	vim.api.nvim_set_hl(0, "StatusLineNC", inactive)
-	vim.api.nvim_set_hl(0, "OfflineLspMissing", { fg = "#ffffff", bg = "#af0000", bold = true })
-	vim.api.nvim_set_hl(0, "OfflineLspMissingNC", { fg = "#ffffff", bg = "#af0000", bold = false, nocombine = true })
+	vim.api.nvim_set_hl(0, "NopackLspMissing", { fg = "#ffffff", bg = "#af0000", bold = true })
+	vim.api.nvim_set_hl(0, "NopackLspMissingNC", { fg = "#ffffff", bg = "#af0000", bold = false, nocombine = true })
 	git_mode_group = nil
 	set_git_mode_highlight()
 	for _, suffix in ipairs({ "", "NC" }) do
@@ -463,20 +470,20 @@ local function set_offline_status_highlights()
 		end
 		error_hl.nocombine = true
 		error_hl.reverse, error_hl.fg, error_hl.ctermfg = false, "#ff0000", 9
-		vim.api.nvim_set_hl(0, "OfflineStatusError" .. suffix, error_hl)
+		vim.api.nvim_set_hl(0, "NopackStatusError" .. suffix, error_hl)
 		local warn_hl = vim.deepcopy(error_hl)
 		warn_hl.fg, warn_hl.ctermfg = "#ffd700", 220
-		vim.api.nvim_set_hl(0, "OfflineStatusWarn" .. suffix, warn_hl)
+		vim.api.nvim_set_hl(0, "NopackStatusWarn" .. suffix, warn_hl)
 	end
 	picker_selection_highlight()
 end
-set_offline_status_highlights()
+set_nopack_status_highlights()
 vim.api.nvim_create_autocmd("ColorScheme", {
-	group = vim.api.nvim_create_augroup("offline-status-highlights", { clear = true }),
-	callback = set_offline_status_highlights,
+	group = vim.api.nvim_create_augroup("nopack-status-highlights", { clear = true }),
+	callback = set_nopack_status_highlights,
 })
 vim.api.nvim_create_autocmd("ModeChanged", {
-	group = "offline-status-highlights",
+	group = "nopack-status-highlights",
 	callback = function()
 		if set_git_mode_highlight() then
 			vim.cmd("redrawstatus")
@@ -494,7 +501,7 @@ vim.opt.laststatus = 2
 local language_status_visible = true
 local diagnostic_counts, lsp_status_cache, format_status_cache = {}, {}, {}
 vim.api.nvim_create_autocmd({ "DiagnosticChanged", "BufWipeout" }, {
-	group = vim.api.nvim_create_augroup("offline-diagnostic-status", { clear = true }),
+	group = vim.api.nvim_create_augroup("nopack-diagnostic-status", { clear = true }),
 	callback = function(args)
 		diagnostic_counts[args.buf] = nil
 	end,
@@ -514,23 +521,23 @@ local function status_clients(buf)
 	end
 	return state
 end
-function _G.OfflineGitStatus()
+function _G.NopackGitStatus()
 	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 	local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
 	if win ~= active then
 		return ""
 	end
-	local status = vim.b[vim.api.nvim_win_get_buf(win)].offline_git_status
+	local status = vim.b[vim.api.nvim_win_get_buf(win)].nopack_git_status
 	if not status or status == "" then
 		return ""
 	end
-	return "%#OfflineGitBranch# " .. status:gsub("%%", "%%%%") .. " %*"
+	return "%#NopackGitBranch# " .. status:gsub("%%", "%%%%") .. " %*"
 end
-function _G.OfflineDiagnosticStatus()
+function _G.NopackDiagnosticStatus()
 	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 	local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
-	local error_group = win == active and "OfflineStatusError" or "OfflineStatusErrorNC"
-	local warn_group = win == active and "OfflineStatusWarn" or "OfflineStatusWarnNC"
+	local error_group = win == active and "NopackStatusError" or "NopackStatusErrorNC"
+	local warn_group = win == active and "NopackStatusWarn" or "NopackStatusWarnNC"
 	local buf = vim.api.nvim_win_get_buf(win)
 	local counts = diagnostic_counts[buf]
 	if not counts then
@@ -548,7 +555,7 @@ function _G.OfflineDiagnosticStatus()
 	end
 	return table.concat(parts, " ")
 end
-function _G.OfflineLspStatus()
+function _G.NopackLspStatus()
 	if not language_status_visible then
 		return ""
 	end
@@ -567,11 +574,11 @@ function _G.OfflineLspStatus()
 		state.text = #sorted > 0 and ("[LSP: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]") or ""
 	end
 	local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
-	local missing_group = win == active and "OfflineLspMissing" or "OfflineLspMissingNC"
+	local missing_group = win == active and "NopackLspMissing" or "NopackLspMissingNC"
 	return state.text ~= "" and state.text or ("%#" .. missing_group .. "#[LSP X]%*")
 end
 vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach", "BufWipeout" }, {
-	group = vim.api.nvim_create_augroup("offline-lsp-status", { clear = true }),
+	group = vim.api.nvim_create_augroup("nopack-lsp-status", { clear = true }),
 	callback = function(args)
 		lsp_status_cache[args.buf] = nil
 		if args.event == "BufWipeout" then
@@ -584,14 +591,14 @@ vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach", "BufWipeout" }, {
 		end)
 	end,
 })
-function _G.OfflineStatusline()
+function _G.NopackStatusline()
 	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 	if win ~= vim.api.nvim_get_current_win() then
 		return " %f %= %y "
 	end
-	return "%{%v:lua.OfflineGitStatus()%} %f %m%r%h %= %{%v:lua.OfflineDiagnosticStatus()%} %{%v:lua.OfflineLspStatus()%} %{v:lua.OfflineFormatStatus()} %y | %4l:%3c | %3p%% "
+	return "%{%v:lua.NopackGitStatus()%} %f %m%r%h %= %{%v:lua.NopackDiagnosticStatus()%} %{%v:lua.NopackLspStatus()%} %{v:lua.NopackFormatStatus()} %y | %4l:%3c | %3p%% "
 end
-vim.opt.statusline = "%!v:lua.OfflineStatusline()"
+vim.opt.statusline = "%!v:lua.NopackStatusline()"
 -- 내장 renderer로 들여쓰기 가이드 표시: 텍스트/커서 이동마다 extmark를 재생성하지 않습니다.
 -- 선행 공백에만 shiftwidth 간격으로 선을 표시하며, 비어 있는 줄까지 이어주지는 않습니다.
 vim.opt.list = true
@@ -604,7 +611,7 @@ local function update_indent_guides()
 	local width = vim.fn.shiftwidth()
 	vim.opt_local.listchars:append({ leadmultispace = "┊" .. string.rep(" ", width - 1) })
 end
-local indent_group = vim.api.nvim_create_augroup("offline-indent-guides", { clear = true })
+local indent_group = vim.api.nvim_create_augroup("nopack-indent-guides", { clear = true })
 vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter" }, {
 	group = indent_group,
 	callback = update_indent_guides,
@@ -624,7 +631,7 @@ local function netrw_command(command)
 	local saved_lazyredraw = vim.o.lazyredraw
 	vim.o.lazyredraw = true
 	local ok, err = pcall(vim.cmd, command)
-	vim.api.nvim_exec_autocmds("User", { pattern = "OfflineNetrwRedraw", modeline = false })
+	vim.api.nvim_exec_autocmds("User", { pattern = "NopackNetrwRedraw", modeline = false })
 	vim.o.lazyredraw = saved_lazyredraw
 	if not ok then
 		error(err)
@@ -661,24 +668,24 @@ local function sidebar_width()
 end
 -- winfixwidth belongs to the window itself, so release it when its sidebar leaves.
 local function fix_sidebar_width(win)
-	local saved = vim.w[win].offline_sidebar_width or { value = vim.wo[win].winfixwidth }
+	local saved = vim.w[win].nopack_sidebar_width or { value = vim.wo[win].winfixwidth }
 	saved.buf = vim.api.nvim_win_get_buf(win)
-	vim.w[win].offline_sidebar_width = saved
+	vim.w[win].nopack_sidebar_width = saved
 	vim.wo[win][0].winfixwidth = true
 end
 vim.api.nvim_create_autocmd("BufWinEnter", {
-	group = vim.api.nvim_create_augroup("offline-sidebar-width", { clear = true }),
+	group = vim.api.nvim_create_augroup("nopack-sidebar-width", { clear = true }),
 	callback = function(args)
-		local saved = vim.w.offline_sidebar_width
+		local saved = vim.w.nopack_sidebar_width
 		if saved and saved.buf ~= args.buf then
 			vim.opt_local.winfixwidth = saved.value
-			vim.w.offline_sidebar_width = nil
+			vim.w.nopack_sidebar_width = nil
 		end
 	end,
 })
 local function netrw_help()
 	local lines = {
-		"netrw file explorer · Offline configuration",
+		"netrw file explorer · Nopack configuration",
 		"",
 		"Navigation / Opening",
 		"  j / k             Move down / up",
@@ -907,9 +914,9 @@ vim.g.netrw_keepdir = 1
 vim.g.netrw_bufsettings = "noma nomod nu nobl nowrap ro nornu"
 -- Reserve native helper mappings before netrw initializes any new buffer;
 -- otherwise it tries to install Ctrl-h/l over the global window shortcuts.
-vim.keymap.set("n", "<Plug>OfflineNetrwHideEdit", "<Plug>NetrwHideEdit")
-vim.keymap.set("n", "<Plug>OfflineNetrwRefresh", "<Plug>NetrwRefresh")
-local netrw_lines_group = vim.api.nvim_create_augroup("offline-netrw-lines", { clear = true })
+vim.keymap.set("n", "<Plug>NopackNetrwHideEdit", "<Plug>NetrwHideEdit")
+vim.keymap.set("n", "<Plug>NopackNetrwRefresh", "<Plug>NetrwRefresh")
+local netrw_lines_group = vim.api.nvim_create_augroup("nopack-netrw-lines", { clear = true })
 vim.api.nvim_create_autocmd("Syntax", {
 	group = netrw_lines_group,
 	pattern = "netrw",
@@ -1092,7 +1099,7 @@ local completion_buffers, pending_completion = {}, {}
 local function buffer_completion(buf)
 	vim.bo[buf].autocomplete = vim.bo[buf].buftype == ""
 		and vim.bo[buf].filetype ~= "netrw"
-		and not vim.b[buf].offline_large_file
+		and not vim.b[buf].nopack_large_file
 		and #vim.lsp.get_clients({ bufnr = buf, method = "textDocument/completion" }) == 0
 	completion_buffers[buf] = vim.bo[buf].buftype
 end
@@ -1206,7 +1213,7 @@ end, { silent = true, nowait = true, desc = "Toggle file explorer" })
 -- =========================================
 -- 트리에서 파일/버퍼를 선택할 때 결과를 표시할 편집 창을 확보합니다.
 focus_editor = function()
-	if vim.bo.filetype ~= "netrw" and vim.bo.filetype ~= "offline_outline" then
+	if vim.bo.filetype ~= "netrw" and vim.bo.filetype ~= "nopack_outline" then
 		return
 	end
 	for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
@@ -1268,13 +1275,13 @@ local function buffer_index(buf)
 	return 1
 end
 -- Listed buffers in the top bar; numbers match Alt-1..8 (Alt-9 = last).
-function _G.OfflineTablineClick(buf, _, button)
+function _G.NopackTablineClick(buf, _, button)
 	if button == "l" and vim.api.nvim_buf_is_valid(buf) then
 		select_buffer(buf)
 	end
 end
 
-function _G.OfflineTabline()
+function _G.NopackTabline()
 	if tabline_cache then
 		return tabline_cache
 	end
@@ -1288,7 +1295,7 @@ function _G.OfflineTabline()
 		items[#items + 1] = hl
 			.. "%"
 			.. b
-			.. "@v:lua.OfflineTablineClick@"
+			.. "@v:lua.NopackTablineClick@"
 			.. " "
 			.. i
 			.. ":"
@@ -1299,7 +1306,7 @@ function _G.OfflineTabline()
 	tabline_cache = table.concat(items) .. "%#TabLineFill#"
 	return tabline_cache
 end
-vim.opt.tabline = "%!v:lua.OfflineTabline()"
+vim.opt.tabline = "%!v:lua.NopackTabline()"
 local function invalidate_tabline()
 	tabline_cache = nil
 end
@@ -1459,7 +1466,7 @@ end
 -- =========================================
 -- Python 패키지·표준 라이브러리 경계 안에서 Git을 찾고, 일반 파일은 Git을 우선합니다.
 -- 트리·검색·LSP가 같은 기준을 쓰며 BufEnter에서 편집 창의 lcd와 트리를 맞춥니다.
--- Reuse roots until project/external changes; :OfflineRefresh also forces discovery.
+-- Reuse roots until project/external changes; :NopackRefresh also forces discovery.
 local git_roots, project_roots = {}, {}
 local function find_git_root(dir)
 	local cached = git_roots[dir]
@@ -1548,7 +1555,7 @@ end
 -- The original config shares project cwd between file navigation, tree and searches.
 local syncing_project = false
 vim.api.nvim_create_autocmd("BufEnter", {
-	group = vim.api.nvim_create_augroup("offline-project-context", { clear = true }),
+	group = vim.api.nvim_create_augroup("nopack-project-context", { clear = true }),
 	callback = function()
 		if
 			syncing_project
@@ -1588,11 +1595,11 @@ local function invalidate_project_roots()
 	git_roots, project_roots = {}, {}
 end
 vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermLeave", "TermClose" }, {
-	group = "offline-project-context",
+	group = "nopack-project-context",
 	callback = invalidate_project_roots,
 })
 vim.api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
-	group = "offline-project-context",
+	group = "nopack-project-context",
 	pattern = {
 		".git",
 		"CMakeLists.txt",
@@ -1611,13 +1618,13 @@ vim.api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
 	callback = invalidate_project_roots,
 })
 vim.api.nvim_create_autocmd("User", {
-	group = "offline-project-context",
-	pattern = { "OfflineRefresh", "OfflineNetrwRedraw" },
+	group = "nopack-project-context",
+	pattern = { "NopackRefresh", "NopackNetrwRedraw" },
 	callback = invalidate_project_roots,
 })
-vim.api.nvim_create_user_command("OfflineRefresh", function()
-	vim.api.nvim_exec_autocmds("User", { pattern = "OfflineRefresh", modeline = false })
-	vim.api.nvim_exec_autocmds("BufEnter", { group = "offline-project-context", buffer = 0, modeline = false })
+vim.api.nvim_create_user_command("NopackRefresh", function()
+	vim.api.nvim_exec_autocmds("User", { pattern = "NopackRefresh", modeline = false })
+	vim.api.nvim_exec_autocmds("BufEnter", { group = "nopack-project-context", buffer = 0, modeline = false })
 	vim.cmd("redrawstatus")
 end, { desc = "Refresh project roots and formatter availability" })
 
@@ -1626,7 +1633,7 @@ end, { desc = "Refresh project roots and formatter availability" })
 -- =========================================
 -- 검색·Git·외부 포맷터 공통 실행부. 같은 key의 새 요청은 이전 작업을 취소합니다.
 -- 기본 제한: 5초 / stdout 2 MiB. 검색은 부분 결과 허용, 포맷팅·diff는 완성된 결과만 적용.
--- :OfflineCancel: 실행 중인 명령과 picker 취소.
+-- :NopackCancel: 실행 중인 명령과 picker 취소.
 local running = {}
 local format_versions = {}
 local tag_projects = {}
@@ -1697,7 +1704,7 @@ local function cancel_commands()
 		cancel_command(key)
 	end
 end
-vim.api.nvim_create_user_command("OfflineCancel", function()
+vim.api.nvim_create_user_command("NopackCancel", function()
 	cancel_commands()
 	if active_picker then
 		active_picker.close()
@@ -1850,7 +1857,7 @@ open_picker = function(title, opts)
 	-- -------------------------------------
 	local function pane(role, pane_row, pane_col, pane_width, pane_height, enter)
 		local buf = vim.api.nvim_create_buf(false, true)
-		vim.b[buf].offline_picker_role = role
+		vim.b[buf].nopack_picker_role = role
 		vim.bo[buf].bufhidden = "wipe"
 		local win = vim.api.nvim_open_win(buf, enter, {
 			relative = "editor",
@@ -1872,17 +1879,17 @@ open_picker = function(title, opts)
 	if list_width < width then
 		preview_buf, preview_win = pane("preview", row + 3, col + list_width + 2, width - list_width - 2, height, false)
 		if not opts.preview then
-			vim.b[preview_buf].offline_preview_first = 1
+			vim.b[preview_buf].nopack_preview_first = 1
 			vim.wo[preview_win][0].number = true
 			vim.wo[preview_win][0].signcolumn = "yes:1"
-			vim.wo[preview_win][0].statuscolumn = "%s%{v:lnum + b:offline_preview_first - 1}  "
+			vim.wo[preview_win][0].statuscolumn = "%s%{v:lnum + b:nopack_preview_first - 1}  "
 		end
 	end
 	local query_buf, query_win = pane("query", row, col, width, 1, true)
 	vim.wo[list_win][0].cursorline = true
 	vim.wo[list_win][0].cursorlineopt = "line"
-	vim.wo[list_win][0].winhighlight = "CursorLine:OfflinePickerSelection,CursorLineNr:OfflinePickerSelection"
-	local group = vim.api.nvim_create_augroup("offline-picker", { clear = true })
+	vim.wo[list_win][0].winhighlight = "CursorLine:NopackPickerSelection,CursorLineNr:NopackPickerSelection"
+	local group = vim.api.nvim_create_augroup("nopack-picker", { clear = true })
 	local function fill(buf, lines)
 		if not vim.api.nvim_buf_is_valid(buf) then
 			return
@@ -1894,7 +1901,7 @@ open_picker = function(title, opts)
 	-- -------------------------------------
 	-- Preview: discard responses for an older selection
 	-- -------------------------------------
-	local preview_ns = vim.api.nvim_create_namespace("offline-picker-preview")
+	local preview_ns = vim.api.nvim_create_namespace("nopack-picker-preview")
 	local preview_generation = 0
 	local function preview(item)
 		preview_generation = preview_generation + 1
@@ -1925,7 +1932,7 @@ open_picker = function(title, opts)
 				chunk[#chunk + 1] = lines[i]:sub(1, 500)
 			end
 			fill(preview_buf, chunk)
-			vim.b[preview_buf].offline_preview_first = first or start
+			vim.b[preview_buf].nopack_preview_first = first or start
 			local selected = line - (first or start)
 			if selected >= 0 and selected < #chunk then
 				vim.api.nvim_buf_set_extmark(preview_buf, preview_ns, selected, 0, {
@@ -2596,7 +2603,7 @@ do
 			return
 		end
 		local win, buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
-		if vim.bo[buf].buftype ~= "" or vim.b[buf].offline_large_file or vim.fn.mode() ~= "n" then
+		if vim.bo[buf].buftype ~= "" or vim.b[buf].nopack_large_file or vim.fn.mode() ~= "n" then
 			return
 		end
 		local word = vim.fn.expand("<cword>")
@@ -2608,7 +2615,7 @@ do
 			vim.fn.matchadd("CursorWord", "\\C\\V\\<" .. vim.fn.escape(word, "\\") .. "\\>", -1)
 	end
 	vim.cmd("highlight default link CursorWord Visual")
-	local group = vim.api.nvim_create_augroup("offline-cursor-word", { clear = true })
+	local group = vim.api.nvim_create_augroup("nopack-cursor-word", { clear = true })
 	vim.api.nvim_create_autocmd("ColorScheme", {
 		group = group,
 		callback = function()
@@ -2648,7 +2655,7 @@ end, "Toggle LSP / formatter status")
 -- Space TS: animate native Ctrl-d/u views, including wrapped lines and folds.
 do
 	local enabled, animation = false, nil
-	local keys_ns = vim.api.nvim_create_namespace("offline-smooth-scroll")
+	local keys_ns = vim.api.nvim_create_namespace("nopack-smooth-scroll")
 	local function stop(finish)
 		local state = animation
 		animation = nil
@@ -2677,7 +2684,7 @@ do
 			or vim.wo[win].cursorbind
 			or vim.bo[buf].buftype ~= ""
 			or vim.bo[buf].filetype == "netrw"
-			or vim.b[buf].offline_large_file
+			or vim.b[buf].nopack_large_file
 			or vim.fn.reg_executing() ~= ""
 			or vim.fn.reg_recording() ~= ""
 		then
@@ -2748,7 +2755,7 @@ do
 		vim.notify("Smooth scroll " .. (enabled and "enabled" or "disabled"))
 	end, "Toggle smooth scroll")
 	vim.api.nvim_create_autocmd({ "BufLeave", "WinLeave", "ModeChanged", "VimResized" }, {
-		group = vim.api.nvim_create_augroup("offline-smooth-scroll", { clear = true }),
+		group = vim.api.nvim_create_augroup("nopack-smooth-scroll", { clear = true }),
 		callback = function()
 			stop(false)
 		end,
@@ -2804,8 +2811,8 @@ map({ "n", "t" }, "<C-t>", toggle_terminal, "Toggle bottom terminal")
 -- =========== PROJECT SESSIONS ==========
 -- =========================================
 -- Persistence 대체: Space pr/pl/pS/pd = 현재 프로젝트 복원/마지막 복원/선택/저장 중지.
--- stdpath(data)/offline/sessions에 저장. 세션은 미저장 편집 내용의 백업이 아닙니다.
-local session_dir = offline_data .. "/sessions/"
+-- stdpath(data)/nopack/sessions에 저장. 세션은 미저장 편집 내용의 백업이 아닙니다.
+local session_dir = nopack_data .. "/sessions/"
 vim.fn.mkdir(session_dir, "p")
 local save_session = true
 local function session_path(root)
@@ -2904,7 +2911,7 @@ local dashboard_header = {
 	"⠀⠀⠀⢣⠈⠉⠉⠉⠉⠻⣉⡶⠖⠋⠀⠀⠀⠀⡇⢸⠀⠸⡉⠏⢐⣾⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
 	"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣖⠒⠒⠠⡀⠀⠀⡇⢸⠀⠀⡱⠈⠁⣼⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
 }
-local dashboard_namespace = vim.api.nvim_create_namespace("offline-dashboard")
+local dashboard_namespace = vim.api.nvim_create_namespace("nopack-dashboard")
 
 local dashboard_win
 local function open_dashboard()
@@ -2916,7 +2923,7 @@ local function open_dashboard()
 	local source_buf = vim.api.nvim_win_get_buf(source)
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.bo[buf].bufhidden = "wipe"
-	vim.bo[buf].filetype = "offline_dashboard"
+	vim.bo[buf].filetype = "nopack_dashboard"
 	local win = vim.api.nvim_open_win(buf, true, {
 		relative = "win",
 		win = source,
@@ -2934,7 +2941,7 @@ local function open_dashboard()
 	vim.wo[win][0].cursorlineopt = "line"
 	vim.wo[win][0].list = false
 	vim.wo[win][0].wrap = false
-	local group = vim.api.nvim_create_augroup("offline-dashboard-window", { clear = true })
+	local group = vim.api.nvim_create_augroup("nopack-dashboard-window", { clear = true })
 	local closed = false
 	local function source_is_empty()
 		return vim.api.nvim_win_is_valid(source)
@@ -3192,7 +3199,7 @@ vim.api.nvim_create_autocmd("VimEnter", {
 -- 상태줄: 브랜치와 현재 파일의 index/worktree 상태(XY). 미저장 편집은 기존 %m으로 표시.
 -- 화면을 그릴 때는 버퍼 캐시만 읽고, 파일 진입·저장·터미널 복귀 시 비동기로 갱신합니다.
 -- netrw Git signs: XY is index/worktree status; ** aggregates mixed children.
-local netrw_git_namespace = vim.api.nvim_create_namespace("offline-netrw-git")
+local netrw_git_namespace = vim.api.nvim_create_namespace("nopack-netrw-git")
 local netrw_git_timer = -1
 local netrw_git_updated = -1000
 local netrw_git_cache = {}
@@ -3362,7 +3369,7 @@ local function queue_netrw_git()
 	end
 end
 
-local netrw_git_group = vim.api.nvim_create_augroup("offline-netrw-git", { clear = true })
+local netrw_git_group = vim.api.nvim_create_augroup("nopack-netrw-git", { clear = true })
 vim.api.nvim_create_autocmd("BufWipeout", {
 	group = netrw_git_group,
 	callback = function(args)
@@ -3391,7 +3398,7 @@ vim.api.nvim_create_autocmd("TextChanged", {
 })
 vim.api.nvim_create_autocmd("User", {
 	group = netrw_git_group,
-	pattern = "OfflineNetrwRedraw",
+	pattern = "NopackNetrwRedraw",
 	callback = redraw_netrw_git,
 })
 vim.api.nvim_create_autocmd("VimLeavePre", {
@@ -3415,7 +3422,7 @@ local function refresh_git_status(buf, force)
 	end
 	cancel_command(key)
 	if not root or vim.fn.executable("git") == 0 then
-		vim.b[buf].offline_git_status = nil
+		vim.b[buf].nopack_git_status = nil
 		return
 	end
 	run_command(key, {
@@ -3443,8 +3450,8 @@ local function refresh_git_status(buf, force)
 			branch = "HEAD@" .. (oid or ""):sub(1, 7)
 		end
 		local status = branch and ("[" .. branch .. (xy and " " .. xy or "") .. "]") or ""
-		if vim.b[buf].offline_git_status ~= status then
-			vim.b[buf].offline_git_status = status
+		if vim.b[buf].nopack_git_status ~= status then
+			vim.b[buf].nopack_git_status = status
 			vim.cmd("redrawstatus")
 		end
 	end)
@@ -3453,7 +3460,7 @@ local function refresh_git_status(buf, force)
 	end
 end
 vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained", "ShellCmdPost", "TermLeave", "TermClose" }, {
-	group = vim.api.nvim_create_augroup("offline-git-status", { clear = true }),
+	group = vim.api.nvim_create_augroup("nopack-git-status", { clear = true }),
 	callback = function(args)
 		if args.event == "TermLeave" or args.event == "TermClose" then
 			for _, buf in ipairs(vim.api.nvim_list_bufs()) do
@@ -3501,7 +3508,7 @@ local function open_git_diff(source_buf, source_win, base_lines, filetype)
 	show_output(base_lines, filetype, true)
 	local base_buf, base_win = vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win()
 	vim.cmd("diffthis")
-	local group = vim.api.nvim_create_augroup("offline-git-diff-window", { clear = true })
+	local group = vim.api.nvim_create_augroup("nopack-git-diff-window", { clear = true })
 	function state.close()
 		if state.closed then
 			return
@@ -3613,7 +3620,7 @@ end
 -- 현재 버퍼(미저장 내용 포함)를 index와 비교하여 + / ~ / - 표시. stage/reset은 하지 않습니다.
 -- 버퍼별 단일 200ms 타이머. diff/행 정렬은 worker에서 실행하고 최신 결과만 표시합니다.
 -- 미추적·바이너리·256 KiB 초과 파일은 제외합니다. 창 이동만으로 index를 다시 읽지 않습니다.
-local git_signs = vim.api.nvim_create_namespace("offline-git-signs")
+local git_signs = vim.api.nvim_create_namespace("nopack-git-signs")
 local git_sign_versions, git_sign_timers, git_diff_jobs, git_sign_rendered = {}, {}, {}, {}
 local git_base_cache = {}
 -- Git atomically replaces the index. Include inode and nanosecond timestamps so
@@ -3701,7 +3708,7 @@ end, "Previous Git hunk")
 
 local inline_blame = {
 	enabled = false,
-	namespace = vim.api.nvim_create_namespace("offline-inline-blame"),
+	namespace = vim.api.nvim_create_namespace("nopack-inline-blame"),
 	timer = -1,
 	version = 0,
 }
@@ -3726,7 +3733,7 @@ local function refresh_inline_blame()
 		not inline_blame.enabled
 		or vim.bo[buf].buftype ~= ""
 		or vim.bo[buf].modified
-		or vim.b[buf].offline_large_file
+		or vim.b[buf].nopack_large_file
 	then
 		return
 	end
@@ -3810,7 +3817,7 @@ vim.api.nvim_create_autocmd({
 	"TermLeave",
 	"TermClose",
 }, {
-	group = vim.api.nvim_create_augroup("offline-inline-blame", { clear = true }),
+	group = vim.api.nvim_create_augroup("nopack-inline-blame", { clear = true }),
 	callback = function(args)
 		if
 			args.event == "CursorMoved"
@@ -3823,7 +3830,7 @@ vim.api.nvim_create_autocmd({
 	end,
 })
 vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "BufLeave" }, {
-	group = "offline-inline-blame",
+	group = "nopack-inline-blame",
 	callback = function(args)
 		stop_inline_blame()
 		clear_inline_blame(args.buf)
@@ -4010,7 +4017,7 @@ local function queue_git_signs(buf)
 		local limit = 256 * 1024
 		if
 			vim.bo[buf].buftype ~= ""
-			or vim.b[buf].offline_large_file
+			or vim.b[buf].nopack_large_file
 			or file == ""
 			or vim.fn.executable("git") == 0
 			or vim.api.nvim_buf_line_count(buf) > 20000
@@ -4040,7 +4047,7 @@ local function queue_git_signs(buf)
 				and vim.api.nvim_buf_is_loaded(buf)
 				and vim.api.nvim_buf_get_changedtick(buf) == tick
 				and vim.api.nvim_buf_get_name(buf) == file
-				and not vim.b[buf].offline_large_file
+				and not vim.b[buf].nopack_large_file
 				and git_index_stamp(root) == stamp
 		end
 		local function apply_base(base)
@@ -4104,7 +4111,7 @@ vim.api.nvim_create_autocmd({
 	"TermLeave",
 	"TermClose",
 }, {
-	group = vim.api.nvim_create_augroup("offline-git-signs", { clear = true }),
+	group = vim.api.nvim_create_augroup("nopack-git-signs", { clear = true }),
 	callback = function(args)
 		if
 			args.event == "FocusGained"
@@ -4126,7 +4133,7 @@ vim.api.nvim_create_autocmd({
 	end,
 })
 vim.api.nvim_create_autocmd({ "BufUnload", "BufWipeout" }, {
-	group = "offline-git-signs",
+	group = "nopack-git-signs",
 	callback = function(args)
 		stop_git_sign_timer(args.buf)
 		git_sign_versions[args.buf], git_base_cache[args.buf], git_sign_rendered[args.buf] = nil, nil, nil
@@ -4137,7 +4144,7 @@ vim.api.nvim_create_autocmd({ "BufUnload", "BufWipeout" }, {
 	end,
 })
 vim.api.nvim_create_autocmd("VimLeavePre", {
-	group = "offline-git-signs",
+	group = "nopack-git-signs",
 	callback = function()
 		for buf in pairs(git_sign_timers) do
 			stop_git_sign_timer(buf)
@@ -4190,7 +4197,7 @@ local formatters = {
 	rust = { { "rustfmt", "--emit=stdout", "--edition=2021" } },
 }
 vim.api.nvim_create_autocmd({ "FileType", "BufFilePost", "BufWritePost", "BufWipeout" }, {
-	group = vim.api.nvim_create_augroup("offline-format-status", { clear = true }),
+	group = vim.api.nvim_create_augroup("nopack-format-status", { clear = true }),
 	callback = function(args)
 		format_status_cache[args.buf] = nil
 	end,
@@ -4199,15 +4206,15 @@ local function invalidate_format_status()
 	format_status_cache = {}
 end
 vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermLeave", "TermClose" }, {
-	group = "offline-format-status",
+	group = "nopack-format-status",
 	callback = invalidate_format_status,
 })
 vim.api.nvim_create_autocmd("User", {
-	group = "offline-format-status",
-	pattern = "OfflineRefresh",
+	group = "nopack-format-status",
+	pattern = "NopackRefresh",
 	callback = invalidate_format_status,
 })
-function _G.OfflineFormatStatus()
+function _G.NopackFormatStatus()
 	if not language_status_visible then
 		return ""
 	end
@@ -4377,7 +4384,7 @@ local function ctags_candidates()
 			candidates[#candidates + 1] = path
 		end
 	end
-	add(vim.g.offline_ctags)
+	add(vim.g.nopack_ctags)
 	local executable = vim.fn.has("win32") == 1 and "ctags.exe" or "ctags"
 	local separator = vim.fn.has("win32") == 1 and ";" or ":"
 	for _, directory in ipairs(vim.split(vim.env.PATH or "", separator, { plain = true, trimempty = true })) do
@@ -4392,7 +4399,7 @@ local function ctags_available(quiet, callback)
 	local function answer(available)
 		if not available and not quiet then
 			vim.notify(
-				"Universal or Exuberant Ctags required; check ctags --version or g:offline_ctags",
+				"Universal or Exuberant Ctags required; check ctags --version or g:nopack_ctags",
 				vim.log.levels.WARN
 			)
 		end
@@ -4466,7 +4473,7 @@ local function tag_context(buf)
 		not vim.api.nvim_buf_is_valid(buf)
 		or vim.bo[buf].buftype ~= ""
 		or vim.bo[buf].filetype == "netrw"
-		or vim.b[buf].offline_large_file
+		or vim.b[buf].nopack_large_file
 	then
 		return
 	end
@@ -4480,9 +4487,9 @@ local function tag_context(buf)
 end
 local function tag_project(root)
 	if not tag_projects[root] then
-		vim.fn.mkdir(offline_data .. "/tags", "p")
+		vim.fn.mkdir(nopack_data .. "/tags", "p")
 		tag_projects[root] = {
-			path = offline_data .. "/tags/" .. vim.fn.sha256(root),
+			path = nopack_data .. "/tags/" .. vim.fn.sha256(root),
 			pending = {},
 			waiters = {},
 			quiet = true,
@@ -4749,9 +4756,9 @@ vim.api.nvim_create_user_command("CtagsClearAll", function()
 		cancel_tag_build(root, project)
 	end
 	tag_projects = {}
-	vim.fn.delete(offline_data .. "/tags", "rf")
+	vim.fn.delete(nopack_data .. "/tags", "rf")
 	for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-		vim.b[buf].offline_tags_requested = nil
+		vim.b[buf].nopack_tags_requested = nil
 	end
 	vim.notify("Cleared all managed ctags caches")
 end, {})
@@ -4762,8 +4769,8 @@ vim.api.nvim_create_autocmd("BufEnter", {
 })
 local function ensure_tag_completion(buf)
 	if
-		vim.b[buf].offline_tags_requested
-		or vim.b[buf].offline_large_file
+		vim.b[buf].nopack_tags_requested
+		or vim.b[buf].nopack_large_file
 		or not vim.tbl_contains({ "c", "cpp", "python" }, vim.bo[buf].filetype)
 		or #vim.lsp.get_clients({ bufnr = buf, method = "textDocument/completion" }) > 0
 	then
@@ -4773,10 +4780,10 @@ local function ensure_tag_completion(buf)
 	if not root or file:find("[\r\n]") then
 		return
 	end
-	vim.b[buf].offline_tags_requested = true
+	vim.b[buf].nopack_tags_requested = true
 	build_tags(root, false, { file }, nil, function()
 		if vim.api.nvim_buf_is_valid(buf) then
-			vim.b[buf].offline_tags_requested = nil
+			vim.b[buf].nopack_tags_requested = nil
 		end
 	end, true)
 end
@@ -5044,7 +5051,7 @@ map("n", "<leader>lv", function()
 						local id = vim.lsp.start(config, { attach = false })
 						if id then
 							for _, buf in ipairs(buffers) do
-								if vim.api.nvim_buf_is_loaded(buf) and not vim.b[buf].offline_large_file then
+								if vim.api.nvim_buf_is_loaded(buf) and not vim.b[buf].nopack_large_file then
 									vim.lsp.buf_attach_client(buf, id)
 								end
 							end
@@ -5134,7 +5141,7 @@ end, "Select Python environment for this project")
 -- 서버 연결 시 자동완성과 파일 버퍼 전용 키를 설정합니다.
 -- gd/gr/gD/K: 직접 이동·조회; gR/gi/gt: picker; Space la/lr/Tr: 액션·이름 변경·심볼.
 local function attach(client, buf)
-	if vim.b[buf].offline_large_file then
+	if vim.b[buf].nopack_large_file then
 		vim.lsp.buf_detach_client(buf, client.id)
 		return
 	end
@@ -5230,7 +5237,7 @@ for _, server in ipairs(servers) do
 			end,
 			on_attach = attach,
 			root_dir = function(buf, on_dir)
-				if vim.b[buf].offline_large_file then
+				if vim.b[buf].nopack_large_file then
 					return
 				end
 				local file = vim.api.nvim_buf_get_name(buf)
@@ -5250,7 +5257,7 @@ map("n", "<leader>ls", "<Cmd>lsp restart<CR>", "Restart current buffer LSP clien
 do
 	local writes, pending_files, pending_clients = {}, {}, {}
 	local scheduled = false
-	local group = vim.api.nvim_create_augroup("offline-new-file", { clear = true })
+	local group = vim.api.nvim_create_augroup("nopack-new-file", { clear = true })
 	vim.api.nvim_create_autocmd("BufWritePre", {
 		group = group,
 		callback = function(args)
@@ -5304,7 +5311,7 @@ do
 						local id = vim.lsp.start(config, { attach = false })
 						if id then
 							for _, buf in ipairs(attached) do
-								if vim.api.nvim_buf_is_loaded(buf) and not vim.b[buf].offline_large_file then
+								if vim.api.nvim_buf_is_loaded(buf) and not vim.b[buf].nopack_large_file then
 									vim.lsp.buf_attach_client(buf, id)
 								end
 							end
@@ -5514,7 +5521,7 @@ map("n", "<leader>o", function()
 	}
 	state.buf = vim.api.nvim_create_buf(false, true)
 	vim.bo[state.buf].bufhidden = "wipe"
-	vim.bo[state.buf].filetype = "offline_outline"
+	vim.bo[state.buf].filetype = "nopack_outline"
 	state.win = vim.api.nvim_open_win(state.buf, true, {
 		split = "right",
 		win = state.source_win,
@@ -5673,7 +5680,7 @@ local function protect_large_file(buf)
 	end
 end
 local function check_large_file(buf, first, last)
-	if vim.b[buf].offline_large_file or not vim.api.nvim_buf_is_loaded(buf) then
+	if vim.b[buf].nopack_large_file or not vim.api.nvim_buf_is_loaded(buf) then
 		return
 	end
 	local count = vim.api.nvim_buf_line_count(buf)
@@ -5694,13 +5701,13 @@ local function check_large_file(buf, first, last)
 		end
 	end
 	if large then
-		vim.b[buf].offline_large_file = true
+		vim.b[buf].nopack_large_file = true
 		protect_large_file(buf)
 	end
 end
 local function queue_large_file_check(buf, first, last, added)
 	local state = watched_buffers[buf]
-	if not state or vim.b[buf].offline_large_file then
+	if not state or vim.b[buf].nopack_large_file then
 		return
 	end
 	state.first = math.min(state.first or first, first)
@@ -5726,7 +5733,7 @@ end
 vim.api.nvim_create_autocmd("BufReadPre", {
 	callback = function(args)
 		local stat = vim.uv.fs_stat(vim.api.nvim_buf_get_name(args.buf))
-		vim.b[args.buf].offline_large_file = stat and stat.size > 2 * 1024 * 1024 or false
+		vim.b[args.buf].nopack_large_file = stat and stat.size > 2 * 1024 * 1024 or false
 	end,
 })
 vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile", "FileType", "BufWinEnter" }, {
@@ -5754,7 +5761,7 @@ vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile", "FileType", "BufWinEn
 				watched_buffers[buf] = nil
 			end
 		end
-		if vim.b[buf].offline_large_file then
+		if vim.b[buf].nopack_large_file then
 			protect_large_file(buf)
 		end
 	end,
@@ -5767,7 +5774,7 @@ vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile", "FileType", "BufWinEn
 -- 없으면 기본 syntax를 유지하며 외부 파서·쿼리 다운로드는 하지 않습니다.
 vim.api.nvim_create_autocmd("FileType", {
 	callback = function(args)
-		if vim.bo[args.buf].buftype ~= "" or vim.b[args.buf].offline_large_file then
+		if vim.bo[args.buf].buftype ~= "" or vim.b[args.buf].nopack_large_file then
 			return
 		end
 		local lang = vim.treesitter.language.get_lang(vim.bo[args.buf].filetype)
@@ -5786,7 +5793,7 @@ do
 	local enabled, queued = false, false
 	local popup, cache, rendered_config
 	local numbers, numbers_config
-	local number_hl = vim.api.nvim_create_namespace("offline-sticky-numbers")
+	local number_hl = vim.api.nvim_create_namespace("nopack-sticky-numbers")
 	local function close()
 		local windows = { popup, numbers }
 		popup = nil
@@ -5882,7 +5889,7 @@ do
 			or vim.api.nvim_win_get_config(win).relative ~= ""
 			or vim.bo[buf].buftype ~= ""
 			or vim.bo[buf].filetype == "netrw"
-			or vim.b[buf].offline_large_file
+			or vim.b[buf].nopack_large_file
 			or vim.fn.getcmdwintype() ~= ""
 		then
 			close()
@@ -6077,7 +6084,7 @@ do
 			update()
 		end)
 	end
-	local group = vim.api.nvim_create_augroup("offline-sticky-scroll", { clear = true })
+	local group = vim.api.nvim_create_augroup("nopack-sticky-scroll", { clear = true })
 	vim.api.nvim_create_autocmd({
 		"VimEnter",
 		"BufEnter",
@@ -6289,7 +6296,7 @@ do
 		end
 	end
 	vim.keymap.set("n", "<Space>", guide, { nowait = true, silent = true, desc = "Space key guide" })
-	local group = vim.api.nvim_create_augroup("offline-space-guide", { clear = true })
+	local group = vim.api.nvim_create_augroup("nopack-space-guide", { clear = true })
 	vim.api.nvim_create_autocmd({ "BufLeave", "WinLeave", "TabLeave" }, {
 		group = group,
 		callback = function()

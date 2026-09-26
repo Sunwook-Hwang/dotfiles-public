@@ -17,7 +17,7 @@ do
 			end, cached.symbols)
 		end,
 	}
-	local group = vim.api.nvim_create_augroup("online-dropbar", { clear = true })
+	local group = vim.api.nvim_create_augroup("pack-dropbar", { clear = true })
 	vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermClose" }, {
 		group = group,
 		callback = function()

@@ -13,7 +13,7 @@ end
 local config_file = vim.uv.fs_realpath(debug.getinfo(1, "S").source:sub(2))
 vim.opt.runtimepath:prepend(vim.fs.dirname(config_file))
 
--- Keep initialization order explicit; offline remains a standalone configuration.
+-- Keep initialization order explicit; nopack remains a standalone configuration.
 require("options")
 require("keymaps")
 require("bigfile")

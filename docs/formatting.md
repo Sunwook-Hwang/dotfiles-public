@@ -20,10 +20,10 @@ not rewritten by a formatter for a different language.
 
 ## Editor integration
 
-The tool choices come from `lua/format.lua`, `init.offline.lua`, and `vim/.vimrc`.
+The tool choices come from `lua/format.lua`, `nvim-nopack/init.lua`, and `vim/.vimrc`.
 StyLua, Prettier/prettierd, Ruff, Black, and shfmt read the shared configuration
 files at the project root. Use the editor's `Space lf` mapping to format a buffer.
-Online uses prettierd when available, with Prettier as its fallback. Python uses
+Pack uses prettierd when available, with Prettier as its fallback. Python uses
 Ruff first and Black as a fallback; the two may still produce different results.
 
 The baseline was produced with StyLua 2.5.2, Prettier 3.9.9, shfmt 3.14.1,
@@ -57,7 +57,7 @@ existing defaults.
 `pyproject.toml`에 고정했습니다. 편집기에서 `Space lf`로 포매팅하면 프로젝트의
 설정 파일을 읽습니다.
 
-onvi·offvi·Vim의 포매터 선택을 따릅니다. Python은 Ruff를 우선 사용하고, 없으면
+pvi·npvi·Vim의 포매터 선택을 따릅니다. Python은 Ruff를 우선 사용하고, 없으면
 Black을 사용합니다. 셸은 에디터와 동일하게 `.editorconfig`를 읽습니다. 포매터가 없는 설정은
 값을 유지합니다. 포매터 업데이트 시에는 변경 내용을 검토해야 합니다.
 

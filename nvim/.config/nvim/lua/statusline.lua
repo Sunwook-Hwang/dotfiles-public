@@ -1,5 +1,5 @@
 -- -------------------------------------
--- Statusline: native renderer from init.offline.lua
+-- Statusline: native renderer from nvim-nopack/init.lua
 -- -------------------------------------
 do
 	local git_mode_group
@@ -40,7 +40,7 @@ do
 			fg, ctermfg =
 				background_luminance > 0.179 and 0x000000 or 0xffffff, background_luminance > 0.179 and 0 or 15
 		end
-		vim.api.nvim_set_hl(0, "OnlineGitBranch", {
+		vim.api.nvim_set_hl(0, "PackGitBranch", {
 			fg = fg,
 			bg = bg,
 			ctermfg = ctermfg,
@@ -51,15 +51,15 @@ do
 		})
 		return true
 	end
-	local function set_online_status_highlights()
+	local function set_pack_status_highlights()
 		local inactive = vim.api.nvim_get_hl(0, { name = "StatusLineNC", link = false })
 		inactive.bold = false
 		if inactive.cterm then
 			inactive.cterm.bold = false
 		end
 		vim.api.nvim_set_hl(0, "StatusLineNC", inactive)
-		vim.api.nvim_set_hl(0, "OnlineLspMissing", { fg = "#ffffff", bg = "#af0000", bold = true })
-		vim.api.nvim_set_hl(0, "OnlineLspMissingNC", { fg = "#ffffff", bg = "#af0000", bold = false, nocombine = true })
+		vim.api.nvim_set_hl(0, "PackLspMissing", { fg = "#ffffff", bg = "#af0000", bold = true })
+		vim.api.nvim_set_hl(0, "PackLspMissingNC", { fg = "#ffffff", bg = "#af0000", bold = false, nocombine = true })
 		git_mode_group = nil
 		set_git_mode_highlight()
 		for _, suffix in ipairs({ "", "NC" }) do
@@ -76,19 +76,19 @@ do
 			end
 			error_hl.nocombine = true
 			error_hl.reverse, error_hl.fg, error_hl.ctermfg = false, "#ff0000", 9
-			vim.api.nvim_set_hl(0, "OnlineStatusError" .. suffix, error_hl)
+			vim.api.nvim_set_hl(0, "PackStatusError" .. suffix, error_hl)
 			local warn_hl = vim.deepcopy(error_hl)
 			warn_hl.fg, warn_hl.ctermfg = "#ffd700", 220
-			vim.api.nvim_set_hl(0, "OnlineStatusWarn" .. suffix, warn_hl)
+			vim.api.nvim_set_hl(0, "PackStatusWarn" .. suffix, warn_hl)
 		end
 	end
-	set_online_status_highlights()
+	set_pack_status_highlights()
 	vim.api.nvim_create_autocmd("ColorScheme", {
-		group = vim.api.nvim_create_augroup("online-status-highlights", { clear = true }),
-		callback = set_online_status_highlights,
+		group = vim.api.nvim_create_augroup("pack-status-highlights", { clear = true }),
+		callback = set_pack_status_highlights,
 	})
 	vim.api.nvim_create_autocmd("ModeChanged", {
-		group = "online-status-highlights",
+		group = "pack-status-highlights",
 		callback = function()
 			if set_git_mode_highlight() then
 				vim.cmd("redrawstatus")
@@ -97,7 +97,7 @@ do
 	})
 	vim.opt.laststatus = 2
 	local language_status_visible = true
-	function _G.OnlineGitStatus()
+	function _G.PackGitStatus()
 		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 		local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
 		if win ~= active then
@@ -108,20 +108,20 @@ do
 		if not status or status == "" then
 			return ""
 		end
-		return "%#OnlineGitBranch# " .. status:gsub("%%", "%%%%") .. " %*"
+		return "%#PackGitBranch# " .. status:gsub("%%", "%%%%") .. " %*"
 	end
 	local diagnostic_counts = {}
 	vim.api.nvim_create_autocmd({ "DiagnosticChanged", "BufWipeout" }, {
-		group = vim.api.nvim_create_augroup("online-diagnostic-status", { clear = true }),
+		group = vim.api.nvim_create_augroup("pack-diagnostic-status", { clear = true }),
 		callback = function(args)
 			diagnostic_counts[args.buf] = nil
 		end,
 	})
-	function _G.OnlineDiagnosticStatus()
+	function _G.PackDiagnosticStatus()
 		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 		local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
-		local error_group = win == active and "OnlineStatusError" or "OnlineStatusErrorNC"
-		local warn_group = win == active and "OnlineStatusWarn" or "OnlineStatusWarnNC"
+		local error_group = win == active and "PackStatusError" or "PackStatusErrorNC"
+		local warn_group = win == active and "PackStatusWarn" or "PackStatusWarnNC"
 		local buf = vim.api.nvim_win_get_buf(win)
 		local counts = diagnostic_counts[buf]
 		if not counts then
@@ -140,7 +140,7 @@ do
 		return table.concat(parts, " ")
 	end
 	local lsp_status_cache, format_status_cache = {}, {}
-	function _G.OnlineLspStatus()
+	function _G.PackLspStatus()
 		if not language_status_visible then
 			return ""
 		end
@@ -170,11 +170,11 @@ do
 			state.text = #sorted > 0 and ("[LSP: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]") or ""
 		end
 		local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
-		local missing_group = win == active and "OnlineLspMissing" or "OnlineLspMissingNC"
+		local missing_group = win == active and "PackLspMissing" or "PackLspMissingNC"
 		return state.text ~= "" and state.text or ("%#" .. missing_group .. "#[LSP X]%*")
 	end
 	vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach", "BufWipeout" }, {
-		group = vim.api.nvim_create_augroup("online-lsp-status", { clear = true }),
+		group = vim.api.nvim_create_augroup("pack-lsp-status", { clear = true }),
 		callback = function(args)
 			lsp_status_cache[args.buf], format_status_cache[args.buf] = nil, nil
 			if args.event == "BufWipeout" then
@@ -188,7 +188,7 @@ do
 		end,
 	})
 	vim.api.nvim_create_autocmd({ "FileType", "BufFilePost", "BufWritePost" }, {
-		group = vim.api.nvim_create_augroup("online-format-status", { clear = true }),
+		group = vim.api.nvim_create_augroup("pack-format-status", { clear = true }),
 		callback = function(args)
 			format_status_cache[args.buf] = nil
 		end,
@@ -197,18 +197,18 @@ do
 		format_status_cache = {}
 	end
 	vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermClose" }, {
-		group = "online-format-status",
+		group = "pack-format-status",
 		callback = invalidate_format_status,
 	})
 	vim.api.nvim_create_autocmd("User", {
-		group = "online-format-status",
-		pattern = "OnlineRefresh",
+		group = "pack-format-status",
+		pattern = "PackRefresh",
 		callback = invalidate_format_status,
 	})
 	for _, event in ipairs({ "package:install:success", "package:uninstall:success" }) do
 		require("mason-registry"):on(event, vim.schedule_wrap(invalidate_format_status))
 	end
-	function _G.OnlineFormatStatus()
+	function _G.PackFormatStatus()
 		if not language_status_visible then
 			return ""
 		end
@@ -247,14 +247,14 @@ do
 		format_status_cache[buf] = by_cwd
 		return text
 	end
-	function _G.OnlineStatusline()
+	function _G.PackStatusline()
 		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 		if win ~= vim.api.nvim_get_current_win() then
 			return " %f %= %y "
 		end
-		return "%{%v:lua.OnlineGitStatus()%} %f %m%r%h %= %{%v:lua.OnlineDiagnosticStatus()%} %{%v:lua.OnlineLspStatus()%} %{v:lua.OnlineFormatStatus()} %y | %4l:%3c | %3p%% "
+		return "%{%v:lua.PackGitStatus()%} %f %m%r%h %= %{%v:lua.PackDiagnosticStatus()%} %{%v:lua.PackLspStatus()%} %{v:lua.PackFormatStatus()} %y | %4l:%3c | %3p%% "
 	end
-	vim.opt.statusline = "%!v:lua.OnlineStatusline()"
+	vim.opt.statusline = "%!v:lua.PackStatusline()"
 	vim.keymap.set("n", "<leader>Tl", function()
 		language_status_visible = not language_status_visible
 		vim.cmd("redrawstatus")

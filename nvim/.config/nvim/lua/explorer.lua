@@ -97,8 +97,21 @@ do
 	})
 	vim.api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
 		group = "online-project-root",
-		pattern = { ".git", "CMakeLists.txt", "compile_commands.json", "Makefile", "package.json", "pyproject.toml",
-			"Cargo.toml", "WORKSPACE", "WORKSPACE.bazel", "MODULE.bazel", "buf.yaml", "os.py", "__init__.py" },
+		pattern = {
+			".git",
+			"CMakeLists.txt",
+			"compile_commands.json",
+			"Makefile",
+			"package.json",
+			"pyproject.toml",
+			"Cargo.toml",
+			"WORKSPACE",
+			"WORKSPACE.bazel",
+			"MODULE.bazel",
+			"buf.yaml",
+			"os.py",
+			"__init__.py",
+		},
 		callback = invalidate_roots,
 	})
 	vim.api.nvim_create_autocmd("User", {
@@ -131,4 +144,3 @@ do
 		Snacks.explorer({ cwd = root_for(dir or vim.fn.getcwd()).root })
 	end, { desc = "Toggle file explorer" })
 end
-

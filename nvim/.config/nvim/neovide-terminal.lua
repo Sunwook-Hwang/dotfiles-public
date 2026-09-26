@@ -25,53 +25,53 @@ vim.g.neovide_cursor_vfx_mode = ""
 vim.g.neovide_scale_factor = 1.0
 
 if vim.g.neovide and vim.fn.has("win32") == 1 then
-    vim.keymap.set({ "n", "i", "v", "t" }, "<F11>", function()
-        vim.g.neovide_fullscreen = not vim.g.neovide_fullscreen
-    end, { desc = "Toggle fullscreen (Neovide Windows)" })
+	vim.keymap.set({ "n", "i", "v", "t" }, "<F11>", function()
+		vim.g.neovide_fullscreen = not vim.g.neovide_fullscreen
+	end, { desc = "Toggle fullscreen (Neovide Windows)" })
 end
 
 local function change_scale(delta)
-    local new = vim.g.neovide_scale_factor * (1 + delta)
-    if new < 0.3 then
-        new = 0.3
-    end
-    vim.g.neovide_scale_factor = new
+	local new = vim.g.neovide_scale_factor * (1 + delta)
+	if new < 0.3 then
+		new = 0.3
+	end
+	vim.g.neovide_scale_factor = new
 end
 
 -- Windows/Linux
 vim.keymap.set({ "n", "i", "v", "t" }, "<C-=>", function()
-    change_scale(0.10)
+	change_scale(0.10)
 end, { desc = "Zoom In (Neovide)" })
 vim.keymap.set({ "n", "i", "v", "t" }, "<C-->", function()
-    change_scale(-0.10)
+	change_scale(-0.10)
 end, { desc = "Zoom Out (Neovide)" })
 vim.keymap.set({ "n", "i", "v", "t" }, "<C-0>", function()
-    vim.g.neovide_scale_factor = 1.0
+	vim.g.neovide_scale_factor = 1.0
 end, { desc = "Zoom Reset (Neovide)" })
 
 -- macOS
 vim.keymap.set({ "n", "i", "v", "t" }, "<D-=>", function()
-    change_scale(0.10)
+	change_scale(0.10)
 end, { desc = "Zoom In (Neovide macOS)" })
 vim.keymap.set({ "n", "i", "v", "t" }, "<D-->", function()
-    change_scale(-0.10)
+	change_scale(-0.10)
 end, { desc = "Zoom Out (Neovide macOS)" })
 vim.keymap.set({ "n", "i", "v", "t" }, "<D-0>", function()
-    vim.g.neovide_scale_factor = 1.0
+	vim.g.neovide_scale_factor = 1.0
 end, { desc = "Zoom Reset (Neovide macOS)" })
 
 -- terminal 열기
 if vim.fn.has("win32") == 1 then
-    -- cmd.exe history is session-only; persist PowerShell history after each command.
-    local shell = vim.fn.executable("pwsh") == 1 and "pwsh" or "powershell"
-    vim.fn.jobstart({
-        shell,
-        "-NoLogo",
-        "-NoExit",
-        "-Command",
-        "Import-Module PSReadLine; Set-PSReadLineOption -HistorySaveStyle SaveIncrementally",
-    }, { term = true })
+	-- cmd.exe history is session-only; persist PowerShell history after each command.
+	local shell = vim.fn.executable("pwsh") == 1 and "pwsh" or "powershell"
+	vim.fn.jobstart({
+		shell,
+		"-NoLogo",
+		"-NoExit",
+		"-Command",
+		"Import-Module PSReadLine; Set-PSReadLineOption -HistorySaveStyle SaveIncrementally",
+	}, { term = true })
 else
-    vim.cmd("terminal")
+	vim.cmd("terminal")
 end
 vim.cmd("startinsert")

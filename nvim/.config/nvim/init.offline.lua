@@ -264,10 +264,18 @@ vim.keymap.set("n", "<S-Up>", ":resize -5<CR>", { noremap = true, silent = true 
 vim.keymap.set("n", "<S-Down>", ":resize +5<CR>", { noremap = true, silent = true })
 vim.keymap.set("n", "<S-Left>", ":vertical resize -5<CR>", { noremap = true, silent = true })
 vim.keymap.set("n", "<S-Right>", ":vertical resize +5<CR>", { noremap = true, silent = true })
-vim.keymap.set("t", "<S-Up>", function() vim.cmd("resize -5") end, { silent = true })
-vim.keymap.set("t", "<S-Down>", function() vim.cmd("resize +5") end, { silent = true })
-vim.keymap.set("t", "<S-Left>", function() vim.cmd("vertical resize -5") end, { silent = true })
-vim.keymap.set("t", "<S-Right>", function() vim.cmd("vertical resize +5") end, { silent = true })
+vim.keymap.set("t", "<S-Up>", function()
+	vim.cmd("resize -5")
+end, { silent = true })
+vim.keymap.set("t", "<S-Down>", function()
+	vim.cmd("resize +5")
+end, { silent = true })
+vim.keymap.set("t", "<S-Left>", function()
+	vim.cmd("vertical resize -5")
+end, { silent = true })
+vim.keymap.set("t", "<S-Right>", function()
+	vim.cmd("vertical resize +5")
+end, { silent = true })
 
 -- Leader mappings (yank/paste behavior tweaks)
 vim.keymap.set("n", "x", [["_x]], { noremap = true, silent = true })
@@ -361,11 +369,8 @@ local function picker_selection_highlight()
 	local red, green, blue = channels(background)
 	if selected_background ~= nil then
 		local selected_red, selected_green, selected_blue = channels(selected_background)
-		local distance = math.max(
-			math.abs(red - selected_red),
-			math.abs(green - selected_green),
-			math.abs(blue - selected_blue)
-		)
+		local distance =
+			math.max(math.abs(red - selected_red), math.abs(green - selected_green), math.abs(blue - selected_blue))
 		if distance >= 32 then
 			vim.api.nvim_set_hl(0, "OfflinePickerSelection", selected)
 			return
@@ -423,8 +428,13 @@ local function set_git_mode_highlight()
 		fg, ctermfg = background_luminance > 0.179 and 0x000000 or 0xffffff, background_luminance > 0.179 and 0 or 15
 	end
 	vim.api.nvim_set_hl(0, "OfflineGitBranch", {
-		fg = fg, bg = bg, ctermfg = ctermfg, ctermbg = ctermbg or normal.ctermfg or 8,
-		bold = true, reverse = false, nocombine = true,
+		fg = fg,
+		bg = bg,
+		ctermfg = ctermfg,
+		ctermbg = ctermbg or normal.ctermfg or 8,
+		bold = true,
+		reverse = false,
+		nocombine = true,
 	})
 	return true
 end
@@ -810,7 +820,9 @@ local function netrw_selected_paths(first, last)
 	end
 	return vim.tbl_filter(function(path)
 		return vim.uv.fs_lstat(path) ~= nil
-	end, vim.fn.uniq(vim.fn.sort(paths))), blocked, type(marked) == "table"
+	end, vim.fn.uniq(vim.fn.sort(paths))),
+		blocked,
+		type(marked) == "table"
 end
 local function netrw_delete(first, last)
 	local paths, blocked, marked = netrw_selected_paths(first, last)
@@ -852,7 +864,9 @@ local function netrw_rename(first, last)
 		if new == "" then
 			break
 		end
-		if new ~= old and (not vim.uv.fs_lstat(new) or vim.fn.confirm("Overwrite " .. new .. "?", "&Yes\n&No", 2) == 1) then
+		if
+			new ~= old and (not vim.uv.fs_lstat(new) or vim.fn.confirm("Overwrite " .. new .. "?", "&Yes\n&No", 2) == 1)
+		then
 			if vim.fn.rename(old, new) ~= 0 then
 				vim.notify("Rename failed: " .. old, vim.log.levels.ERROR)
 			end
@@ -1272,8 +1286,14 @@ function _G.OfflineTabline()
 		end
 		local hl = b == vim.api.nvim_get_current_buf() and "%#TabLineSel#" or "%#TabLine#"
 		items[#items + 1] = hl
-			.. "%" .. b .. "@v:lua.OfflineTablineClick@"
-			.. " " .. i .. ":" .. name:gsub("%%", "%%%%") .. (vim.bo[b].modified and " + " or " ")
+			.. "%"
+			.. b
+			.. "@v:lua.OfflineTablineClick@"
+			.. " "
+			.. i
+			.. ":"
+			.. name:gsub("%%", "%%%%")
+			.. (vim.bo[b].modified and " + " or " ")
 			.. "%T"
 	end
 	tabline_cache = table.concat(items) .. "%#TabLineFill#"
@@ -1376,8 +1396,9 @@ local function delete_buffer(buf, force, replacement)
 	if listed and #remaining == 1 then
 		-- Merge duplicate editor panes only in this tab; preserve auxiliary windows.
 		local keep = vim.api.nvim_get_current_buf() == remaining[1]
-			and vim.api.nvim_win_get_config(0).relative == ""
-			and vim.api.nvim_get_current_win() or nil
+				and vim.api.nvim_win_get_config(0).relative == ""
+				and vim.api.nvim_get_current_win()
+			or nil
 		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
 			if vim.api.nvim_win_get_buf(win) == remaining[1] and vim.api.nvim_win_get_config(win).relative == "" then
 				if not keep then
@@ -1573,8 +1594,19 @@ vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermLeave", "TermC
 vim.api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
 	group = "offline-project-context",
 	pattern = {
-		".git", "CMakeLists.txt", "compile_commands.json", "Makefile", "package.json", "pyproject.toml",
-		"Cargo.toml", "WORKSPACE", "WORKSPACE.bazel", "MODULE.bazel", "buf.yaml", "os.py", "__init__.py",
+		".git",
+		"CMakeLists.txt",
+		"compile_commands.json",
+		"Makefile",
+		"package.json",
+		"pyproject.toml",
+		"Cargo.toml",
+		"WORKSPACE",
+		"WORKSPACE.bazel",
+		"MODULE.bazel",
+		"buf.yaml",
+		"os.py",
+		"__init__.py",
 	},
 	callback = invalidate_project_roots,
 })
@@ -2572,22 +2604,29 @@ do
 			return
 		end
 		clear(win)
-		vim.w[win].cursor_word_match = vim.fn.matchadd("CursorWord", "\\C\\V\\<" .. vim.fn.escape(word, "\\") .. "\\>", -1)
+		vim.w[win].cursor_word_match =
+			vim.fn.matchadd("CursorWord", "\\C\\V\\<" .. vim.fn.escape(word, "\\") .. "\\>", -1)
 	end
 	vim.cmd("highlight default link CursorWord Visual")
 	local group = vim.api.nvim_create_augroup("offline-cursor-word", { clear = true })
-	vim.api.nvim_create_autocmd("ColorScheme", { group = group, callback = function()
-		vim.cmd("highlight default link CursorWord Visual")
-	end })
-	vim.api.nvim_create_autocmd("CursorHold", { group = group, callback = highlight })
-	vim.api.nvim_create_autocmd({ "CursorMoved", "InsertEnter", "ModeChanged", "WinLeave", "BufLeave", "TextChanged" }, {
+	vim.api.nvim_create_autocmd("ColorScheme", {
 		group = group,
 		callback = function()
-			if enabled then
-				clear(vim.api.nvim_get_current_win())
-			end
+			vim.cmd("highlight default link CursorWord Visual")
 		end,
 	})
+	vim.api.nvim_create_autocmd("CursorHold", { group = group, callback = highlight })
+	vim.api.nvim_create_autocmd(
+		{ "CursorMoved", "InsertEnter", "ModeChanged", "WinLeave", "BufLeave", "TextChanged" },
+		{
+			group = group,
+			callback = function()
+				if enabled then
+					clear(vim.api.nvim_get_current_win())
+				end
+			end,
+		}
+	)
 	map("n", "<leader>Th", function()
 		enabled = not enabled
 		if enabled then
@@ -2614,7 +2653,9 @@ do
 		local state = animation
 		animation = nil
 		vim.on_key(nil, keys_ns)
-		if finish and state
+		if
+			finish
+			and state
 			and vim.api.nvim_get_current_win() == state.win
 			and vim.api.nvim_get_current_buf() == state.buf
 			and vim.api.nvim_buf_get_changedtick(state.buf) == state.tick
@@ -2628,12 +2669,17 @@ do
 		local count = vim.v.count
 		local keys = (count > 0 and tostring(count) or "") .. vim.keycode(key)
 		local win, buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
-		if not enabled
+		if
+			not enabled
 			or vim.api.nvim_win_get_config(win).relative ~= ""
-			or vim.wo[win].diff or vim.wo[win].scrollbind or vim.wo[win].cursorbind
-			or vim.bo[buf].buftype ~= "" or vim.bo[buf].filetype == "netrw"
+			or vim.wo[win].diff
+			or vim.wo[win].scrollbind
+			or vim.wo[win].cursorbind
+			or vim.bo[buf].buftype ~= ""
+			or vim.bo[buf].filetype == "netrw"
 			or vim.b[buf].offline_large_file
-			or vim.fn.reg_executing() ~= "" or vim.fn.reg_recording() ~= ""
+			or vim.fn.reg_executing() ~= ""
+			or vim.fn.reg_recording() ~= ""
 		then
 			vim.cmd.normal({ keys, bang = true })
 			return
@@ -2662,10 +2708,13 @@ do
 			if animation ~= state then
 				return
 			end
-			if vim.api.nvim_get_current_win() ~= win or vim.api.nvim_get_current_buf() ~= buf
+			if
+				vim.api.nvim_get_current_win() ~= win
+				or vim.api.nvim_get_current_buf() ~= buf
 				or vim.api.nvim_buf_get_changedtick(buf) ~= state.tick
 				or vim.fn.mode() ~= "n"
-				or vim.api.nvim_win_get_width(win) ~= width or vim.api.nvim_win_get_height(win) ~= height
+				or vim.api.nvim_win_get_width(win) ~= width
+				or vim.api.nvim_win_get_height(win) ~= height
 				or state.view and not vim.deep_equal(state.view, vim.fn.winsaveview())
 			then
 				stop(false)
@@ -2682,11 +2731,17 @@ do
 			end
 		end
 		-- Complete the pending move before processing the next key; never queue animations.
-		vim.on_key(function() stop(true) end, keys_ns)
+		vim.on_key(function()
+			stop(true)
+		end, keys_ns)
 		advance()
 	end
-	map("n", "<C-d>", function() scroll("<C-d>") end, "Scroll down half a page")
-	map("n", "<C-u>", function() scroll("<C-u>") end, "Scroll up half a page")
+	map("n", "<C-d>", function()
+		scroll("<C-d>")
+	end, "Scroll down half a page")
+	map("n", "<C-u>", function()
+		scroll("<C-u>")
+	end, "Scroll up half a page")
 	map("n", "<leader>TS", function()
 		stop(true)
 		enabled = not enabled
@@ -2694,7 +2749,9 @@ do
 	end, "Toggle smooth scroll")
 	vim.api.nvim_create_autocmd({ "BufLeave", "WinLeave", "ModeChanged", "VimResized" }, {
 		group = vim.api.nvim_create_augroup("offline-smooth-scroll", { clear = true }),
-		callback = function() stop(false) end,
+		callback = function()
+			stop(false)
+		end,
 	})
 end
 
@@ -2756,7 +2813,11 @@ local function session_path(root)
 end
 local function write_session()
 	local listed = buffers()
-	if not save_session or #listed == 0 or vim.fn.argc() == 0 and #listed == 1 and vim.api.nvim_buf_get_name(listed[1]) == "" then
+	if
+		not save_session
+		or #listed == 0
+		or vim.fn.argc() == 0 and #listed == 1 and vim.api.nvim_buf_get_name(listed[1]) == ""
+	then
 		return
 	end
 	local root = vim.fn.getcwd()
@@ -2816,33 +2877,33 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
 -- =========== NATIVE DASHBOARD ==========
 -- =========================================
 local dashboard_header = {
-		"",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⠀⠀⠀⠀⡀⢀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠼⠤⠤⠤⠤⠤⣧⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡸⢸⠀⠀⠀⠀⠀⠀⡟⠀⣾⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⠃⢸⠘⢏⠉⠉⠉⡽⡇⠀⢹⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⠃⠀⢸⢠⠘⡆⠀⡸⠁⡇⡀⢸⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡰⠃⠀⡖⡞⣚⣆⣹⣼⣁⣀⢳⠓⠚⢹⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡴⠁⠀⠀⡇⣧⠀⢀⡜⢳⡀⠀⢸⠀⠀⠀⢣⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠜⠁⠀⠀⠀⡇⡟⢲⡞⠒⠒⢳⣺⢸⠀⠀⠀⠈⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡠⠋⠀⠀⠀⠀⠀⡇⡷⠃⡇⠀⠀⠀⢹⣸⠀⠀⠀⠀⠘⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⠁⠀⠀⠀⠀⠀⣠⢿⢓⣒⣓⣀⣀⣀⡞⠛⡖⠒⠢⠀⠀⡟⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⠁⠀⠀⠀⠀⠀⣠⠞⢹⢸⢸⠀⠀⠀⠀⠀⡇⠀⠘⢦⢰⠀⠀⡇⠘⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⢀⡤⠊⠁⠀⠀⠀⠀⠀⣠⠞⠁⠀⢸⢸⠘⠒⠲⠒⠒⠒⡇⠀⠀⠀⠳⡄⠀⡇⠀⠈⢆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⢀⣠⠴⠊⠁⠀⠀⠀⠀⠀⢀⡤⡎⠁⠀⠀⠀⢸⢸⠀⠀⢀⠀⠀⠀⡇⠀⠀⠀⢀⠈⢦⡗⠀⠀⠈⢣⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡗⠒⡁⠀⠀⠀⠀⠀⠀⠀",
-		"⠈⠁⠀⠀⠀⠀⠀⠀⢀⡠⠖⠁⠀⡇⠀⠀⠀⠀⠚⣾⠒⣒⠚⣢⠀⢰⠓⠒⠒⠒⠺⠀⠀⣟⢆⠀⠀⠀⡟⣄⠀⠀⠀⠀⠀⠀⠀⠀⢀⣾⣑⡞⣹⡄⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⢀⣀⡤⠚⠁⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⢰⠀⠀⠀⠀⢸⢰⠀⠀⠀⠀⡇⠀⡇⠀⠙⠢⣄⡇⠈⠣⡀⠀⠀⠀⠀⣀⡴⣋⢼⡏⠠⢻⠘⢄⠀⠀⠀⠀⠀",
-		"⢀⠤⠔⠊⠉⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⠘⠒⠒⢲⠒⢺⢸⠀⠀⠀⠀⡇⠀⡇⠀⠀⠀⠀⡏⠑⠒⢺⠓⠲⠶⡟⠓⠉⡇⢸⣇⣠⢸⠀⠀⡗⠦⣀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⠀⠀⠀⢸⠀⢸⢸⠀⠀⠀⠀⡅⠀⣇⣀⣀⣀⠀⡇⠀⠠⢼⠤⠤⣤⣧⣤⣤⣧⣼⣧⣼⢸⠤⠤⠇⣀⣈⣉⡁",
-		"⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⢀⣀⣿⠀⠤⠤⠼⠔⢺⢸⠀⠀⠀⠀⣏⣀⠧⡤⡤⣖⢒⣷⣚⡻⠭⠯⠭⠗⠒⠓⠒⠛⢻⣏⣹⢸⠉⠉⠁⠀⠐⠒⠂",
-		"⠀⠀⠀⠀⠀⠀⡇⠀⠀⣀⡀⠤⠤⡗⠒⠈⠉⠁⠀⢸⠀⠀⠀⣀⣠⣼⢸⠀⠀⠀⠀⣇⠦⠽⠚⠒⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣸⡟⢻⢸⣀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⢀⣀⠤⠔⡗⠉⠁⠀⠀⠀⠀⡇⠀⠀⠀⢀⡠⣼⠖⡘⢍⠰⡡⢺⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⢀⠁⠀⠸⠇⠸⠼⠀⠈⠆⠢⠄⠀⠀",
-		"⠐⠉⠁⠀⠀⠀⡇⠀⠀⠀⠀⠀⢀⣧⠤⠖⠋⢽⣠⢃⠞⣈⡶⠜⠒⢹⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠔⡠⠌⢁⡐⠒⢒⡠⠀⢓⡈⠄⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⡇⠀⢀⡠⠔⠚⡍⠰⠎⣠⠒⣢⡥⢾⠋⠁⠀⠀⠀⢸⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠈⠉⢦⡀⠀⣀⠧⠚⠉⠒⠒⠒⠃⢀⣴⠗⠋⠁⡇⢸⠀⠐⠂⠢⠤⢼⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⢣⠈⠉⠉⠉⠉⠻⣉⡶⠖⠋⠀⠀⠀⠀⡇⢸⠀⠸⡉⠏⢐⣾⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-		"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣖⠒⠒⠠⡀⠀⠀⡇⢸⠀⠀⡱⠈⠁⣼⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
-	}
+	"",
+	"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⠀⠀⠀⠀⡀⢀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠼⠤⠤⠤⠤⠤⣧⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡸⢸⠀⠀⠀⠀⠀⠀⡟⠀⣾⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⠃⢸⠘⢏⠉⠉⠉⡽⡇⠀⢹⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⠃⠀⢸⢠⠘⡆⠀⡸⠁⡇⡀⢸⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡰⠃⠀⡖⡞⣚⣆⣹⣼⣁⣀⢳⠓⠚⢹⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡴⠁⠀⠀⡇⣧⠀⢀⡜⢳⡀⠀⢸⠀⠀⠀⢣⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠜⠁⠀⠀⠀⡇⡟⢲⡞⠒⠒⢳⣺⢸⠀⠀⠀⠈⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡠⠋⠀⠀⠀⠀⠀⡇⡷⠃⡇⠀⠀⠀⢹⣸⠀⠀⠀⠀⠘⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⠁⠀⠀⠀⠀⠀⣠⢿⢓⣒⣓⣀⣀⣀⡞⠛⡖⠒⠢⠀⠀⡟⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⠁⠀⠀⠀⠀⠀⣠⠞⢹⢸⢸⠀⠀⠀⠀⠀⡇⠀⠘⢦⢰⠀⠀⡇⠘⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⠀⠀⠀⢀⡤⠊⠁⠀⠀⠀⠀⠀⣠⠞⠁⠀⢸⢸⠘⠒⠲⠒⠒⠒⡇⠀⠀⠀⠳⡄⠀⡇⠀⠈⢆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠀⢀⣠⠴⠊⠁⠀⠀⠀⠀⠀⢀⡤⡎⠁⠀⠀⠀⢸⢸⠀⠀⢀⠀⠀⠀⡇⠀⠀⠀⢀⠈⢦⡗⠀⠀⠈⢣⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡗⠒⡁⠀⠀⠀⠀⠀⠀⠀",
+	"⠈⠁⠀⠀⠀⠀⠀⠀⢀⡠⠖⠁⠀⡇⠀⠀⠀⠀⠚⣾⠒⣒⠚⣢⠀⢰⠓⠒⠒⠒⠺⠀⠀⣟⢆⠀⠀⠀⡟⣄⠀⠀⠀⠀⠀⠀⠀⠀⢀⣾⣑⡞⣹⡄⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⠀⠀⢀⣀⡤⠚⠁⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⢰⠀⠀⠀⠀⢸⢰⠀⠀⠀⠀⡇⠀⡇⠀⠙⠢⣄⡇⠈⠣⡀⠀⠀⠀⠀⣀⡴⣋⢼⡏⠠⢻⠘⢄⠀⠀⠀⠀⠀",
+	"⢀⠤⠔⠊⠉⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⠘⠒⠒⢲⠒⢺⢸⠀⠀⠀⠀⡇⠀⡇⠀⠀⠀⠀⡏⠑⠒⢺⠓⠲⠶⡟⠓⠉⡇⢸⣇⣠⢸⠀⠀⡗⠦⣀⠀⠀",
+	"⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣿⠀⠀⠀⢸⠀⢸⢸⠀⠀⠀⠀⡅⠀⣇⣀⣀⣀⠀⡇⠀⠠⢼⠤⠤⣤⣧⣤⣤⣧⣼⣧⣼⢸⠤⠤⠇⣀⣈⣉⡁",
+	"⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⢀⣀⣿⠀⠤⠤⠼⠔⢺⢸⠀⠀⠀⠀⣏⣀⠧⡤⡤⣖⢒⣷⣚⡻⠭⠯⠭⠗⠒⠓⠒⠛⢻⣏⣹⢸⠉⠉⠁⠀⠐⠒⠂",
+	"⠀⠀⠀⠀⠀⠀⡇⠀⠀⣀⡀⠤⠤⡗⠒⠈⠉⠁⠀⢸⠀⠀⠀⣀⣠⣼⢸⠀⠀⠀⠀⣇⠦⠽⠚⠒⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣸⡟⢻⢸⣀⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⢀⣀⠤⠔⡗⠉⠁⠀⠀⠀⠀⡇⠀⠀⠀⢀⡠⣼⠖⡘⢍⠰⡡⢺⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⢀⠁⠀⠸⠇⠸⠼⠀⠈⠆⠢⠄⠀⠀",
+	"⠐⠉⠁⠀⠀⠀⡇⠀⠀⠀⠀⠀⢀⣧⠤⠖⠋⢽⣠⢃⠞⣈⡶⠜⠒⢹⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠔⡠⠌⢁⡐⠒⢒⡠⠀⢓⡈⠄⠀⠀⠀",
+	"⠀⠀⠀⠀⠀⠀⡇⠀⢀⡠⠔⠚⡍⠰⠎⣠⠒⣢⡥⢾⠋⠁⠀⠀⠀⢸⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠈⠉⢦⡀⠀⣀⠧⠚⠉⠒⠒⠒⠃⢀⣴⠗⠋⠁⡇⢸⠀⠐⠂⠢⠤⢼⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⠀⢣⠈⠉⠉⠉⠉⠻⣉⡶⠖⠋⠀⠀⠀⠀⡇⢸⠀⠸⡉⠏⢐⣾⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+	"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣖⠒⠒⠠⡀⠀⠀⡇⢸⠀⠀⡱⠈⠁⣼⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+}
 local dashboard_namespace = vim.api.nvim_create_namespace("offline-dashboard")
 
 local dashboard_win
@@ -2939,26 +3000,46 @@ local function open_dashboard()
 	})
 
 	local entries = {
-		{ "f", "Find file", function()
-			find_files(project_root(), "Find files")
-		end },
-		{ "r", "Recent files", function()
-			local files = vim.tbl_filter(function(file)
-				return file ~= "" and vim.fn.filereadable(file) == 1
-			end, vim.v.oldfiles)
-			open_picker("Recent files", { items = file_items(files) })
-		end },
+		{
+			"f",
+			"Find file",
+			function()
+				find_files(project_root(), "Find files")
+			end,
+		},
+		{
+			"r",
+			"Recent files",
+			function()
+				local files = vim.tbl_filter(function(file)
+					return file ~= "" and vim.fn.filereadable(file) == 1
+				end, vim.v.oldfiles)
+				open_picker("Recent files", { items = file_items(files) })
+			end,
+		},
 		{ "p", "Select session", select_session },
-		{ "n", "New file", function()
-			vim.cmd.enew()
-			vim.cmd.startinsert()
-		end },
-		{ "c", "Config", function()
-			vim.cmd.edit(vim.fn.fnameescape(vim.fn.stdpath("config") .. "/init.lua"))
-		end },
-		{ "q", "Quit", function()
-			vim.cmd("qa")
-		end },
+		{
+			"n",
+			"New file",
+			function()
+				vim.cmd.enew()
+				vim.cmd.startinsert()
+			end,
+		},
+		{
+			"c",
+			"Config",
+			function()
+				vim.cmd.edit(vim.fn.fnameescape(vim.fn.stdpath("config") .. "/init.lua"))
+			end,
+		},
+		{
+			"q",
+			"Quit",
+			function()
+				vim.cmd("qa")
+			end,
+		},
 	}
 	local button_rows = {}
 	local function render()
@@ -2987,7 +3068,8 @@ local function open_dashboard()
 			lines[#lines + 1] = ""
 		end
 		local footer = "https://sunwook-hwang.github.io"
-		lines[#lines + 1] = string.rep(" ", math.max(0, math.floor((width - vim.fn.strdisplaywidth(footer)) / 2))) .. footer
+		lines[#lines + 1] = string.rep(" ", math.max(0, math.floor((width - vim.fn.strdisplaywidth(footer)) / 2)))
+			.. footer
 		vim.bo[buf].modifiable = true
 		vim.api.nvim_buf_clear_namespace(buf, dashboard_namespace, 0, -1)
 		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
@@ -3042,7 +3124,12 @@ local function open_dashboard()
 		local key, delta = spec[1], spec[2]
 		vim.keymap.set("n", key, function()
 			select_entry(selection_index() + delta)
-		end, { buf = buf, nowait = true, silent = true, desc = delta > 0 and "Next dashboard item" or "Previous dashboard item" })
+		end, {
+			buf = buf,
+			nowait = true,
+			silent = true,
+			desc = delta > 0 and "Next dashboard item" or "Previous dashboard item",
+		})
 	end
 	vim.keymap.set("n", "<CR>", function()
 		activate(entries[selection_index()])
@@ -3556,8 +3643,14 @@ local function git_index_stamp(root)
 		return index .. ":missing"
 	end
 	return table.concat({
-		index, info.dev, info.ino, info.size,
-		info.mtime.sec, info.mtime.nsec, info.ctime.sec, info.ctime.nsec,
+		index,
+		info.dev,
+		info.ino,
+		info.size,
+		info.mtime.sec,
+		info.mtime.nsec,
+		info.ctime.sec,
+		info.ctime.nsec,
 	}, ":")
 end
 local function git_hunk_rows(buf)

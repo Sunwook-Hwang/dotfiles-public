@@ -75,23 +75,23 @@ Python의 여러 줄 함수 선언은 닫는 `):` 대신 `def 함수명(` 줄을
 
 ## 완성·LSP·포맷팅 키
 
-| 키 | 동작 |
-| --- | --- |
-| 입력 중 자동 팝업 | 서버 지정 트리거의 LSP 후보 또는 LSP가 없으면 버퍼 단어·ctags 심볼 |
-| Insert `Ctrl-Space` | 완성 후보 수동 요청 |
-| `Ctrl-n/p` | 후보 이동 |
-| `Enter` | 선택한 후보 확정; 선택이 없으면 줄바꿈 |
-| `Tab` / `Shift-Tab` | 활성 스니펫의 다음/이전 자리, 없으면 후보 이동; 둘 다 없으면 원래 키 |
-| `Ctrl-x Ctrl-f` | 내장 파일 경로 완성 |
-| `gd`, `gr`, `gD`, `K` | 정의·참조·선언·도움말 |
-| `gR`, `gi`, `gt` | 참조·구현·타입 정의 결과 picker |
-| `Space la/lr` | 코드 액션 / 이름 변경 |
-| `Space lv` | Python LSP 환경 선택: 프로젝트 .venv/venv, Conda 환경 목록, 활성 환경, PATH, 직접 경로 |
-| `Space ls` | 현재 버퍼 LSP 재시작 (`:lsp restart`) |
-| `Space ld/lD/sd` | 현재 줄 진단 / 버퍼 진단 picker / 전체 진단 picker |
-| `[d`, `]d`, `Space lt` | 진단 이전·다음 / 진단 표시 토글 |
-| `Space lf` | 수동 비동기 파일 전체 포맷팅 |
-| `Space o` | 현재 파일의 함수·클래스 아웃라인 사이드바 토글 |
+| 키                     | 동작                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| 입력 중 자동 팝업      | 서버 지정 트리거의 LSP 후보 또는 LSP가 없으면 버퍼 단어·ctags 심볼                     |
+| Insert `Ctrl-Space`    | 완성 후보 수동 요청                                                                    |
+| `Ctrl-n/p`             | 후보 이동                                                                              |
+| `Enter`                | 선택한 후보 확정; 선택이 없으면 줄바꿈                                                 |
+| `Tab` / `Shift-Tab`    | 활성 스니펫의 다음/이전 자리, 없으면 후보 이동; 둘 다 없으면 원래 키                   |
+| `Ctrl-x Ctrl-f`        | 내장 파일 경로 완성                                                                    |
+| `gd`, `gr`, `gD`, `K`  | 정의·참조·선언·도움말                                                                  |
+| `gR`, `gi`, `gt`       | 참조·구현·타입 정의 결과 picker                                                        |
+| `Space la/lr`          | 코드 액션 / 이름 변경                                                                  |
+| `Space lv`             | Python LSP 환경 선택: 프로젝트 .venv/venv, Conda 환경 목록, 활성 환경, PATH, 직접 경로 |
+| `Space ls`             | 현재 버퍼 LSP 재시작 (`:lsp restart`)                                                  |
+| `Space ld/lD/sd`       | 현재 줄 진단 / 버퍼 진단 picker / 전체 진단 picker                                     |
+| `[d`, `]d`, `Space lt` | 진단 이전·다음 / 진단 표시 토글                                                        |
+| `Space lf`             | 수동 비동기 파일 전체 포맷팅                                                           |
+| `Space o`              | 현재 파일의 함수·클래스 아웃라인 사이드바 토글                                         |
 
 LSP는 등록 언어(C/C++, Python, Lua, JS/TS, HTML/CSS 등)의 실행 파일을
 PATH → 기존 `stdpath("data")/mason/bin` 순서로 찾습니다.
@@ -125,30 +125,30 @@ ty에는 `ty.configuration.environment.python`으로 전달하며, 환경을 바
 현재 행과 줄 번호(`cursorlineopt=line,number`), 세로 열(`cursorcolumn`)을 함께 강조해 십자 커서를 표시합니다.
 `lazyredraw`는 꺼두며 `Ctrl-d/u`는 내장 반 페이지 이동을 그대로 사용합니다.
 
-| 키 | 동작 |
-| --- | --- |
-| `Space f` / `Space Enter` | 파일 / Git 추적 파일 fuzzy picker |
-| `Space st` / `Space t` | live regex 검색 / 커서 단어 검색 후 결과 필터 |
-| `Space s/` | 열린 파일의 저장된 내용 검색 |
-| `Space sb/sr/sn` | 버퍼 / 최근 파일 / 설정 파일 picker |
-| `Space sc/sh/sk/sp` | 명령 / 도움말 / 키맵 / 테마 picker |
-| picker `Enter` / `Esc` / `Ctrl-q` | 선택 / 취소 / quickfix 내보내기 |
-| `Space e` | Git 프로젝트 기준 netrw 트리 토글, 현재 파일 추적 |
-| `Ctrl-h/j/k/l` | 창 이동, 트리에서도 동일 |
-| `Shift-h/l`, `[b` / `]b` | 표시 순서의 이전/다음 버퍼 |
-| `Space bj/bk`, `bD/bL` | 버퍼 재배열 / 디렉터리·언어별 정렬 |
-| `Space bm` / `be` | 다른 목록 버퍼 닫기; 미저장 파일과 `Ctrl-t` 재사용 터미널은 유지 |
-| `Space c` / `bw` | 강제 닫기(미저장 변경 버림) / 미저장 파일 보호하며 닫기 |
-| `Ctrl-t` | `Space gg`와 같은 크기의 하단 split 터미널 토글 |
-| 터미널 `Esc Esc` | Terminal 모드에서 Normal 모드로 이동 |
-| `Space gd/gD` | 원본 창과 분리된 현재 파일/index·HEAD 좌우 비교; `q`/`Esc`로 닫기 |
-| `Space gn/gp` | 다음/이전 Git 변경 hunk로 이동 |
-| `Space gb` | 현재 줄 inline blame 토글 |
-| `Space u` | undo 상태 목록과 코드 미리보기. `↑/↓`·`Ctrl-p/n` 선택, `Ctrl-f/b` 스크롤, Enter 적용, Esc 취소 |
-| `Space Ti/Ts` | 들여쓰기 가이드·공백 / Sticky Scroll 토글 |
-| `Space Tl` | 상태줄의 LSP·포매터 정보 토글 |
-| `Space A` | 네이티브 dashboard 열기 |
-| `Space pr/pl/pS/pd` | 프로젝트 세션 복원 / 마지막 / 선택 / 저장 중지 |
+| 키                                | 동작                                                                                           |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `Space f` / `Space Enter`         | 파일 / Git 추적 파일 fuzzy picker                                                              |
+| `Space st` / `Space t`            | live regex 검색 / 커서 단어 검색 후 결과 필터                                                  |
+| `Space s/`                        | 열린 파일의 저장된 내용 검색                                                                   |
+| `Space sb/sr/sn`                  | 버퍼 / 최근 파일 / 설정 파일 picker                                                            |
+| `Space sc/sh/sk/sp`               | 명령 / 도움말 / 키맵 / 테마 picker                                                             |
+| picker `Enter` / `Esc` / `Ctrl-q` | 선택 / 취소 / quickfix 내보내기                                                                |
+| `Space e`                         | Git 프로젝트 기준 netrw 트리 토글, 현재 파일 추적                                              |
+| `Ctrl-h/j/k/l`                    | 창 이동, 트리에서도 동일                                                                       |
+| `Shift-h/l`, `[b` / `]b`          | 표시 순서의 이전/다음 버퍼                                                                     |
+| `Space bj/bk`, `bD/bL`            | 버퍼 재배열 / 디렉터리·언어별 정렬                                                             |
+| `Space bm` / `be`                 | 다른 목록 버퍼 닫기; 미저장 파일과 `Ctrl-t` 재사용 터미널은 유지                               |
+| `Space c` / `bw`                  | 강제 닫기(미저장 변경 버림) / 미저장 파일 보호하며 닫기                                        |
+| `Ctrl-t`                          | `Space gg`와 같은 크기의 하단 split 터미널 토글                                                |
+| 터미널 `Esc Esc`                  | Terminal 모드에서 Normal 모드로 이동                                                           |
+| `Space gd/gD`                     | 원본 창과 분리된 현재 파일/index·HEAD 좌우 비교; `q`/`Esc`로 닫기                              |
+| `Space gn/gp`                     | 다음/이전 Git 변경 hunk로 이동                                                                 |
+| `Space gb`                        | 현재 줄 inline blame 토글                                                                      |
+| `Space u`                         | undo 상태 목록과 코드 미리보기. `↑/↓`·`Ctrl-p/n` 선택, `Ctrl-f/b` 스크롤, Enter 적용, Esc 취소 |
+| `Space Ti/Ts`                     | 들여쓰기 가이드·공백 / Sticky Scroll 토글                                                      |
+| `Space Tl`                        | 상태줄의 LSP·포매터 정보 토글                                                                  |
+| `Space A`                         | 네이티브 dashboard 열기                                                                        |
+| `Space pr/pl/pS/pd`               | 프로젝트 세션 복원 / 마지막 / 선택 / 저장 중지                                                 |
 
 Git 추적 파일의 저장 전 변경은 여백에 `+`, `~`, `-`로 표시합니다.
 netrw 트리의 왼쪽 여백에는 저장된 Git 상태를 두 글자로 표시합니다. 첫 글자는 index,
@@ -192,13 +192,13 @@ nvim --cmd "let g:offline_ctags='/path/to/ctags'" -u ~/.config/nvim/init.offline
 직접 지정하지 않으면 PATH에서 찾습니다. 서버에 복사하는 실행 파일은 서버의 OS·CPU와
 호환되어야 합니다. ctags는 타입 분석이 아닌 저장된 소스의 이름·위치 정보입니다.
 
-| 키/명령 | 동작 |
-| --- | --- |
-| `gd` | LSP 정의 요청이 없거나 실패하면 ctags로 이동; 첫 fallback에서 프로젝트 인덱스 생성 |
-| `g Ctrl-t` | ctags 태그 스택에서 이전 위치로 복귀 |
-| `:CtagsUpdate` | 현재 프로젝트 전체 인덱스 재생성 |
-| `:CtagsClearAll` | 관리하는 모든 프로젝트 ctags 캐시 삭제 |
-| `:OfflineCancel` | 실행 중인 명령·예약된 태그 갱신·검색창 취소 |
+| 키/명령          | 동작                                                                               |
+| ---------------- | ---------------------------------------------------------------------------------- |
+| `gd`             | LSP 정의 요청이 없거나 실패하면 ctags로 이동; 첫 fallback에서 프로젝트 인덱스 생성 |
+| `g Ctrl-t`       | ctags 태그 스택에서 이전 위치로 복귀                                               |
+| `:CtagsUpdate`   | 현재 프로젝트 전체 인덱스 재생성                                                   |
+| `:CtagsClearAll` | 관리하는 모든 프로젝트 ctags 캐시 삭제                                             |
+| `:OfflineCancel` | 실행 중인 명령·예약된 태그 갱신·검색창 취소                                        |
 
 - LSP 완성 제공자가 없을 때 첫 입력 모드 진입은 현재 파일을 인덱싱합니다.
 - ctags 아웃라인도 현재 파일을 인덱싱하며, 변경되지 않은 결과는 재사용합니다.

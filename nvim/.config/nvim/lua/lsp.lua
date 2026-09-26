@@ -580,4 +580,3 @@ require("mason-tool-installer").setup({
 enable_servers()
 
 -- File renames in the Snacks explorer use Snacks.rename for LSP import updates.
-

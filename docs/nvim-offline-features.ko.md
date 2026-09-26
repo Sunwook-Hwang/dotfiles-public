@@ -22,14 +22,14 @@ nvim -u ~/.config/nvim/init.offline.lua
 파일 인자 없이 실행하면 네이티브 dashboard가 열립니다. `j/k` 또는 방향키로 선택하고
 `Enter`로 실행할 수 있으며, 커서는 선택 가능한 행에서만 움직입니다.
 
-| 키 | 동작 |
-| --- | --- |
-| `f` | 프로젝트 파일 찾기 |
-| `r` | 최근 파일 |
-| `p` | 저장된 세션 선택 |
-| `n` | 새 파일 |
-| `c` | 현재 Neovim 설정 열기 |
-| `q` | 종료 |
+| 키        | 동작                        |
+| --------- | --------------------------- |
+| `f`       | 프로젝트 파일 찾기          |
+| `r`       | 최근 파일                   |
+| `p`       | 저장된 세션 선택            |
+| `n`       | 새 파일                     |
+| `c`       | 현재 Neovim 설정 열기       |
+| `q`       | 종료                        |
 | `Space A` | 편집 중 dashboard 다시 열기 |
 
 파일을 인자로 넘겨 실행하면 dashboard를 건너뛰고 바로 파일을 엽니다.
@@ -84,22 +84,22 @@ LSP나 netrw처럼 버퍼에만 붙는 매핑도 현재 상태에 맞춰 반영�
 
 ## 파일과 버퍼
 
-| 키 | 동작 |
-| --- | --- |
-| `Space f` | 프로젝트 파일 fuzzy picker |
-| `Space Enter` | Git 추적 파일 picker |
-| `Space e` | 프로젝트 트리 토글 및 현재 파일 위치 표시 |
-| `Space sb` | 열린 버퍼 picker |
-| `Space sr` | 최근 파일 picker |
-| `Space sn` | Neovim 설정 파일 picker |
-| `Shift-h/l`, `[b`/`]b` | 이전/다음 버퍼 |
-| `Space bj/bk` | tabline에서 현재 버퍼 순서 이동 |
-| `Space bD/bL` | 디렉터리/파일타입 기준 버퍼 정렬 |
-| `Space bp` | 버퍼 선택 |
-| `Space bw` | 미저장 변경을 보호하며 현재 버퍼 닫기 |
-| `Space c` | 현재 버퍼 강제 닫기 |
-| `Space bm`, `Space be` | 현재 버퍼 외의 안전한 버퍼 닫기 |
-| `Space bh/bl` | 현재 버퍼 왼쪽/오른쪽의 안전한 버퍼 닫기 |
+| 키                     | 동작                                      |
+| ---------------------- | ----------------------------------------- |
+| `Space f`              | 프로젝트 파일 fuzzy picker                |
+| `Space Enter`          | Git 추적 파일 picker                      |
+| `Space e`              | 프로젝트 트리 토글 및 현재 파일 위치 표시 |
+| `Space sb`             | 열린 버퍼 picker                          |
+| `Space sr`             | 최근 파일 picker                          |
+| `Space sn`             | Neovim 설정 파일 picker                   |
+| `Shift-h/l`, `[b`/`]b` | 이전/다음 버퍼                            |
+| `Space bj/bk`          | tabline에서 현재 버퍼 순서 이동           |
+| `Space bD/bL`          | 디렉터리/파일타입 기준 버퍼 정렬          |
+| `Space bp`             | 버퍼 선택                                 |
+| `Space bw`             | 미저장 변경을 보호하며 현재 버퍼 닫기     |
+| `Space c`              | 현재 버퍼 강제 닫기                       |
+| `Space bm`, `Space be` | 현재 버퍼 외의 안전한 버퍼 닫기           |
+| `Space bh/bl`          | 현재 버퍼 왼쪽/오른쪽의 안전한 버퍼 닫기  |
 
 위 버퍼 닫기 단축키는 버퍼가 여러 개 남아 있으면 분할 창과 크기를 유지합니다.
 버퍼가 하나만 남으면 현재 탭에서 그 버퍼를 표시하는 중복 편집창을 하나로 합칩니다.
@@ -121,21 +121,21 @@ Python 표준 라이브러리는 `os.py`와 `importlib/__init__.py`가 함께 �
 
 `Space e`는 왼쪽 netrw 트리를 열고 같은 프로젝트에서는 기존 트리 상태를 재사용합니다.
 
-| 키 | 동작 |
-| --- | --- |
-| `Enter`, `l` | 디렉터리 펼치기/접기 또는 파일 열기 |
-| `h` | 상위 가지 접기 |
-| `-` | 상위 디렉터리 |
-| `o`, `v`, `t` | 가로 분할, 세로 분할, 탭으로 열기 |
-| `p` | 파일 미리보기 |
-| `Space nr` | 트리 새로고침 |
-| `gh` | 숨김 파일 토글 |
-| `Space nh` | 숨김 패턴 편집 |
-| `%`, `d` | 파일/디렉터리 생성 |
-| `R`, `D` | 이름 변경/삭제 |
-| `mf`, `mu` | 파일 표시/표시 전체 해제 |
-| `mt`, `mc`, `mm` | 대상 지정 후 복사/이동 |
-| `g?` | 전체 netrw 키 도움말 |
+| 키               | 동작                                |
+| ---------------- | ----------------------------------- |
+| `Enter`, `l`     | 디렉터리 펼치기/접기 또는 파일 열기 |
+| `h`              | 상위 가지 접기                      |
+| `-`              | 상위 디렉터리                       |
+| `o`, `v`, `t`    | 가로 분할, 세로 분할, 탭으로 열기   |
+| `p`              | 파일 미리보기                       |
+| `Space nr`       | 트리 새로고침                       |
+| `gh`             | 숨김 파일 토글                      |
+| `Space nh`       | 숨김 패턴 편집                      |
+| `%`, `d`         | 파일/디렉터리 생성                  |
+| `R`, `D`         | 이름 변경/삭제                      |
+| `mf`, `mu`       | 파일 표시/표시 전체 해제            |
+| `mt`, `mc`, `mm` | 대상 지정 후 복사/이동              |
+| `g?`             | 전체 netrw 키 도움말                |
 
 `%`로 만든 새 파일은 현재 탭의 첫 번째 편집창에서 열며 트리는 유지합니다.
 트리만 열려 있으면 옆에 편집창을 하나 만듭니다.
@@ -147,16 +147,16 @@ Python 표준 라이브러리는 `os.py`와 `importlib/__init__.py`가 함께 �
 
 외부 Telescope 없이 입력창, 결과 목록과 미리보기로 구성된 공통 picker를 사용합니다.
 
-| 키 | 동작 |
-| --- | --- |
-| `Space st` | 프로젝트 live 정규식 검색 |
-| `Space t` | 커서 단어 검색 후 결과 필터 |
+| 키         | 동작                                |
+| ---------- | ----------------------------------- |
+| `Space st` | 프로젝트 live 정규식 검색           |
+| `Space t`  | 커서 단어 검색 후 결과 필터         |
 | `Space s/` | 열린 파일의 저장된 디스크 내용 검색 |
-| `Space sc` | 명령 검색 |
-| `Space sh` | 도움말 검색 |
-| `Space sk` | 현재 키맵 검색 |
-| `Space sp` | colorscheme 미리보기와 선택 |
-| `Space sd` | 전체 진단 검색 |
+| `Space sc` | 명령 검색                           |
+| `Space sh` | 도움말 검색                         |
+| `Space sk` | 현재 키맵 검색                      |
+| `Space sp` | colorscheme 미리보기와 선택         |
+| `Space sd` | 전체 진단 검색                      |
 
 Picker에서는 `Ctrl-n/p` 또는 `Tab/Shift-Tab`으로 선택하고 `Enter`로 적용합니다.
 `Esc`는 취소하고 `Ctrl-q`는 결과를 quickfix로 보냅니다. 검색은 `rg`를 우선하고 없으면
@@ -167,14 +167,14 @@ Picker에서는 `Ctrl-n/p` 또는 `Tab/Shift-Tab`으로 선택하고 `Enter`로 
 Git 기능은 네트워크 명령을 실행하지 않습니다. 현재 버퍼의 미저장 변경도 index와 비교해
 여백에 추가 `+`, 수정 `~`, 삭제 `-` sign으로 표시합니다.
 
-| 키 | 동작 |
-| --- | --- |
-| `Space gg` | Git 상태를 아래 읽기 전용 창에 표시 |
-| `Space sg` | 최근 커밋 목록 |
-| `Space gd` | 편집 가능한 현재 파일과 index 좌우 diff; 어느 창에서든 `:q`로 닫기 |
-| `Space gD` | 편집 가능한 현재 파일과 HEAD 좌우 diff; 어느 창에서든 `:q`로 닫기 |
-| `Space gn/gp` | 다음/이전 변경 hunk로 이동; 끝에서 순환 |
-| `Space gb` | 현재 줄 inline blame 토글 |
+| 키            | 동작                                                               |
+| ------------- | ------------------------------------------------------------------ |
+| `Space gg`    | Git 상태를 아래 읽기 전용 창에 표시                                |
+| `Space sg`    | 최근 커밋 목록                                                     |
+| `Space gd`    | 편집 가능한 현재 파일과 index 좌우 diff; 어느 창에서든 `:q`로 닫기 |
+| `Space gD`    | 편집 가능한 현재 파일과 HEAD 좌우 diff; 어느 창에서든 `:q`로 닫기  |
+| `Space gn/gp` | 다음/이전 변경 hunk로 이동; 끝에서 순환                            |
+| `Space gb`    | 현재 줄 inline blame 토글                                          |
 
 Inline blame은 저장된 파일의 작성자, 날짜와 커밋 메시지를 현재 줄 끝에 표시합니다.
 커서 이동 후 150ms 동안 입력이 없을 때 갱신하고, 미저장 편집 중에는 잘못된 줄 attribution을
@@ -193,43 +193,43 @@ Inline blame은 저장된 파일의 작성자, 날짜와 커밋 메시지를 현
 
 Mason을 로드하거나 도구를 설치하지 않습니다. 현재 등록된 서버는 다음과 같습니다.
 
-| 언어 | 서버 |
-| --- | --- |
-| C/C++/Objective-C/CUDA | `clangd` |
-| MLIR | `mlir-lsp-server` |
-| Python | `ty server`, 없으면 `pyright-langserver` |
-| Lua | `lua-language-server` |
-| JavaScript/TypeScript/JSX/TSX | `typescript-language-server` |
-| HTML | `vscode-html-language-server` |
-| CSS/SCSS/Less | `vscode-css-language-server` |
-| Bazel/Starlark | `starpls server` |
-| Protocol Buffers | `buf lsp serve` |
-| Shell | `bash-language-server start` |
-| CMake | `neocmakelsp stdio`, 없으면 `cmake-language-server` |
-| YAML | `yaml-language-server` |
-| TeX | `texlab` |
-| Rust | `rust-analyzer` |
-| Web 보조 서버 | Tailwind, Svelte, GraphQL, Emmet, Prisma, ESLint |
+| 언어                          | 서버                                                |
+| ----------------------------- | --------------------------------------------------- |
+| C/C++/Objective-C/CUDA        | `clangd`                                            |
+| MLIR                          | `mlir-lsp-server`                                   |
+| Python                        | `ty server`, 없으면 `pyright-langserver`            |
+| Lua                           | `lua-language-server`                               |
+| JavaScript/TypeScript/JSX/TSX | `typescript-language-server`                        |
+| HTML                          | `vscode-html-language-server`                       |
+| CSS/SCSS/Less                 | `vscode-css-language-server`                        |
+| Bazel/Starlark                | `starpls server`                                    |
+| Protocol Buffers              | `buf lsp serve`                                     |
+| Shell                         | `bash-language-server start`                        |
+| CMake                         | `neocmakelsp stdio`, 없으면 `cmake-language-server` |
+| YAML                          | `yaml-language-server`                              |
+| TeX                           | `texlab`                                            |
+| Rust                          | `rust-analyzer`                                     |
+| Web 보조 서버                 | Tailwind, Svelte, GraphQL, Emmet, Prisma, ESLint    |
 
 Tailwind·ESLint는 프로젝트 설정이나 dependency가 있을 때만 연결하고 Emmet은 설정 marker가
 있을 때만 연결합니다. 임의의 실행 파일을 자동 탐지해 새 언어에 연결하지는 않습니다.
 
-| 키 | 동작 |
-| --- | --- |
-| `Ctrl-Space` | Insert 모드 완성 후보 수동 요청 |
-| `Ctrl-n/p` | 완성 후보 이동 |
-| `Enter` | 선택 후보 확정 또는 일반 줄바꿈 |
+| 키                 | 동작                             |
+| ------------------ | -------------------------------- |
+| `Ctrl-Space`       | Insert 모드 완성 후보 수동 요청  |
+| `Ctrl-n/p`         | 완성 후보 이동                   |
+| `Enter`            | 선택 후보 확정 또는 일반 줄바꿈  |
 | `Tab`, `Shift-Tab` | snippet 자리 또는 완성 후보 이동 |
-| `gd` | LSP 정의, 실패하면 ctags 정의 |
-| `gr`, `gD`, `K` | 참조, 선언, hover 문서 |
-| `gR`, `gi`, `gt` | 참조/구현/타입 정의 결과 picker |
-| `Space la/lr` | 코드 액션/이름 변경 |
-| `Space ls` | 현재 버퍼 LSP 재시작 |
-| `Space lv` | Python 분석 환경 선택 |
-| `[d`, `]d` | 이전/다음 진단 |
-| `Space ld/lD/sd` | 현재 줄/버퍼/전체 진단 보기 |
-| `Space lt` | 진단 표시 토글 |
-| `Space o` | LSP 또는 ctags 코드 아웃라인 |
+| `gd`               | LSP 정의, 실패하면 ctags 정의    |
+| `gr`, `gD`, `K`    | 참조, 선언, hover 문서           |
+| `gR`, `gi`, `gt`   | 참조/구현/타입 정의 결과 picker  |
+| `Space la/lr`      | 코드 액션/이름 변경              |
+| `Space ls`         | 현재 버퍼 LSP 재시작             |
+| `Space lv`         | Python 분석 환경 선택            |
+| `[d`, `]d`         | 이전/다음 진단                   |
+| `Space ld/lD/sd`   | 현재 줄/버퍼/전체 진단 보기      |
+| `Space lt`         | 진단 표시 토글                   |
+| `Space o`          | LSP 또는 ctags 코드 아웃라인     |
 
 LSP가 없으면 현재·열린 버퍼 단어와 ctags 심볼을 내장 완성에 사용합니다. `gd`와 코드
 아웃라인도 지원되는 ctags가 있으면 저장된 C/C++·Python 소스를 대상으로 fallback합니다.
@@ -242,35 +242,35 @@ LSP가 없으면 현재·열린 버퍼 단어와 ctags 심볼을 내장 완성�
 `vim.text.diff()`로 비교해 변경 구간만 적용하고 한 번의 undo로 되돌릴 수 있게 합니다.
 실행 중 버퍼가 바뀌거나 닫히면 늦게 도착한 결과를 버립니다.
 
-| 파일타입 | 외부 포매터 |
-| --- | --- |
-| Lua | `stylua` |
-| C/C++/CUDA | `clang-format` |
-| Python | `ruff format`, 없으면 `black` |
-| JS/TS/JSX/TSX, HTML, CSS/SCSS/Less | `prettier` |
-| JSON/JSONC, YAML, Markdown/MDX | `prettier` |
-| GraphQL, Vue, Handlebars | `prettier` |
-| Bazel/Starlark | `buildifier` |
-| Protocol Buffers | `clang-format` |
-| Shell | `shfmt` |
-| CMake | `cmake-format` |
-| TeX | `latexindent` |
-| Rust | `rustfmt` |
+| 파일타입                           | 외부 포매터                   |
+| ---------------------------------- | ----------------------------- |
+| Lua                                | `stylua`                      |
+| C/C++/CUDA                         | `clang-format`                |
+| Python                             | `ruff format`, 없으면 `black` |
+| JS/TS/JSX/TSX, HTML, CSS/SCSS/Less | `prettier`                    |
+| JSON/JSONC, YAML, Markdown/MDX     | `prettier`                    |
+| GraphQL, Vue, Handlebars           | `prettier`                    |
+| Bazel/Starlark                     | `buildifier`                  |
+| Protocol Buffers                   | `clang-format`                |
+| Shell                              | `shfmt`                       |
+| CMake                              | `cmake-format`                |
+| TeX                                | `latexindent`                 |
+| Rust                               | `rustfmt`                     |
 
 등록된 외부 포매터가 없으면 연결된 LSP의 document formatting을 시도합니다. MLIR과 Zsh는
 외부 포매터를 등록하지 않았습니다. 저장 시 자동 포맷과 선택 영역 포맷은 사용하지 않습니다.
 
 ## Undo·세션·터미널
 
-| 키 | 동작 |
-| --- | --- |
-| `Space u` | undo 상태 목록과 코드 미리보기; `Enter`로 선택 상태 적용 |
-| `Space pr` | 현재 프로젝트 세션 복원 |
-| `Space pl` | 마지막 세션 복원 |
-| `Space pS` | 저장된 세션 선택 |
-| `Space pd` | 현재 실행에서 세션 저장 중지 |
-| `Ctrl-t` | 같은 shell terminal을 아래 split에서 토글 |
-| Terminal `Esc Esc` | Terminal 모드 종료 |
+| 키                 | 동작                                                     |
+| ------------------ | -------------------------------------------------------- |
+| `Space u`          | undo 상태 목록과 코드 미리보기; `Enter`로 선택 상태 적용 |
+| `Space pr`         | 현재 프로젝트 세션 복원                                  |
+| `Space pl`         | 마지막 세션 복원                                         |
+| `Space pS`         | 저장된 세션 선택                                         |
+| `Space pd`         | 현재 실행에서 세션 저장 중지                             |
+| `Ctrl-t`           | 같은 shell terminal을 아래 split에서 토글                |
+| Terminal `Esc Esc` | Terminal 모드 종료                                       |
 
 세션은 버퍼, 작업 디렉터리, 창, 탭, fold와 terminal 상태를 저장하지만 미저장 파일 내용의
 백업은 아닙니다.
@@ -297,17 +297,17 @@ Neovim 내부 레지스터를 사용합니다. 다른 앱에서 복사한 내용
 
 ## 성능과 안전 제한
 
-| 대상 | 제한 |
-| --- | --- |
-| 일반 외부 명령 | 기본 5초, stdout 2 MiB |
-| 파일/검색 후보 | 최대 10,000개 |
-| 화면 표시 결과 | 최대 200개 |
-| 파일 미리보기 | 앞 64 KiB |
-| Git sign | 256 KiB, 20,000줄, sign 2,000개 |
-| 포맷팅 | 2 MiB 이하 파일 |
-| Sticky Scroll | 위쪽 1,000줄, 256 KiB |
-| 큰 파일 보호 | 2 MiB, 50,000줄 또는 한 줄 10,000바이트 초과 |
-| SSH OSC52 복사 | 100,000바이트 초과 시 경고 후 전송 생략 |
+| 대상           | 제한                                         |
+| -------------- | -------------------------------------------- |
+| 일반 외부 명령 | 기본 5초, stdout 2 MiB                       |
+| 파일/검색 후보 | 최대 10,000개                                |
+| 화면 표시 결과 | 최대 200개                                   |
+| 파일 미리보기  | 앞 64 KiB                                    |
+| Git sign       | 256 KiB, 20,000줄, sign 2,000개              |
+| 포맷팅         | 2 MiB 이하 파일                              |
+| Sticky Scroll  | 위쪽 1,000줄, 256 KiB                        |
+| 큰 파일 보호   | 2 MiB, 50,000줄 또는 한 줄 10,000바이트 초과 |
+| SSH OSC52 복사 | 100,000바이트 초과 시 경고 후 전송 생략      |
 
 큰 파일에서는 LSP, syntax, 자동완성, ctags, Git sign, Sticky Scroll과 포맷팅을 중지하고
 wrap과 커서 십자 강조도 끕니다. `:OfflineCancel`은 실행 중인 검색·Git·ctags 작업과 예약된

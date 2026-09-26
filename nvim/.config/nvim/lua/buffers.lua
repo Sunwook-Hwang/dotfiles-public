@@ -206,4 +206,3 @@ do
 		end, "Close " .. side .. " buffers (keep modified)")
 	end
 end
-

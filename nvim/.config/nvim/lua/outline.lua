@@ -32,4 +32,3 @@ require("aerial").setup({
 	end,
 })
 vim.keymap.set("n", "<leader>o", "<Cmd>AerialToggle<CR>", { desc = "Toggle symbols outline" })
-

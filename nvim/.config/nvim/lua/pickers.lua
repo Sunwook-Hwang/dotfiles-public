@@ -28,4 +28,3 @@ do
 		Snacks.picker.files({ cwd = vim.fn.stdpath("config") })
 	end, { desc = "Search Neovim files" })
 end
-

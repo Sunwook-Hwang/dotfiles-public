@@ -134,21 +134,21 @@ The installer verifies both Neovim configuration links and repairs a missing or
 dangling `init.lua`. A clean install defaults to offline mode; use `onvi` to select
 online mode. Custom `init.lua` files are preserved.
 
-| Feature | Offline behavior |
-| --- | --- |
-| Completion | Native LSP completion on server-defined triggers; buffer words and ctags fallback without LSP |
-| Completion keys | `Ctrl-Space` requests candidates, `Ctrl-n/p` selects, `Enter` accepts; `Tab` / `Shift-Tab` navigates snippets or candidates |
-| Definition | `gd` uses LSP first, then saved-file ctags definitions |
-| LSP | Native client; `Space ls` restarts current-buffer clients, `Space lv` selects the Python environment |
-| Formatting | `Space lf` runs installed formatters asynchronously or falls back to LSP; no format-on-save |
-| Search | `Space f` finds files, `Space Enter` finds Git-tracked files, `Space st` searches text live, `Space t` searches the cursor word |
-| Code outline | `Space o` opens LSP symbols or a ctags fallback; `Enter` jumps, `r` refreshes, `q` closes |
-| File tree | `Space e` toggles netrw at the project root with cached Git status signs |
-| Git | Unstaged line signs, branch/file status, and side-by-side index/HEAD diff with `Space gd/gD` |
-| Terminal | `Ctrl-t` toggles a reusable bottom split; `Esc Esc` exits Terminal mode |
-| Auto pairs | Brackets `() [] {}`, single/double quotes, and backticks; skip existing closers and delete empty pairs |
-| Undo | `Space u` previews saved undo states before applying one |
-| Highlighting | Bundled Treesitter parsers when available, otherwise syntax highlighting; native indent guides |
+| Feature         | Offline behavior                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Completion      | Native LSP completion on server-defined triggers; buffer words and ctags fallback without LSP                                   |
+| Completion keys | `Ctrl-Space` requests candidates, `Ctrl-n/p` selects, `Enter` accepts; `Tab` / `Shift-Tab` navigates snippets or candidates     |
+| Definition      | `gd` uses LSP first, then saved-file ctags definitions                                                                          |
+| LSP             | Native client; `Space ls` restarts current-buffer clients, `Space lv` selects the Python environment                            |
+| Formatting      | `Space lf` runs installed formatters asynchronously or falls back to LSP; no format-on-save                                     |
+| Search          | `Space f` finds files, `Space Enter` finds Git-tracked files, `Space st` searches text live, `Space t` searches the cursor word |
+| Code outline    | `Space o` opens LSP symbols or a ctags fallback; `Enter` jumps, `r` refreshes, `q` closes                                       |
+| File tree       | `Space e` toggles netrw at the project root with cached Git status signs                                                        |
+| Git             | Unstaged line signs, branch/file status, and side-by-side index/HEAD diff with `Space gd/gD`                                    |
+| Terminal        | `Ctrl-t` toggles a reusable bottom split; `Esc Esc` exits Terminal mode                                                         |
+| Auto pairs      | Brackets `() [] {}`, single/double quotes, and backticks; skip existing closers and delete empty pairs                          |
+| Undo            | `Space u` previews saved undo states before applying one                                                                        |
+| Highlighting    | Bundled Treesitter parsers when available, otherwise syntax highlighting; native indent guides                                  |
 
 LSP and formatter launchers are searched on `PATH` first, then in an existing `stdpath("data")/mason/bin` directory without loading
 Mason or installing tools. Auxiliary servers require project configuration or

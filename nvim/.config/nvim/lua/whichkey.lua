@@ -49,4 +49,3 @@ require("which-key").setup({
 		-- { "<leader>d", group = "[D]ebug" },
 	},
 })
-

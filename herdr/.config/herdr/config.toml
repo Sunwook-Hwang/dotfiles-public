@@ -1,9 +1,9 @@
 onboarding = false
+
 [ui]
 tab_bar_right = [{ type = "datetime", format = "[ %H:%M ]" }]
 
 [keys]
-
 prefix = "ctrl+a"
 
 # Split

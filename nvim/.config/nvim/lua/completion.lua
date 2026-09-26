@@ -55,4 +55,3 @@ vim.api.nvim_create_autocmd("BufWipeout", {
 		completion_buffers[args.buf], pending_completion[args.buf] = nil, nil
 	end,
 })
-

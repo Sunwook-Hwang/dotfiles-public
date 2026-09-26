@@ -91,4 +91,3 @@ do
 		end
 	end, { desc = "Toggle breadcrumb bar" })
 end
-

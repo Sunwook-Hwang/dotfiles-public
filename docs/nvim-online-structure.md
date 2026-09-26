@@ -9,29 +9,29 @@ also works when the adjacent `lua/` directory is present.
 and can still be copied alone. Online plugin packages and Mason tools are separate
 from these configuration files and must also be available on an offline server.
 
-| Module | Responsibility |
-| --- | --- |
-| `options.lua` | Disable defaults, editor options, leader |
-| `keymaps.lua` | Editing, window movement/resizing, cursor word highlight |
-| `bigfile.lua` | Large-file safeguards and related events |
-| `plugins.lua` | `vim.pack` package registration |
-| `context.lua` | Native sticky context and its update lifecycle |
-| `ui.lua` | Snacks setup: dashboard, indent, picker styling, terminal layout |
-| `git.lua` | Gitsigns, hunk operations, inline blame |
-| `session.lua` | Session persistence |
-| `clipboard.lua` | SSH clipboard copying |
-| `whichkey.lua` | Keybinding help |
-| `pickers.lua` | Search picker mappings |
-| `breadcrumbs.lua` | Dropbar sources and updates |
-| `outline.lua` | Aerial outline and cursor tracking |
-| `terminal.lua` | Bottom terminal and lazygit toggles |
-| `format.lua` | Conform formatter registration and formatting |
-| `completion.lua` | Native completion and snippets |
-| `explorer.lua` | Explorer root discovery and toggle |
-| `lsp.lua` | Native LSP, server definitions, Python environment, Mason |
-| `buffers.lua` | Tabline, buffer selection and deletion |
-| `statusline.lua` | Statusline rendering and invalidation |
-| `theme.lua` | Final editor commands and colorscheme |
+| Module            | Responsibility                                                   |
+| ----------------- | ---------------------------------------------------------------- |
+| `options.lua`     | Disable defaults, editor options, leader                         |
+| `keymaps.lua`     | Editing, window movement/resizing, cursor word highlight         |
+| `bigfile.lua`     | Large-file safeguards and related events                         |
+| `plugins.lua`     | `vim.pack` package registration                                  |
+| `context.lua`     | Native sticky context and its update lifecycle                   |
+| `ui.lua`          | Snacks setup: dashboard, indent, picker styling, terminal layout |
+| `git.lua`         | Gitsigns, hunk operations, inline blame                          |
+| `session.lua`     | Session persistence                                              |
+| `clipboard.lua`   | SSH clipboard copying                                            |
+| `whichkey.lua`    | Keybinding help                                                  |
+| `pickers.lua`     | Search picker mappings                                           |
+| `breadcrumbs.lua` | Dropbar sources and updates                                      |
+| `outline.lua`     | Aerial outline and cursor tracking                               |
+| `terminal.lua`    | Bottom terminal and lazygit toggles                              |
+| `format.lua`      | Conform formatter registration and formatting                    |
+| `completion.lua`  | Native completion and snippets                                   |
+| `explorer.lua`    | Explorer root discovery and toggle                               |
+| `lsp.lua`         | Native LSP, server definitions, Python environment, Mason        |
+| `buffers.lua`     | Tabline, buffer selection and deletion                           |
+| `statusline.lua`  | Statusline rendering and invalidation                            |
+| `theme.lua`       | Final editor commands and colorscheme                            |
 
 The only configuration module dependency is `ui.lua` importing the safeguard
 function from `bigfile.lua`. Modules that use Snacks import the installed

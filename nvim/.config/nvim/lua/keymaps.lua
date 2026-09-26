@@ -107,10 +107,18 @@ vim.keymap.set("n", "<S-Up>", ":resize -5<CR>", { noremap = true, silent = true 
 vim.keymap.set("n", "<S-Down>", ":resize +5<CR>", { noremap = true, silent = true })
 vim.keymap.set("n", "<S-Left>", ":vertical resize -5<CR>", { noremap = true, silent = true })
 vim.keymap.set("n", "<S-Right>", ":vertical resize +5<CR>", { noremap = true, silent = true })
-vim.keymap.set("t", "<S-Up>", function() vim.cmd("resize -5") end, { silent = true })
-vim.keymap.set("t", "<S-Down>", function() vim.cmd("resize +5") end, { silent = true })
-vim.keymap.set("t", "<S-Left>", function() vim.cmd("vertical resize -5") end, { silent = true })
-vim.keymap.set("t", "<S-Right>", function() vim.cmd("vertical resize +5") end, { silent = true })
+vim.keymap.set("t", "<S-Up>", function()
+	vim.cmd("resize -5")
+end, { silent = true })
+vim.keymap.set("t", "<S-Down>", function()
+	vim.cmd("resize +5")
+end, { silent = true })
+vim.keymap.set("t", "<S-Left>", function()
+	vim.cmd("vertical resize -5")
+end, { silent = true })
+vim.keymap.set("t", "<S-Right>", function()
+	vim.cmd("vertical resize +5")
+end, { silent = true })
 
 -- Leader mappings (yank/paste behavior tweaks)
 vim.keymap.set("n", "x", [["_x]], { noremap = true, silent = true })
@@ -147,22 +155,29 @@ do
 			return
 		end
 		clear(win)
-		vim.w[win].cursor_word_match = vim.fn.matchadd("CursorWord", "\\C\\V\\<" .. vim.fn.escape(word, "\\") .. "\\>", -1)
+		vim.w[win].cursor_word_match =
+			vim.fn.matchadd("CursorWord", "\\C\\V\\<" .. vim.fn.escape(word, "\\") .. "\\>", -1)
 	end
 	vim.cmd("highlight default link CursorWord Visual")
 	local group = vim.api.nvim_create_augroup("online-cursor-word", { clear = true })
-	vim.api.nvim_create_autocmd("ColorScheme", { group = group, callback = function()
-		vim.cmd("highlight default link CursorWord Visual")
-	end })
-	vim.api.nvim_create_autocmd("CursorHold", { group = group, callback = highlight })
-	vim.api.nvim_create_autocmd({ "CursorMoved", "InsertEnter", "ModeChanged", "WinLeave", "BufLeave", "TextChanged" }, {
+	vim.api.nvim_create_autocmd("ColorScheme", {
 		group = group,
 		callback = function()
-			if enabled then
-				clear(vim.api.nvim_get_current_win())
-			end
+			vim.cmd("highlight default link CursorWord Visual")
 		end,
 	})
+	vim.api.nvim_create_autocmd("CursorHold", { group = group, callback = highlight })
+	vim.api.nvim_create_autocmd(
+		{ "CursorMoved", "InsertEnter", "ModeChanged", "WinLeave", "BufLeave", "TextChanged" },
+		{
+			group = group,
+			callback = function()
+				if enabled then
+					clear(vim.api.nvim_get_current_win())
+				end
+			end,
+		}
+	)
 	vim.keymap.set("n", "<leader>Th", function()
 		enabled = not enabled
 		if enabled then
@@ -216,4 +231,3 @@ vim.keymap.set("n", "<leader>Sf", [[:.,$s/\<<C-r><C-w>\>/]], {
 -- Keep selection when indenting
 vim.keymap.set("v", "<", "<gv", { noremap = true, silent = true })
 vim.keymap.set("v", ">", ">gv", { noremap = true, silent = true })
-

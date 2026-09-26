@@ -68,4 +68,3 @@ vim.keymap.set("n", "<leader>gb", function()
 	local enabled = require("gitsigns").toggle_current_line_blame()
 	vim.notify("Inline blame: " .. (enabled and "on" or "off"))
 end, { desc = "Toggle inline blame" })
-

@@ -21,4 +21,3 @@ end, { desc = "Stop saving session" })
 vim.keymap.set("n", "<leader>pS", function()
 	require("persistence").select()
 end, { desc = "Select session" })
-

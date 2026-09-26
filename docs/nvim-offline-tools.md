@@ -7,11 +7,11 @@ macOS에서 준비해 Linux로 옮길 때는 서버용 Linux 배포 파일을 �
 
 ## 1. 현재 설정이 찾는 위치
 
-| 종류 | 검색 순서 |
-| --- | --- |
-| LSP 서버 | PATH → 기존 `stdpath("data")/mason/bin` |
-| 외부 포맷터 | PATH → 기존 `stdpath("data")/mason/bin` |
-| Git·검색 | PATH의 `git`, `find`, `rg` 또는 `grep` |
+| 종류           | 검색 순서                                                                  |
+| -------------- | -------------------------------------------------------------------------- |
+| LSP 서버       | PATH → 기존 `stdpath("data")/mason/bin`                                    |
+| 외부 포맷터    | PATH → 기존 `stdpath("data")/mason/bin`                                    |
+| Git·검색       | PATH의 `git`, `find`, `rg` 또는 `grep`                                     |
 | Ctags fallback | `g:offline_ctags` 지정값 및 PATH 후보에서 Universal 우선, 없으면 Exuberant |
 
 Mason은 필요 없습니다. 기존 Mason 경로가 있어도 플러그인을 로드하거나 설치하지 않습니다.
@@ -47,22 +47,22 @@ export PATH="$HOME/.local/bin:$HOME/.local/opt/nvim-tools/node-tools/node_module
 
 ## 2. 언어별 필요한 도구
 
-| 언어 | LSP 실행 파일 | 설치 패키지/배포본 | 현재 외부 포맷터 |
-| --- | --- | --- | --- |
-| Python | `ty server` → 없으면 `pyright-langserver` | ty 실행 파일 또는 npm `pyright` + Node.js | `ruff format` → 없으면 `black` |
-| C/C++ | `clangd` | clangd/LLVM | `clang-format` |
-| Lua | `lua-language-server` | LuaLS 배포본 | `stylua` |
-| JavaScript·TypeScript·JSX·TSX | `typescript-language-server` | npm `typescript-language-server` + 호환 `typescript` | `prettier` |
-| HTML·CSS/SCSS/Less | `vscode-html-language-server`, `vscode-css-language-server` | npm `vscode-langservers-extracted` | `prettier` |
-| JSON·Markdown/MDX·GraphQL·Vue·Handlebars | 등록된 LSP가 있을 때 연결 | 해당 LSP 배포본 | `prettier` |
-| YAML | `yaml-language-server` | npm 또는 배포본 | `prettier` |
-| Bazel·Starlark | `starpls server` | Starpls 배포본 | `buildifier` |
-| Protocol Buffers | `buf lsp serve` | Buf CLI | `clang-format` |
-| Shell | `bash-language-server start` | npm 또는 배포본 | `shfmt` |
-| CMake | `neocmakelsp stdio` → 없으면 `cmake-language-server` | 각 서버 배포본 | `cmake-format` |
-| TeX | `texlab` | TexLab 배포본 | `latexindent` |
-| Rust | `rust-analyzer` | rust-analyzer 배포본 | `rustfmt` |
-| MLIR | `mlir-lsp-server` | LLVM 배포본 | 등록 없음 |
+| 언어                                     | LSP 실행 파일                                               | 설치 패키지/배포본                                   | 현재 외부 포맷터               |
+| ---------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------- | ------------------------------ |
+| Python                                   | `ty server` → 없으면 `pyright-langserver`                   | ty 실행 파일 또는 npm `pyright` + Node.js            | `ruff format` → 없으면 `black` |
+| C/C++                                    | `clangd`                                                    | clangd/LLVM                                          | `clang-format`                 |
+| Lua                                      | `lua-language-server`                                       | LuaLS 배포본                                         | `stylua`                       |
+| JavaScript·TypeScript·JSX·TSX            | `typescript-language-server`                                | npm `typescript-language-server` + 호환 `typescript` | `prettier`                     |
+| HTML·CSS/SCSS/Less                       | `vscode-html-language-server`, `vscode-css-language-server` | npm `vscode-langservers-extracted`                   | `prettier`                     |
+| JSON·Markdown/MDX·GraphQL·Vue·Handlebars | 등록된 LSP가 있을 때 연결                                   | 해당 LSP 배포본                                      | `prettier`                     |
+| YAML                                     | `yaml-language-server`                                      | npm 또는 배포본                                      | `prettier`                     |
+| Bazel·Starlark                           | `starpls server`                                            | Starpls 배포본                                       | `buildifier`                   |
+| Protocol Buffers                         | `buf lsp serve`                                             | Buf CLI                                              | `clang-format`                 |
+| Shell                                    | `bash-language-server start`                                | npm 또는 배포본                                      | `shfmt`                        |
+| CMake                                    | `neocmakelsp stdio` → 없으면 `cmake-language-server`        | 각 서버 배포본                                       | `cmake-format`                 |
+| TeX                                      | `texlab`                                                    | TexLab 배포본                                        | `latexindent`                  |
+| Rust                                     | `rust-analyzer`                                             | rust-analyzer 배포본                                 | `rustfmt`                      |
+| MLIR                                     | `mlir-lsp-server`                                           | LLVM 배포본                                          | 등록 없음                      |
 
 Prettier는 위에 적은 웹 파일 타입에서만 외부 포매터로 실행됩니다. MLIR의 `mlir-opt`는
 일반 포매터가 아니므로 소스 변환 위험을 피하기 위해 포매터로 등록하지 않습니다.
@@ -72,13 +72,13 @@ Ruff는 포맷터로만 사용하고 LSP로 실행하지 않습니다. isort는 
 
 추가로 등록된 웹 LSP는 다음과 같습니다. 해당 언어를 쓸 때만 설치하세요.
 
-| 실행 파일 | npm 패키지 |
-| --- | --- |
-| `tailwindcss-language-server` | `@tailwindcss/language-server` |
-| `svelteserver` | `svelte-language-server` |
-| `graphql-lsp` | `graphql-language-service-cli` |
-| `emmet-ls` | `emmet-ls` |
-| `prisma-language-server` | `@prisma/language-server` |
+| 실행 파일                       | npm 패키지                     |
+| ------------------------------- | ------------------------------ |
+| `tailwindcss-language-server`   | `@tailwindcss/language-server` |
+| `svelteserver`                  | `svelte-language-server`       |
+| `graphql-lsp`                   | `graphql-language-service-cli` |
+| `emmet-ls`                      | `emmet-ls`                     |
+| `prisma-language-server`        | `@prisma/language-server`      |
 | `vscode-eslint-language-server` | `vscode-langservers-extracted` |
 
 실행 파일 설치와 프로젝트 설정은 별개입니다. ESLint·Tailwind·GraphQL 등은 프로젝트의

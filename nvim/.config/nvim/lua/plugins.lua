@@ -18,4 +18,3 @@ local packages = {
 -- Load at startup; configure dependencies before their consumers below.
 -- Update plugins with :lua vim.pack.update()
 vim.pack.add(packages, { confirm = false })
-

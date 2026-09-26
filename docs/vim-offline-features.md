@@ -31,30 +31,30 @@ directory. Third-party directories are excluded from `runtimepath` and
 
 ## Editing and navigation
 
-| Key | Action |
-| --- | --- |
-| `gcc` | Toggle the current line's comment; accepts a count |
-| `gc` + motion | Toggle comments over a motion, e.g. `gcj` or `gcap` |
-| Visual `gc` | Toggle comments on selected lines |
-| `.` | Repeat the comment operation |
-| `Y` / `yy` | Copy from the cursor to end of line / copy the whole line, matching Neovim |
-| `Q` | Repeat the last macro recorded with `q`; supports a count |
-| Linewise Visual `Q` / `@a` | Run the last recorded macro / register `a` on each selected line |
-| Insert `Ctrl-u` / `Ctrl-w` | Delete preceding input / word with a separate undo point |
-| `&` | Repeat the last substitution, preserving flags such as `g` |
-| Visual `*` / `#` | Search the selected text literally, forward / backward, preserving registers |
-| `[Space` / `]Space` | Add blank lines above / below; supports counts, undo, and `.` |
-| `[q` / `]q`, `[l` / `]l`, `[a` / `]a`, `[t` / `]t` | Previous / next quickfix item, location item, argument, or tag match |
-| `[Q` / `]Q`, `[L` / `]L`, `[A` / `]A`, `[T` / `]T`, `[B` / `]B` | First / last item in those lists or the buffer list |
-| `>>` / `<<` | Shift the current line right / left, including first-column Python comments |
-| Visual `>` / `<` | Shift selected lines and keep the selection for repeated shifts |
-| `Ctrl-s` | Save from Normal or Insert mode |
-| `jk` | Leave Insert mode |
-| `Ctrl-h/j/k/l` | Move between windows |
-| `Alt-j/k` | Move the current line or selection down / up |
-| `Ctrl-Space` | Request native word/tag completion |
-| `Ctrl-n/p`, `Tab`, `Shift-Tab` | Move through completion candidates |
-| `Enter` | Accept a selected completion; otherwise insert a newline |
+| Key                                                             | Action                                                                       |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `gcc`                                                           | Toggle the current line's comment; accepts a count                           |
+| `gc` + motion                                                   | Toggle comments over a motion, e.g. `gcj` or `gcap`                          |
+| Visual `gc`                                                     | Toggle comments on selected lines                                            |
+| `.`                                                             | Repeat the comment operation                                                 |
+| `Y` / `yy`                                                      | Copy from the cursor to end of line / copy the whole line, matching Neovim   |
+| `Q`                                                             | Repeat the last macro recorded with `q`; supports a count                    |
+| Linewise Visual `Q` / `@a`                                      | Run the last recorded macro / register `a` on each selected line             |
+| Insert `Ctrl-u` / `Ctrl-w`                                      | Delete preceding input / word with a separate undo point                     |
+| `&`                                                             | Repeat the last substitution, preserving flags such as `g`                   |
+| Visual `*` / `#`                                                | Search the selected text literally, forward / backward, preserving registers |
+| `[Space` / `]Space`                                             | Add blank lines above / below; supports counts, undo, and `.`                |
+| `[q` / `]q`, `[l` / `]l`, `[a` / `]a`, `[t` / `]t`              | Previous / next quickfix item, location item, argument, or tag match         |
+| `[Q` / `]Q`, `[L` / `]L`, `[A` / `]A`, `[T` / `]T`, `[B` / `]B` | First / last item in those lists or the buffer list                          |
+| `>>` / `<<`                                                     | Shift the current line right / left, including first-column Python comments  |
+| Visual `>` / `<`                                                | Shift selected lines and keep the selection for repeated shifts              |
+| `Ctrl-s`                                                        | Save from Normal or Insert mode                                              |
+| `jk`                                                            | Leave Insert mode                                                            |
+| `Ctrl-h/j/k/l`                                                  | Move between windows                                                         |
+| `Alt-j/k`                                                       | Move the current line or selection down / up                                 |
+| `Ctrl-Space`                                                    | Request native word/tag completion                                           |
+| `Ctrl-n/p`, `Tab`, `Shift-Tab`                                  | Move through completion candidates                                           |
+| `Enter`                                                         | Accept a selected completion; otherwise insert a newline                     |
 
 Comments use the current filetype's `commentstring`. Brackets, quotes, and
 backticks pair automatically; existing closers are skipped and Backspace removes
@@ -75,15 +75,15 @@ Install **Universal Ctags** on `PATH` (recommended). Exuberant Ctags is also
 accepted; macOS's BSD `ctags` is not. Universal is preferred across `PATH`
 candidates. An explicit executable can be supplied with `g:offline_ctags`.
 
-| Key / command | Action |
-| --- | --- |
-| `gd` | Build the project index if needed, then jump to the word's definition |
-| `g Ctrl-t` | Return through Vim's tag stack (`Ctrl-t` is the terminal toggle) |
-| `Space o` | Toggle the right-hand ctags outline |
-| Outline `Enter`, `r`, `q` | Jump, refresh from the saved file, close |
-| `:CtagsUpdate` | Rebuild the whole current project index |
-| `:CtagsClearAll` | Remove managed tag caches |
-| `:OfflineCancel` | Cancel background commands and the active picker |
+| Key / command             | Action                                                                |
+| ------------------------- | --------------------------------------------------------------------- |
+| `gd`                      | Build the project index if needed, then jump to the word's definition |
+| `g Ctrl-t`                | Return through Vim's tag stack (`Ctrl-t` is the terminal toggle)      |
+| `Space o`                 | Toggle the right-hand ctags outline                                   |
+| Outline `Enter`, `r`, `q` | Jump, refresh from the saved file, close                              |
+| `:CtagsUpdate`            | Rebuild the whole current project index                               |
+| `:CtagsClearAll`          | Remove managed tag caches                                             |
+| `:OfflineCancel`          | Cancel background commands and the active picker                      |
 
 The first completion request in a file indexes that saved file. Project
 definition lookup builds a full index asynchronously; subsequent saves queue
@@ -102,28 +102,28 @@ newlines cannot be indexed by this line-oriented ctags integration.
 
 ## Interface, files, and search
 
-| Key | Action |
-| --- | --- |
-| `Space A` | Native dashboard; also appears on an empty interactive startup |
-| Dashboard `j/k`, `Enter` | Select and run a menu item; letter keys also work |
-| Dashboard `:` | Close the overlay and start an Ex command; `:q` exits when no other window exists |
-| `Space` | Show a guide to actual Space mappings after the mapping timeout |
-| `Space e` | Toggle netrw in a left sidebar |
-| Tree `g?` | Open shortcut help; `g?`, `q`, or `Esc` closes it; `j/k` and `Ctrl-d/u` scroll |
-| `Space f`, `Space Enter` | Find project files / Git-tracked files |
-| `Space st`, `Space t` | Live text search / search the cursor word |
-| `Space s/` | Search the saved contents of open files |
-| `Space sr`, `Space sn` | Recent files / Vim configuration files |
-| `Space sb`, `Space bp` | Buffer picker |
-| `Space sc/sh/sp/sk` | Commands / help / themes / keymaps |
-| `Shift-h/l`, `[b` / `]b`, `Alt-1` … `Alt-9` | Switch buffers |
-| `Space bw`, `Space c` | Close buffer / force-close buffer, keeping split frames |
-| `Space bm`, `Space bh/bl` | Close other buffers / buffers to the left or right |
-| `Space bj/bk`, `Space bD/bL` | Reorder buffers / sort by directory or language |
-| `Space Ti` | Toggle indent guides (on by default) |
-| `Space Ts` | Toggle Sticky Scroll (off by default) |
-| `Space TS` | Toggle animated paging (off by default) |
-| `Space Tl` | Toggle ctags/formatter status information |
+| Key                                         | Action                                                                            |
+| ------------------------------------------- | --------------------------------------------------------------------------------- |
+| `Space A`                                   | Native dashboard; also appears on an empty interactive startup                    |
+| Dashboard `j/k`, `Enter`                    | Select and run a menu item; letter keys also work                                 |
+| Dashboard `:`                               | Close the overlay and start an Ex command; `:q` exits when no other window exists |
+| `Space`                                     | Show a guide to actual Space mappings after the mapping timeout                   |
+| `Space e`                                   | Toggle netrw in a left sidebar                                                    |
+| Tree `g?`                                   | Open shortcut help; `g?`, `q`, or `Esc` closes it; `j/k` and `Ctrl-d/u` scroll    |
+| `Space f`, `Space Enter`                    | Find project files / Git-tracked files                                            |
+| `Space st`, `Space t`                       | Live text search / search the cursor word                                         |
+| `Space s/`                                  | Search the saved contents of open files                                           |
+| `Space sr`, `Space sn`                      | Recent files / Vim configuration files                                            |
+| `Space sb`, `Space bp`                      | Buffer picker                                                                     |
+| `Space sc/sh/sp/sk`                         | Commands / help / themes / keymaps                                                |
+| `Shift-h/l`, `[b` / `]b`, `Alt-1` … `Alt-9` | Switch buffers                                                                    |
+| `Space bw`, `Space c`                       | Close buffer / force-close buffer, keeping split frames                           |
+| `Space bm`, `Space bh/bl`                   | Close other buffers / buffers to the left or right                                |
+| `Space bj/bk`, `Space bD/bL`                | Reorder buffers / sort by directory or language                                   |
+| `Space Ti`                                  | Toggle indent guides (on by default)                                              |
+| `Space Ts`                                  | Toggle Sticky Scroll (off by default)                                             |
+| `Space TS`                                  | Toggle animated paging (off by default)                                           |
+| `Space Tl`                                  | Toggle ctags/formatter status information                                         |
 
 Pickers use native fuzzy matching, a preview, `Ctrl-n/p` or arrow keys to select,
 `Enter` to open, `Esc` to close, and `Ctrl-q` to send matches to quickfix. Text
@@ -155,18 +155,18 @@ found. Installing an executable does not add unsupported filetypes automatically
 
 ## Git, formatting, sessions, and terminal
 
-| Key | Action |
-| --- | --- |
-| `Space gg` | 90% × 90% lazygit popup if installed; otherwise native Git status split |
-| `Space gd/gD` | Diff the editable buffer against the index / HEAD in a separate tab |
-| `Space gn/gp` | Next / previous changed hunk |
-| `Space gb` | Toggle inline blame (off initially, 150 ms delay) |
-| `Space sg` | Recent commit log |
-| `Space lf` | Format asynchronously; never automatically on save |
-| `Space u` | Preview undo states, then apply the selected state |
-| `Space pr/pl/pS/pd` | Restore directory session / last session / pick session / stop saving |
-| `Ctrl-t` | Toggle the reusable bottom terminal split (`+terminal`) |
-| Terminal `Esc Esc` or `Ctrl-w N` | Enter Terminal-Normal mode; `i` returns to terminal input |
+| Key                              | Action                                                                  |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| `Space gg`                       | 90% × 90% lazygit popup if installed; otherwise native Git status split |
+| `Space gd/gD`                    | Diff the editable buffer against the index / HEAD in a separate tab     |
+| `Space gn/gp`                    | Next / previous changed hunk                                            |
+| `Space gb`                       | Toggle inline blame (off initially, 150 ms delay)                       |
+| `Space sg`                       | Recent commit log                                                       |
+| `Space lf`                       | Format asynchronously; never automatically on save                      |
+| `Space u`                        | Preview undo states, then apply the selected state                      |
+| `Space pr/pl/pS/pd`              | Restore directory session / last session / pick session / stop saving   |
+| `Ctrl-t`                         | Toggle the reusable bottom terminal split (`+terminal`)                 |
+| Terminal `Esc Esc` or `Ctrl-w N` | Enter Terminal-Normal mode; `i` returns to terminal input               |
 
 Hiding the terminal keeps its shell running and removes it from buffer lists.
 `:qa` closes the reusable terminal with Vim; unsaved files still prevent quitting.

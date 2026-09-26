@@ -90,8 +90,15 @@ Snacks.setup({
 		end,
 		sources = {
 			explorer = {
+				hidden = true,
+				ignored = true,
 				diagnostics = false,
 				git_status = true,
+				format = function(item, picker)
+					-- Ignore status still takes precedence; hidden paths use normal file/directory colors.
+					item.filename_hl = item.dir and "SnacksPickerDirectory" or "SnacksPickerFile"
+					return Snacks.picker.format.file(item, picker)
+				end,
 				win = {
 					list = { keys = { ["<c-t>"] = toggle_bottom_terminal } },
 					input = { keys = { ["<c-t>"] = { toggle_bottom_terminal, mode = { "n", "i" } } } },
@@ -199,4 +206,3 @@ vim.keymap.set("n", "<leader>A", function()
 end, { desc = "Open dashboard" })
 Snacks.toggle.indent():map("<leader>Ti")
 Snacks.toggle.scroll():map("<leader>TS")
-

@@ -357,4 +357,3 @@ do
 		end
 	end, { desc = "Toggle sticky scroll" })
 end
-

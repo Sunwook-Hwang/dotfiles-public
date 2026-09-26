@@ -33,7 +33,7 @@ function vi {
 alias pvi='vi --pack'
 alias npvi='vi --nopack'
 
-alias neovide='neovide -- -u $HOME/.config/nvim/neovide-terminal.lua'
+alias neovide='NVIM_APPNAME=neovide-terminal neovide'
 
 ZSH_THEME="robbyrussell"
 ZSH_DISABLE_COMPFIX="true"

@@ -164,6 +164,38 @@ function zsh_setup {
   rm -f "$USERDIR/.zshrc"
 }
 
+function neovide_setup {
+  brew list --versions neovide >/dev/null 2>&1 || brew install neovide
+  brew list --cask font-roboto-mono-nerd-font >/dev/null 2>&1 ||
+    brew install --cask font-roboto-mono-nerd-font
+  bash "$CURDIR/install_dotfiles.sh"
+
+  local launcher="$HOME/.local/bin/neovide-terminal-nvim"
+  local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/neovide"
+  local nvim_bin="$(brew --prefix)/bin/nvim"
+  local app="$(brew --prefix neovide)/Neovide.app"
+  local config_tmp launcher_toml home_toml
+  mkdir -p "$HOME/.local/bin" "$config_dir" "$HOME/Applications"
+  printf '#!/bin/bash\nexec env NVIM_APPNAME=neovide-terminal %q "$@"\n' "$nvim_bin" >"$launcher"
+  chmod +x "$launcher"
+
+  # Set the startup profile without discarding other Neovide preferences.
+  launcher_toml="${launcher//\\/\\\\}"
+  launcher_toml="${launcher_toml//\"/\\\"}"
+  home_toml="${HOME//\\/\\\\}"
+  home_toml="${home_toml//\"/\\\"}"
+  config_tmp="$(mktemp "$config_dir/config.toml.XXXXXX")"
+  printf 'neovim-bin = "%s"\nchdir = "%s"\n' "$launcher_toml" "$home_toml" >"$config_tmp"
+  if [[ -f "$config_dir/config.toml" ]]; then
+    awk '!/^[[:space:]]*(neovim-bin|chdir)[[:space:]]*=/' "$config_dir/config.toml" >>"$config_tmp"
+  fi
+  mv "$config_tmp" "$config_dir/config.toml"
+  if [[ ! -e "$HOME/Applications/Neovide.app" || -L "$HOME/Applications/Neovide.app" ]]; then
+    ln -sfn "$app" "$HOME/Applications/Neovide.app"
+  fi
+  echo "Neovide is ready as a terminal: $HOME/Applications/Neovide.app"
+}
+
 function vscode_setup {
   echo "[*] vscode_setup"
 
@@ -178,7 +210,7 @@ function vscode_setup {
 
 COMMAND="${1:-}"
 
-if [[ "$COMMAND" == "" ]]; then
+if [[ "$COMMAND" == "" || "$COMMAND" == "base" ]]; then
   xcode_setup
   brew_setup
 
@@ -189,12 +221,8 @@ if [[ "$COMMAND" == "" ]]; then
   cask_setup
   font_setup
 
-  source "$CURDIR/install_dotfiles.sh"
+  neovide_setup
 
-elif [[ "$COMMAND" == "base" ]]; then
-  echo "*** BASE SETUP ***"
-  brew_setup
-  base_setup
 elif [[ "$COMMAND" == "link" ]]; then
   echo "*** LINK DOTFILES ***"
   source "$CURDIR/install_dotfiles.sh"

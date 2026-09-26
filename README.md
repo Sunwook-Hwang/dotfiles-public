@@ -41,7 +41,7 @@ cd ~/dotfiles
 ./linux_setup.sh
 ```
 
-Install only Homebrew packages:
+Run the complete first-time macOS setup (equivalent to `./mac_setup.sh`):
 
 ```sh
 ./mac_setup.sh base
@@ -78,6 +78,7 @@ Link or unlink dotfiles on either platform:
 - `tmux`: tmux keybindings and theme
 - `nvim`: pack Neovim config
 - `nvim-nopack`: single-file nopack Neovim config
+- `neovide-terminal`: standalone Neovide terminal config
 - `vim`: single-file nopack Vim 9.0+ config (`~/.vimrc`)
 
 ## Git identity
@@ -134,6 +135,20 @@ pvi
 npvi
 vi
 ```
+
+Neovide uses a separate terminal profile at `~/.config/neovide-terminal/init.lua`:
+
+```sh
+NVIM_APPNAME=neovide-terminal neovide
+```
+
+On macOS, `./mac_setup.sh` and `./mac_setup.sh base` install Neovide and configures its app icon to open
+this terminal profile automatically. You can also set up just this integration
+with `./mac_setup.sh neovide`. The app is available at
+`~/Applications/Neovide.app` and can be dragged to the Dock.
+
+The `neovide` shell alias selects this profile. The shell inside Neovide does not
+inherit that profile, so nested Neovim can use pack or nopack independently.
 
 When copying pack configuration to another machine, include the adjacent
 `lua/` directory. See [Pack configuration structure](docs/nvim-pack-structure.md).

@@ -59,7 +59,7 @@ if [[ "$(cat "$mode_file")" == nvim-offline ]]; then
   printf 'nvim-nopack\n' >"$mode_file"
 fi
 
-for folder in claude codex ghostty git herdr nvim nvim-nopack vim zsh tmux; do
+for folder in claude codex ghostty git herdr nvim nvim-nopack neovide-terminal vim zsh tmux; do
   [[ -d "$folder" ]] || continue
   echo "Linking $folder"
   stow "${STOW_IGNORE_ARGS[@]}" -D -t "$TARGET" "$folder"
@@ -67,7 +67,7 @@ for folder in claude codex ghostty git herdr nvim nvim-nopack vim zsh tmux; do
   stow "${STOW_IGNORE_ARGS[@]}" -t "$TARGET" "$folder"
 done
 
-for app in nvim nvim-nopack; do
+for app in nvim nvim-nopack neovide-terminal; do
   if [[ ! "$TARGET/.config/$app/init.lua" -ef "$CURDIR/$app/.config/$app/init.lua" ]]; then
     echo "Neovim configuration was not linked correctly: $TARGET/.config/$app/init.lua" >&2
     exit 1

@@ -1,3 +1,4 @@
+-- Standalone Neovide terminal profile; independent of pack/nopack editor settings.
 vim.o.laststatus = 0
 vim.o.cmdheight = 0
 vim.o.showtabline = 0
@@ -70,8 +71,8 @@ if vim.fn.has("win32") == 1 then
 		"-NoExit",
 		"-Command",
 		"Import-Module PSReadLine; Set-PSReadLineOption -HistorySaveStyle SaveIncrementally",
-	}, { term = true })
+	}, { term = true, env = { NVIM_APPNAME = "" } })
 else
-	vim.cmd("terminal")
+	vim.fn.jobstart(vim.o.shell, { term = true, env = { NVIM_APPNAME = "" } })
 end
 vim.cmd("startinsert")

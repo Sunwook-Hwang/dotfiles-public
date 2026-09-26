@@ -1,0 +1,262 @@
+-- -------------------------------------
+-- Statusline: native renderer from init.offline.lua
+-- -------------------------------------
+do
+	local git_mode_group
+	local function set_git_mode_highlight()
+		local mode = vim.fn.mode():sub(1, 1)
+		local group = "Identifier"
+		if mode == "i" then
+			group = "String"
+		elseif mode == "v" or mode == "V" or mode == "\22" then
+			group = "Constant"
+		end
+		if git_mode_group == group then
+			return false
+		end
+		git_mode_group = group
+		local normal = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
+		local accent = vim.api.nvim_get_hl(0, { name = group, link = false })
+		local bg = (accent.reverse and accent.bg or accent.fg) or normal.fg or 0x808080
+		local ctermbg = accent.cterm and accent.cterm.reverse and accent.ctermbg or accent.ctermfg
+		local function luminance(color)
+			local result = 0
+			for i, weight in ipairs({ 0.2126, 0.7152, 0.0722 }) do
+				local channel = math.floor(color / 256 ^ (3 - i)) % 256 / 255
+				result = result + weight * (channel <= 0.04045 and channel / 12.92 or ((channel + 0.055) / 1.055) ^ 2.4)
+			end
+			return result
+		end
+		local background_luminance = luminance(bg)
+		local function contrast(color)
+			local value = luminance(color)
+			return (math.max(value, background_luminance) + 0.05) / (math.min(value, background_luminance) + 0.05)
+		end
+		local fg, ctermfg = normal.bg or 0x000000, normal.ctermbg or 0
+		if contrast(normal.fg or 0xffffff) > contrast(fg) then
+			fg, ctermfg = normal.fg or 0xffffff, normal.ctermfg or 15
+		end
+		if contrast(fg) < 4.5 then
+			fg, ctermfg =
+				background_luminance > 0.179 and 0x000000 or 0xffffff, background_luminance > 0.179 and 0 or 15
+		end
+		vim.api.nvim_set_hl(0, "OnlineGitBranch", {
+			fg = fg,
+			bg = bg,
+			ctermfg = ctermfg,
+			ctermbg = ctermbg or normal.ctermfg or 8,
+			bold = true,
+			reverse = false,
+			nocombine = true,
+		})
+		return true
+	end
+	local function set_online_status_highlights()
+		local inactive = vim.api.nvim_get_hl(0, { name = "StatusLineNC", link = false })
+		inactive.bold = false
+		if inactive.cterm then
+			inactive.cterm.bold = false
+		end
+		vim.api.nvim_set_hl(0, "StatusLineNC", inactive)
+		vim.api.nvim_set_hl(0, "OnlineLspMissing", { fg = "#ffffff", bg = "#af0000", bold = true })
+		vim.api.nvim_set_hl(0, "OnlineLspMissingNC", { fg = "#ffffff", bg = "#af0000", bold = false, nocombine = true })
+		git_mode_group = nil
+		set_git_mode_highlight()
+		for _, suffix in ipairs({ "", "NC" }) do
+			local error_hl = vim.api.nvim_get_hl(0, { name = "StatusLine" .. suffix, link = false })
+			if error_hl.reverse then
+				error_hl.bg = error_hl.fg
+			end
+			if error_hl.cterm and error_hl.cterm.reverse then
+				error_hl.ctermbg = error_hl.ctermfg
+				error_hl.cterm.reverse = false
+			end
+			if error_hl.cterm then
+				error_hl.cterm.nocombine = true
+			end
+			error_hl.nocombine = true
+			error_hl.reverse, error_hl.fg, error_hl.ctermfg = false, "#ff0000", 9
+			vim.api.nvim_set_hl(0, "OnlineStatusError" .. suffix, error_hl)
+			local warn_hl = vim.deepcopy(error_hl)
+			warn_hl.fg, warn_hl.ctermfg = "#ffd700", 220
+			vim.api.nvim_set_hl(0, "OnlineStatusWarn" .. suffix, warn_hl)
+		end
+	end
+	set_online_status_highlights()
+	vim.api.nvim_create_autocmd("ColorScheme", {
+		group = vim.api.nvim_create_augroup("online-status-highlights", { clear = true }),
+		callback = set_online_status_highlights,
+	})
+	vim.api.nvim_create_autocmd("ModeChanged", {
+		group = "online-status-highlights",
+		callback = function()
+			if set_git_mode_highlight() then
+				vim.cmd("redrawstatus")
+			end
+		end,
+	})
+	vim.opt.laststatus = 2
+	local language_status_visible = true
+	function _G.OnlineGitStatus()
+		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+		local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
+		if win ~= active then
+			return ""
+		end
+		local branch = vim.b[vim.api.nvim_win_get_buf(win)].gitsigns_head
+		local status = branch and branch ~= "" and ("[" .. branch .. "]") or ""
+		if not status or status == "" then
+			return ""
+		end
+		return "%#OnlineGitBranch# " .. status:gsub("%%", "%%%%") .. " %*"
+	end
+	local diagnostic_counts = {}
+	vim.api.nvim_create_autocmd({ "DiagnosticChanged", "BufWipeout" }, {
+		group = vim.api.nvim_create_augroup("online-diagnostic-status", { clear = true }),
+		callback = function(args)
+			diagnostic_counts[args.buf] = nil
+		end,
+	})
+	function _G.OnlineDiagnosticStatus()
+		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+		local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
+		local error_group = win == active and "OnlineStatusError" or "OnlineStatusErrorNC"
+		local warn_group = win == active and "OnlineStatusWarn" or "OnlineStatusWarnNC"
+		local buf = vim.api.nvim_win_get_buf(win)
+		local counts = diagnostic_counts[buf]
+		if not counts then
+			counts = vim.diagnostic.count(buf)
+			diagnostic_counts[buf] = counts
+		end
+		local parts = {}
+		for _, item in ipairs({ { "ERROR", "E:" }, { "WARN", "W:" }, { "HINT", "H:" } }) do
+			local count = counts[vim.diagnostic.severity[item[1]]] or 0
+			if count > 0 then
+				local text = item[2] .. " " .. count
+				local group = item[1] == "ERROR" and error_group or item[1] == "WARN" and warn_group
+				parts[#parts + 1] = group and ("%#" .. group .. "#" .. text .. "%*") or text
+			end
+		end
+		return table.concat(parts, " ")
+	end
+	local lsp_status_cache, format_status_cache = {}, {}
+	function _G.OnlineLspStatus()
+		if not language_status_visible then
+			return ""
+		end
+		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+		local buf = vim.api.nvim_win_get_buf(win)
+		if vim.bo[buf].buftype ~= "" then
+			return ""
+		end
+		local state = lsp_status_cache[buf]
+		if not state then
+			state = { clients = vim.lsp.get_clients({ bufnr = buf }) }
+			lsp_status_cache[buf] = state
+		end
+		-- Preserve immediate stop detection without scanning every workspace client.
+		for i = #state.clients, 1, -1 do
+			if state.clients[i]:is_stopped() then
+				table.remove(state.clients, i)
+				state.text = nil
+			end
+		end
+		if not state.text then
+			local names = {}
+			for _, client in ipairs(state.clients) do
+				names[client.name:gsub("[%c]", " ")] = true
+			end
+			local sorted = vim.fn.sort(vim.tbl_keys(names))
+			state.text = #sorted > 0 and ("[LSP: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]") or ""
+		end
+		local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
+		local missing_group = win == active and "OnlineLspMissing" or "OnlineLspMissingNC"
+		return state.text ~= "" and state.text or ("%#" .. missing_group .. "#[LSP X]%*")
+	end
+	vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach", "BufWipeout" }, {
+		group = vim.api.nvim_create_augroup("online-lsp-status", { clear = true }),
+		callback = function(args)
+			lsp_status_cache[args.buf], format_status_cache[args.buf] = nil, nil
+			if args.event == "BufWipeout" then
+				return
+			end
+			-- LspDetach fires before the client is removed from the buffer.
+			vim.schedule(function()
+				lsp_status_cache[args.buf], format_status_cache[args.buf] = nil, nil
+				vim.cmd("redrawstatus")
+			end)
+		end,
+	})
+	vim.api.nvim_create_autocmd({ "FileType", "BufFilePost", "BufWritePost" }, {
+		group = vim.api.nvim_create_augroup("online-format-status", { clear = true }),
+		callback = function(args)
+			format_status_cache[args.buf] = nil
+		end,
+	})
+	local function invalidate_format_status()
+		format_status_cache = {}
+	end
+	vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermClose" }, {
+		group = "online-format-status",
+		callback = invalidate_format_status,
+	})
+	vim.api.nvim_create_autocmd("User", {
+		group = "online-format-status",
+		pattern = "OnlineRefresh",
+		callback = invalidate_format_status,
+	})
+	for _, event in ipairs({ "package:install:success", "package:uninstall:success" }) do
+		require("mason-registry"):on(event, vim.schedule_wrap(invalidate_format_status))
+	end
+	function _G.OnlineFormatStatus()
+		if not language_status_visible then
+			return ""
+		end
+		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+		local buf = vim.api.nvim_win_get_buf(win)
+		if vim.bo[buf].buftype ~= "" then
+			return ""
+		end
+		if
+			not vim.bo[buf].modifiable
+			or vim.api.nvim_buf_get_offset(buf, vim.api.nvim_buf_line_count(buf)) > 2 * 1024 * 1024
+		then
+			return "[FORMAT X]"
+		end
+		-- Conform probes executable paths and project roots; do not repeat on every redraw.
+		local cwd = vim.fn.getcwd(vim.fn.win_id2win(win))
+		local by_cwd = format_status_cache[buf] or {}
+		if by_cwd[cwd] then
+			return by_cwd[cwd]
+		end
+		local formatters, lsp = require("conform").list_formatters_to_run(buf)
+		local names = {}
+		for _, formatter in ipairs(formatters) do
+			names[vim.fn.fnamemodify(formatter.command, ":t"):gsub("[%c]", " ")] = true
+		end
+		if lsp then
+			for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf, method = "textDocument/formatting" })) do
+				if not client:is_stopped() then
+					names[client.name:gsub("[%c]", " ")] = true
+				end
+			end
+		end
+		local sorted = vim.fn.sort(vim.tbl_keys(names))
+		local text = #sorted > 0 and ("[FORMAT: " .. table.concat(sorted, ", ") .. "]") or "[FORMAT X]"
+		by_cwd[cwd] = text
+		format_status_cache[buf] = by_cwd
+		return text
+	end
+	function _G.OnlineStatusline()
+		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+		if win ~= vim.api.nvim_get_current_win() then
+			return " %f %= %y "
+		end
+		return "%{%v:lua.OnlineGitStatus()%} %f %m%r%h %= %{%v:lua.OnlineDiagnosticStatus()%} %{%v:lua.OnlineLspStatus()%} %{v:lua.OnlineFormatStatus()} %y | %4l:%3c | %3p%% "
+	end
+	vim.opt.statusline = "%!v:lua.OnlineStatusline()"
+	vim.keymap.set("n", "<leader>Tl", function()
+		language_status_visible = not language_status_visible
+		vim.cmd("redrawstatus")
+	end, { desc = "Toggle LSP / formatter status" })
+end

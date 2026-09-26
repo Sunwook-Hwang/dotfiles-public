@@ -116,6 +116,11 @@ at either `init.online.lua` or `init.offline.lua`. This repository defaults to
 then start Neovim. The local `init.lua` symlink is ignored by Git, so switching
 modes does not change the working tree.
 
+Online configuration is split into feature modules directly under
+`nvim/.config/nvim/lua/`. Keep that directory alongside `init.online.lua` when
+copying the configuration to another machine. Offline remains a standalone file
+and does not load these modules. See [Online configuration structure](docs/nvim-online-structure.md).
+
 When an update adds or renames configuration files, `git pull` alone does not
 create new file-level Stow links. From the repository, run:
 

@@ -2,8 +2,34 @@
 -- Session management: persistence.nvim
 -- -------------------------------------
 require("persistence").setup({
-	dir = vim.fn.stdpath("state") .. "/sessions/",
-	options = { "buffers", "curdir", "tabpages", "winsize", "help", "globals" },
+	dir = (vim.env.XDG_STATE_HOME or vim.fn.expand("~/.local/state")) .. "/nvim/sessions/",
+	branch = false,
+})
+
+-- Named auxiliary buffers must not become ordinary files on restore.
+local excluded = {}
+vim.api.nvim_create_autocmd("User", {
+	pattern = "PersistenceSavePre",
+	callback = function()
+		excluded = {}
+		for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+			if vim.bo[buf].buflisted and vim.bo[buf].buftype ~= "" then
+				excluded[#excluded + 1] = buf
+				vim.bo[buf].buflisted = false
+			end
+		end
+	end,
+})
+vim.api.nvim_create_autocmd("User", {
+	pattern = "PersistenceSavePost",
+	callback = function()
+		for _, buf in ipairs(excluded) do
+			if vim.api.nvim_buf_is_valid(buf) then
+				vim.bo[buf].buflisted = true
+			end
+		end
+		excluded = {}
+	end,
 })
 
 vim.keymap.set("n", "<leader>pr", function()

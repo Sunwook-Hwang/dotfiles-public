@@ -277,8 +277,10 @@ Pack과 Nopack은 `${XDG_STATE_HOME:-$HOME/.local/state}/nvim/undo`에 저장된
 | `Ctrl-t`           | 같은 shell terminal을 아래 split에서 토글                |
 | Terminal `Esc Esc` | Terminal 모드 종료                                       |
 
-세션은 버퍼, 작업 디렉터리, 창, 탭, fold와 terminal 상태를 저장하지만 미저장 파일 내용의
-백업은 아닙니다.
+Pack과 Nopack은 `${XDG_STATE_HOME:-$HOME/.local/state}/nvim/sessions`에서 작업 디렉터리별
+세션을 공유합니다. 파일, 커서 위치, 작업 디렉터리, 분할 창과 탭을 복원하며 탐색기·도움말·
+플로팅 창·터미널·fold·모드별 옵션은 복원하지 않습니다. 기존 Nopack 세션은 원래 위치에
+남겨둡니다. 미저장 파일 내용의 백업은 아니며, 같은 프로젝트는 마지막 저장이 우선합니다.
 
 ## 편집 편의 기능
 

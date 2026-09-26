@@ -96,7 +96,7 @@ local default_options = {
 	scrolloff = 5, -- keep context above and below the cursor
 	sidescrolloff = 8,
 	ttyfast = true,
-	sessionoptions = "buffers,curdir,folds,help,tabpages,winsize,winpos,terminal",
+	sessionoptions = "buffers,curdir,tabpages,winsize",
 }
 
 -- Apply the shared editor options before configuring window-local behavior.

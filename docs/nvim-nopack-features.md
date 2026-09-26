@@ -286,8 +286,12 @@ available when switching modes; live editing sessions do not merge their undo tr
 | `Ctrl-t`           | Toggle a reusable shell terminal in a bottom split |
 | Terminal `Esc Esc` | Leave Terminal mode                                |
 
-Sessions preserve buffers, cwd, windows, tabs, folds, and terminal state. They
-are not backups of unsaved file contents.
+Pack and Nopack share sessions at
+`${XDG_STATE_HOME:-$HOME/.local/state}/nvim/sessions`, one per working directory.
+Sessions preserve named editing files, cursor positions, cwd, splits, and tabs.
+Explorer, help, floating windows, terminals, folds, and profile options are not
+restored. Existing sessions in the old Nopack directory remain untouched. Sessions
+are not backups of unsaved file contents. The last editor to save a project wins.
 
 ## Editing conveniences
 

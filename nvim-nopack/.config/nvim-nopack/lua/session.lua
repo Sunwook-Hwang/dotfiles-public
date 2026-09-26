@@ -1,30 +1,47 @@
 local shared = require("state")
 
--- =========================================
--- =========== PROJECT SESSIONS ==========
--- =========================================
--- Persistence 대체: Space pr/pl/pS/pd = 현재 프로젝트 복원/마지막 복원/선택/저장 중지.
--- stdpath(data)/nopack/sessions에 저장. 세션은 미저장 편집 내용의 백업이 아닙니다.
-local session_dir = shared.nopack_data .. "/sessions/"
+-- Share file sessions with Pack; auxiliary windows and mode-specific options stay local.
+local session_dir = (vim.env.XDG_STATE_HOME or vim.fn.expand("~/.local/state")) .. "/nvim/sessions/"
 vim.fn.mkdir(session_dir, "p")
 local save_session = true
-local function session_path(root)
-	return session_dir .. vim.fn.sha256(root or vim.fn.getcwd()) .. ".vim"
+local function session_path()
+	return session_dir .. vim.fn.getcwd():gsub("[\\/:]+", "%%") .. ".vim"
+end
+local function sessions()
+	local paths = vim.fn.glob(session_dir .. "*.vim", false, true)
+	table.sort(paths, function(a, b)
+		return vim.uv.fs_stat(a).mtime.sec > vim.uv.fs_stat(b).mtime.sec
+	end)
+	return paths
 end
 local function write_session()
-	local listed = shared.buffers()
-	if
-		not save_session
-		or #listed == 0
-		or vim.fn.argc() == 0 and #listed == 1 and vim.api.nvim_buf_get_name(listed[1]) == ""
-	then
+	if not save_session then
 		return
 	end
-	local root = vim.fn.getcwd()
-	local path = session_path(root)
-	vim.cmd("mksession! " .. vim.fn.fnameescape(path))
-	vim.fn.writefile({ root }, path .. ".root")
-	vim.fn.writefile({ path }, session_dir .. "last")
+	local has_file = false
+	local excluded = {}
+	for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+		if vim.bo[buf].buftype == "" and vim.api.nvim_buf_get_name(buf) ~= "" then
+			has_file = true
+		elseif vim.bo[buf].buflisted and vim.bo[buf].buftype ~= "" then
+			excluded[#excluded + 1] = buf
+		end
+	end
+	if not has_file then
+		return
+	end
+	for _, buf in ipairs(excluded) do
+		vim.bo[buf].buflisted = false
+	end
+	local ok, err = pcall(vim.cmd, "mksession! " .. vim.fn.fnameescape(session_path()))
+	for _, buf in ipairs(excluded) do
+		if vim.api.nvim_buf_is_valid(buf) then
+			vim.bo[buf].buflisted = true
+		end
+	end
+	if not ok then
+		vim.notify(err, vim.log.levels.ERROR)
+	end
 end
 local function restore_session(path)
 	if path and vim.fn.filereadable(path) == 1 then
@@ -34,25 +51,14 @@ local function restore_session(path)
 	end
 end
 function shared.select_session()
-	vim.ui.select(vim.fn.glob(session_dir .. "*.vim", false, true), {
+	vim.ui.select(sessions(), {
 		prompt = "Sessions:",
 		format_item = function(path)
-			local metadata = path .. ".root"
-			if vim.fn.filereadable(metadata) == 1 then
-				local roots = vim.fn.readfile(metadata, "", 1)
-				if roots[1] and roots[1] ~= "" then
-					return roots[1]
-				end
+			local directory = path:sub(#session_dir + 1, -5):gsub("%%", "/")
+			if vim.fn.has("win32") == 1 then
+				directory = directory:gsub("^(%w)/", "%1:/")
 			end
-			local directory
-			for _, line in ipairs(vim.fn.readfile(path)) do
-				local local_directory = line:match("^lcd (.+)$")
-				if local_directory then
-					return local_directory
-				end
-				directory = directory or line:match("^cd (.+)$")
-			end
-			return directory or path
+			return vim.fn.fnamemodify(directory, ":p:~")
 		end,
 	}, restore_session)
 end
@@ -60,15 +66,10 @@ shared.map("n", "<leader>pr", function()
 	restore_session(session_path())
 end, "Restore directory session")
 shared.map("n", "<leader>pl", function()
-	local last = session_dir .. "last"
-	restore_session(vim.fn.filereadable(last) == 1 and vim.fn.readfile(last)[1] or nil)
+	restore_session(sessions()[1])
 end, "Restore last session")
 shared.map("n", "<leader>pd", function()
 	save_session = false
 end, "Stop saving session")
 shared.map("n", "<leader>pS", shared.select_session, "Select session")
-vim.api.nvim_create_autocmd("VimLeavePre", {
-	callback = function()
-		pcall(write_session)
-	end,
-})
+vim.api.nvim_create_autocmd("VimLeavePre", { callback = write_session })

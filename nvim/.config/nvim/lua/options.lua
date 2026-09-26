@@ -78,7 +78,7 @@ local default_options = {
 	scrolloff = 5, -- is one of my fav
 	sidescrolloff = 8,
 	ttyfast = true,
-	sessionoptions = "buffers,curdir,folds,help,tabpages,winsize,winpos,terminal",
+	sessionoptions = "buffers,curdir,tabpages,winsize",
 } ---  VIM ONLY COMMANDS  ---cmd "filetype plugin on"cmd('let &titleold="' .. TERMINAL .. '"')cmd "set inccommand=split"cmd "set iskeyword+=-"
 
 ---  SETTINGS  ---

@@ -123,7 +123,8 @@ terminal. A fresh installation defaults to nopack mode. The launcher sets
 `NVIM_APPNAME=nvim` or `nvim-nopack`, keeping configuration, cache, and state
 paths separate. Persistent undo is shared at
 `${XDG_STATE_HOME:-$HOME/.local/state}/nvim/undo` so saved history follows a file
-between modes. Plain `nvim` uses pack mode unless `NVIM_APPNAME` is set.
+between modes. File sessions are also shared in the adjacent `nvim/sessions`
+directory, one per working directory. Plain `nvim` uses pack mode unless `NVIM_APPNAME` is set.
 
 The selector is stored locally in `${XDG_STATE_HOME:-$HOME/.local/state}/nvim-mode`.
 Existing nopack sessions, undo files, and tags are migrated to

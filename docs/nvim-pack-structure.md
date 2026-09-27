@@ -30,7 +30,8 @@ from these configuration files and must also be available on a network-isolated 
 | `terminal.lua`      | Bottom terminal and lazygit toggles                               |
 | `format.lua`        | Conform formatter registration and formatting                     |
 | `completion.lua`    | Native completion and snippets                                    |
-| `explorer.lua`      | Explorer root discovery and toggle                                |
+| `project.lua`       | Shared project roots, Python library boundaries and root cache    |
+| `explorer.lua`      | Explorer toggle and working-directory updates                     |
 | `lsp.lua`           | Native LSP, Snacks capability-aware keys, servers, Python, Mason  |
 | `buffers.lua`       | Tabline, buffer selection and deletion                            |
 | `statusline.lua`    | Statusline rendering and invalidation                             |
@@ -106,6 +107,6 @@ pvi는 `lua/` 바로 아래 기능 이름으로 파일을 분리했습니다. �
 다른 컴퓨터로 옮길 때는 `nvim/init.lua`와 옆의 `lua/` 디렉터리를 함께 복사해야 합니다.
 플러그인과 Mason 도구는 별도로 준비해야 합니다.
 
-npvi는 이 모듈들을 불러오지 않습니다. 기존처럼 `nvim-nopack/init.lua` 하나만 가져가면 됩니다.
+npvi는 Pack 모듈들을 불러오지 않습니다. `nvim-nopack/init.lua`와 옆의 `lua/` 디렉터리를 함께 가져가야 합니다.
 커서 지연을 조사할 때는 해당 기능 파일의 이벤트 등록과 갱신 콜백을 확인하면 됩니다.
 이번 분리는 동작과 갱신 주기를 바꾸지 않습니다. 설정 변경 후에는 Neovim을 재시작하세요.

@@ -9,14 +9,14 @@ local shared = require("state")
 -- Saves replace that file's tags after 750ms; failed jobs preserve the old cache.
 shared.tag_projects = {}
 shared.definition_requests = {}
-function shared.finish_tag_waiters(waiters, succeeded, output)
+function shared.finish_tag_waiters(waiters, succeeded, output, cancelled)
 	for _, waiter in ipairs(waiters) do
 		local callback = waiter.failed
 		if succeeded then
 			callback = waiter.after
 		end
 		if callback then
-			local ok, err = pcall(callback, output)
+			local ok, err = pcall(callback, output, cancelled)
 			if not ok then
 				vim.notify(tostring(err), vim.log.levels.WARN)
 			end
@@ -35,7 +35,7 @@ function shared.cancel_tag_build(root, project)
 	end
 	project.active, project.save_version = nil, nil
 	project.waiters, project.full, project.quiet = {}, false, true
-	shared.finish_tag_waiters(waiters, false)
+	shared.finish_tag_waiters(waiters, false, nil, true)
 end
 local ctags_checked, ctags_kind, ctags_command
 local tag_work_sequence = 0

@@ -87,9 +87,12 @@ local function ctags_outline(state)
 		state.ctags_file, state.ctags_stamp = file, stamp
 		state.ctags_items, state.ctags_lines = items, lines
 		outline_text(state, lines)
-	end, function()
+	end, function(_, cancelled)
 		if shared.outline == state and state.version == version then
-			outline_text(state, { "Ctags indexing failed", "Press r to retry" })
+			outline_text(
+				state,
+				{ cancelled and "Ctags indexing cancelled" or "Ctags indexing failed", "Press r to retry" }
+			)
 		end
 	end)
 end

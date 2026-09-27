@@ -67,11 +67,11 @@ local group = vim.api.nvim_create_augroup("pack-project-cache", { clear = true }
 local function invalidate_roots()
 	roots = {}
 end
-vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermClose" }, {
+vim.api.nvim_create_autocmd({ "BufFilePost", "FocusGained", "ShellCmdPost", "TermClose" }, {
 	group = group,
 	callback = invalidate_roots,
 })
-vim.api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
+vim.api.nvim_create_autocmd("BufWritePost", {
 	group = group,
 	pattern = vim.list_extend(vim.deepcopy(markers), { ".git", "os.py", "__init__.py" }),
 	callback = invalidate_roots,

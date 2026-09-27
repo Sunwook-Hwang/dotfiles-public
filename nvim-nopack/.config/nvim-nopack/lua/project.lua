@@ -135,11 +135,11 @@ vim.api.nvim_create_autocmd("BufEnter", {
 local function invalidate_project_roots()
 	git_roots, project_roots = {}, {}
 end
-vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermLeave", "TermClose" }, {
+vim.api.nvim_create_autocmd({ "BufFilePost", "FocusGained", "ShellCmdPost", "TermLeave", "TermClose" }, {
 	group = "nopack-project-context",
 	callback = invalidate_project_roots,
 })
-vim.api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
+vim.api.nvim_create_autocmd("BufWritePost", {
 	group = "nopack-project-context",
 	pattern = vim.list_extend(vim.deepcopy(markers), { ".git", "os.py", "__init__.py" }),
 	callback = invalidate_project_roots,

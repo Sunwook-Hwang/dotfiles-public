@@ -27,8 +27,8 @@ function shared.buffers()
 	end
 	return buffer_order
 end
-local function buffer_index(buf)
-	for i, candidate in ipairs(shared.buffers()) do
+local function buffer_index(buf, items)
+	for i, candidate in ipairs(items or shared.buffers()) do
 		if candidate == buf then
 			return i
 		end
@@ -87,8 +87,7 @@ vim.api.nvim_create_autocmd("OptionSet", {
 -- =========================================
 -- ======= BUFFER PICKER / KEYMAPS =======
 -- =========================================
--- Space bp/sb는 아래 공통 picker를 사용합니다. 선언만 먼저 두고 구현은 PICKER에 둡니다.
-shared.open_picker, shared.active_picker = nil, nil
+-- Space bp/sb는 pickers 모듈의 공통 picker를 사용합니다.
 local function pick_buffer()
 	local items = {}
 	for _, b in ipairs(shared.buffers()) do
@@ -105,7 +104,7 @@ for key, command in pairs({ ["<S-l>"] = "bnext", ["<S-h>"] = "bprevious", ["]b"]
 	shared.map("n", key, function()
 		shared.focus_editor()
 		local items = shared.buffers()
-		local index = buffer_index(vim.api.nvim_get_current_buf())
+		local index = buffer_index(vim.api.nvim_get_current_buf(), items)
 		local delta = command == "bnext" and 1 or -1
 		if #items > 0 then
 			shared.select_buffer(items[(index + delta - 1) % #items + 1])
@@ -207,8 +206,9 @@ for key, side in pairs({ be = "all", bm = "all", bh = "left", bl = "right" }) do
 	shared.map("n", "<leader>" .. key, function()
 		shared.focus_editor()
 		local current = vim.api.nvim_get_current_buf()
-		local index = buffer_index(current)
-		for position, b in ipairs(shared.buffers()) do
+		local items = shared.buffers()
+		local index = buffer_index(current, items)
+		for position, b in ipairs(items) do
 			if
 				b ~= current
 				and (side == "all" or (side == "left" and position < index) or (side == "right" and position > index))

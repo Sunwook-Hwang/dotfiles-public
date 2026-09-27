@@ -2,7 +2,7 @@ local policy = require("buffer_policy")
 -- =========================================
 -- ======== COMPLETION / SNIPPETS ========
 -- =========================================
--- Blink 대체: 내장 LSP 완성과 스니펫. LSP 자동 팝업 활성화는 아래 LSP attach에서 합니다.
+-- Blink 대체: 내장 LSP 완성과 스니펫. 이 모듈에서 LSP 자동 팝업도 관리합니다.
 -- Ctrl-Space: 요청, Ctrl-n/p: 선택, Enter: 선택 확정, Tab/Shift-Tab: 스니펫·후보 이동.
 vim.keymap.set("i", "<C-Space>", function()
 	if not policy.allows(0) then
@@ -36,6 +36,20 @@ local function buffer_completion(buf)
 		and #vim.lsp.get_clients({ bufnr = buf, method = "textDocument/completion" }) == 0
 	completion_buffers[buf] = eligible
 end
+vim.api.nvim_create_autocmd("LspAttach", {
+	callback = function(args)
+		if not policy.allows(args.buf) then
+			return
+		end
+		local client = vim.lsp.get_client_by_id(args.data.client_id)
+		if client:supports_method("textDocument/completion") then
+			-- Use server-defined triggers; Ctrl-Space requests completion explicitly.
+			vim.lsp.completion.enable(true, client.id, args.buf, { autotrigger = true })
+			vim.bo[args.buf].autocomplete = false
+			completion_buffers[args.buf] = true
+		end
+	end,
+})
 vim.api.nvim_create_autocmd("User", {
 	pattern = "NopackBufferRestricted",
 	callback = function(args)

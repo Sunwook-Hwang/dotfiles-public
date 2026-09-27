@@ -89,6 +89,11 @@ for k, v in pairs(default_options) do
 	vim.opt[k] = v
 end
 
+-- Filetype indentation and navigation are editing options, independent of the theme.
+vim.cmd("filetype indent on")
+vim.opt.whichwrap:append("<,>,[,],h,l")
+vim.opt.iskeyword:append("-")
+
 -- =========================================
 -- ================ LEADER =================
 -- =========================================

@@ -117,20 +117,11 @@ vim.api.nvim_create_autocmd("BufEnter", {
 		if vim.fn.getcwd() ~= root then
 			vim.cmd("lcd " .. vim.fn.fnameescape(root))
 		end
-		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-			if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "netrw" then
-				local ok, err = pcall(vim.api.nvim_win_call, win, function()
-					local top = vim.w.netrw_treetop or vim.b.netrw_curdir or ""
-					if top:gsub("/+$", "") ~= root:gsub("/+$", "") then
-						shared.netrw_command("Explore " .. vim.fn.fnameescape(root))
-					end
-					shared.reveal_tree_file(file:sub(#root + 2))
-				end)
-				if not ok then
-					vim.notify(tostring(err), vim.log.levels.WARN)
-				end
-			end
-		end
+		vim.api.nvim_exec_autocmds("User", {
+			pattern = "NopackProjectContext",
+			data = { root = root, file = file },
+			modeline = false,
+		})
 		syncing_project = false
 	end,
 })

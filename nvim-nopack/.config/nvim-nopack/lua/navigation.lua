@@ -6,39 +6,6 @@ local shared = require("state")
 -- =========================================
 -- Space e: 프로젝트 루트의 트리를 열고 현재 파일까지 펼칩니다.
 -- 프로젝트 탐색 함수는 PROJECT ROOT에서 정의되며 키 실행 시 호출됩니다.
-shared.project_root = nil
-function shared.reveal_tree_file(relative)
-	local parts = vim.split(relative, "/", { plain = true, trimempty = true })
-	local parent_line = 1
-	for depth, name in ipairs(parts) do
-		local directory = depth < #parts
-		local label = string.rep("| ", depth) .. name .. (directory and "/" or "")
-		local found
-		local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-		for row = parent_line + 1, #lines do
-			if depth > 1 and lines[row]:sub(1, depth * 2) ~= string.rep("| ", depth) then
-				break
-			end
-			if lines[row] == label then
-				found = row
-				break
-			end
-		end
-		if not found then
-			return
-		end
-		vim.api.nvim_win_set_cursor(0, { found, 0 })
-		if directory then
-			local child_prefix = string.rep("| ", depth + 1)
-			if not lines[found + 1] or lines[found + 1]:sub(1, #child_prefix) ~= child_prefix then
-				local open = vim.api.nvim_replace_termcodes("<Plug>NetrwLocalBrowseCheck", true, false, true)
-				shared.netrw_command("normal " .. open)
-			end
-		end
-		parent_line = found
-	end
-	vim.cmd("normal! zz")
-end
 
 vim.keymap.set("n", "<leader>e", function()
 	for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do

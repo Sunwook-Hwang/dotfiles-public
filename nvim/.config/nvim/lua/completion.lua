@@ -36,6 +36,31 @@ local function buffer_completion(buf)
 		and #vim.lsp.get_clients({ bufnr = buf, method = "textDocument/completion" }) == 0
 	completion_buffers[buf] = eligible
 end
+vim.api.nvim_create_autocmd("LspAttach", {
+	callback = function(args)
+		if not policy.allows(args.buf) then
+			return
+		end
+		local client = vim.lsp.get_client_by_id(args.data.client_id)
+		if client:supports_method("textDocument/completion") then
+			local completion = client.server_capabilities.completionProvider
+			completion.triggerCharacters = completion.triggerCharacters or {}
+			-- Also open completion while typing identifiers, not just after server punctuation.
+			local triggers = {}
+			for _, char in ipairs(completion.triggerCharacters) do
+				triggers[char] = true
+			end
+			for char in ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"):gmatch(".") do
+				if not triggers[char] then
+					table.insert(completion.triggerCharacters, char)
+				end
+			end
+			vim.lsp.completion.enable(true, client.id, args.buf, { autotrigger = true })
+			vim.bo[args.buf].autocomplete = false
+			completion_buffers[args.buf] = true
+		end
+	end,
+})
 vim.api.nvim_create_autocmd("User", {
 	pattern = "PackBufferRestricted",
 	callback = function(args)

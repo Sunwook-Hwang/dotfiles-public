@@ -113,6 +113,12 @@ set ttyfast
 let &sessionoptions = 'buffers,curdir,folds,help,tabpages,winsize,winpos'
       \ . (has('terminal') ? ',terminal' : '')
 set shortmess+=c
+set whichwrap+=<,>,[,],h,l
+set iskeyword+=-
+let &path = '.,'
+set wildmenu
+set wildmode=longest:full,full
+set wildignore+=*/.git/*,*/node_modules/*,*/__pycache__/*
 
 " Shared buffer policy: source operations survive large-file protection.
 function! s:IsSource(buf) abort
@@ -133,6 +139,21 @@ function! s:SourceUnchanged(context) abort
         \ && fnamemodify(bufname(buf), ':p') ==# a:context.file
         \ && getbufvar(buf, '&filetype') ==# a:context.filetype
         \ && getbufvar(buf, 'changedtick', -1) == a:context.tick
+endfunction
+
+function! s:BufferByteSize(buf, limit) abort
+  if a:buf == bufnr('%')
+    return line2byte(line('$') + 1) - 1
+  endif
+  let size = 0
+  let first = 1
+  while size <= a:limit
+    let lines = getbufline(a:buf, first, first + 127)
+    if empty(lines) | break | endif
+    let size += strlen(join(lines, "\n")) + 1
+    let first += len(lines)
+  endwhile
+  return size
 endfunction
 
 function! s:RestrictBuffer(buf) abort
@@ -525,8 +546,6 @@ if !empty(globpath(&runtimepath, 'colors/retrobox.vim'))
 else
   colorscheme desert
 endif
-set whichwrap+=<,>,[,],h,l
-set iskeyword+=-
 " Space Th: idle-only word highlighting; disabled until explicitly toggled.
 let s:cursor_word_enabled = 0
 highlight default link CursorWord Visual
@@ -565,10 +584,6 @@ augroup NopackCursorWord
   autocmd CursorHold * call <SID>HighlightCursorWord()
   autocmd CursorMoved,InsertEnter,ModeChanged,WinLeave,BufLeave,TextChanged * if s:cursor_word_enabled | call <SID>ClearCursorWord(win_getid()) | endif
 augroup END
-let &path = '.,'
-set wildmenu
-set wildmode=longest:full,full
-set wildignore+=*/.git/*,*/node_modules/*,*/__pycache__/*
 set laststatus=2
 set statusline=%!NopackStatusline()
 set list
@@ -743,6 +758,11 @@ function! s:NetrwAction(action) abort
   endtry
 endfunction
 
+function! s:NetrwRoot(win) abort
+  let buf = winbufnr(a:win)
+  return getwinvar(a:win, 'netrw_treetop', getbufvar(buf, 'netrw_curdir', ''))
+endfunction
+
 function! s:NetrwRefresh() abort
   let root = substitute(get(w:, 'netrw_treetop', get(b:, 'netrw_curdir', getcwd())), '/$', '', '')
   let expanded = sort(filter(keys(get(w:, 'netrw_treedict', {})), 'isdirectory(v:val)'), {a, b -> strlen(a) - strlen(b)})
@@ -763,6 +783,7 @@ function! s:NetrwRefresh() abort
     call winrestview(view)
     call s:RedrawNetrwGit()
     call s:QueueNetrwGit()
+    doautocmd <nomodeline> User NopackFilesChanged
   finally
     " netrw catches an empty scratch-buffer deletion but retains v:errmsg.
     if v:errmsg =~# '^E749:' | let v:errmsg = saved_error | endif
@@ -1014,6 +1035,7 @@ augroup NopackNetrw
   autocmd!
   autocmd FileType netrw call <SID>NetrwSetup()
   autocmd BufWinEnter,WinEnter * call <SID>SidebarWidth()
+  autocmd BufWipeout * if has_key(s:tree_reveal, expand('<abuf>')) | call remove(s:tree_reveal, expand('<abuf>')) | endif
   autocmd Syntax netrw syntax match Conceal /[|│]/ contained containedin=netrwTreeBar conceal cchar=┊
   autocmd BufWritePre * let b:nopack_new_write = getftype(expand('%:p')) ==# ''
   autocmd BufWritePost * if get(b:, 'nopack_new_write', 0) | call timer_start(0, function('<SID>NetrwNewFile', [expand('%:p')])) | let b:nopack_new_write = 0 | endif
@@ -1022,7 +1044,7 @@ augroup END
 function! s:NetrwNewFile(path, timer) abort
   for info in getwininfo()
     if getbufvar(info.bufnr, '&filetype') ==# 'netrw'
-      let root = substitute(s:NetrwGitTop(info.winid), '/$', '', '')
+      let root = substitute(s:NetrwRoot(info.winid), '/$', '', '')
       if stridx(a:path, root . '/') == 0
         call s:NetrwInWindow(info.winid, 0)
       endif
@@ -1045,17 +1067,34 @@ function! s:NetrwInWindow(win, unmark) abort
   endtry
 endfunction
 
+let s:tree_reveal = {}
 function! s:RevealTreeFile(relative) abort
+  let key = string(bufnr('%'))
+  let root = s:NetrwRoot(win_getid())
+  let cached = get(s:tree_reveal, key, {})
+  if !empty(cached) && cached.relative ==# a:relative && cached.tick == b:changedtick && cached.root ==# root
+    if line('.') != cached.row
+      call cursor(cached.row, 1)
+      normal! zz
+    endif
+    return
+  endif
+  let lines = getline(1, '$')
+  let tree_bar = '| '
+  for text in lines
+    if stridx(text, '│ ') == 0 | let tree_bar = '│ ' | break | endif
+    if stridx(text, '| ') == 0 | break | endif
+  endfor
   let parts = filter(split(a:relative, '/', 1), 'v:val !=# ""')
   let parent_line = 1
   let depth = 1
   for name in parts
     let directory = depth < len(parts) || a:relative =~# '/$'
-    let label = repeat('| ', depth) . name . (directory ? '/' : '')
+    let prefix = repeat(tree_bar, depth)
+    let label = prefix . name . (directory ? '/' : '')
     let found = 0
-    let lines = getline(1, '$')
     for row in range(parent_line + 1, len(lines))
-      if depth > 1 && strpart(lines[row - 1], 0, depth * 2) !=# repeat('| ', depth)
+      if depth > 1 && strpart(lines[row - 1], 0, strlen(prefix)) !=# prefix
         break
       endif
       if lines[row - 1] ==# label
@@ -1068,10 +1107,11 @@ function! s:RevealTreeFile(relative) abort
     endif
     call cursor(found, 1)
     if directory
-      let child_prefix = repeat('| ', depth + 1)
+      let child_prefix = repeat(tree_bar, depth + 1)
       if found >= len(lines) || strpart(lines[found], 0, len(child_prefix)) !=# child_prefix
         let saved_error = v:errmsg
         call s:NetrwAction('NetrwLocalBrowseCheck')
+        let lines = getline(1, '$')
         if v:errmsg =~# '^E749:'
           let v:errmsg = saved_error
         endif
@@ -1080,6 +1120,7 @@ function! s:RevealTreeFile(relative) abort
     let parent_line = found
     let depth += 1
   endfor
+  let s:tree_reveal[key] = {'relative': a:relative, 'tick': b:changedtick, 'root': root, 'row': parent_line}
   normal! zz
 endfunction
 
@@ -1205,7 +1246,7 @@ function! s:SyncProjectContext() abort
       if getbufvar(winbufnr(winid), '&filetype') ==# 'netrw'
         " Revealing a file is not a user window switch: avoid duplicate jobs.
         noautocmd call win_gotoid(winid)
-        if substitute(s:NetrwGitTop(winid), '/$', '', '') !=# project.root
+        if substitute(s:NetrwRoot(winid), '/$', '', '') !=# project.root
           call s:NetrwSetRoot(project.root)
         endif
         if stridx(file, project.root . '/') == 0
@@ -1223,9 +1264,8 @@ augroup NopackProjectContext
   autocmd!
   autocmd BufEnter * call <SID>SyncProjectContext()
   autocmd BufFilePost,FocusGained,ShellCmdPost,DirChanged * let s:project_roots = {}
-  if exists('##TerminalNormal')
-    autocmd TerminalNormal * let s:project_roots = {}
-  endif
+  autocmd User NopackFilesChanged let s:project_roots = {}
+  autocmd BufLeave * if &buftype ==# 'terminal' | let s:project_roots = {} | endif
   execute 'autocmd BufWritePost ' . join(s:project_markers + ['.git', 'os.py', '__init__.py'], ',') . ' let s:project_roots = {}'
 augroup END
 
@@ -1258,9 +1298,9 @@ function! s:Buffers() abort
   return copy(s:buffer_order)
 endfunction
 
-function! s:BufferIndex(buf) abort
+function! s:BufferIndex(buf, ...) abort
   let index = 0
-  for candidate in s:Buffers()
+  for candidate in (a:0 ? a:1 : s:Buffers())
     if candidate == a:buf
       return index
     endif
@@ -1355,17 +1395,17 @@ function! s:CycleBuffer(delta) abort
   if empty(items)
     return
   endif
-  let index = s:BufferIndex(bufnr('%'))
+  let index = s:BufferIndex(bufnr('%'), items)
   call s:SelectBuffer(items[(index + a:delta + len(items)) % len(items)])
 endfunction
 
 function! s:MoveBuffer(delta) abort
   call s:FocusEditor()
-  call s:Buffers()
+  let items = s:Buffers()
   if empty(s:buffer_order)
     return
   endif
-  let index = s:BufferIndex(bufnr('%'))
+  let index = s:BufferIndex(bufnr('%'), items)
   let target = max([0, min([len(s:buffer_order) - 1, index + a:delta])])
   let buf = remove(s:buffer_order, index)
   call insert(s:buffer_order, buf, target)
@@ -1455,7 +1495,7 @@ function! s:CloseOtherBuffers(side) abort
   call s:FocusEditor()
   let current = bufnr('%')
   let items = s:Buffers()
-  let current_index = s:BufferIndex(current)
+  let current_index = s:BufferIndex(current, items)
   let index = 0
   for buf in items
     if buf != current && (a:side ==# 'all' || (a:side ==# 'left' && index < current_index) || (a:side ==# 'right' && index > current_index))
@@ -2820,6 +2860,8 @@ command! CtagsUpdate call <SID>CtagsOpen('refresh')
 command! CtagsClearAll call <SID>CtagsClearAll()
 augroup NopackCtags
   autocmd!
+  autocmd FocusGained,ShellCmdPost * let s:ctags_checked = ''
+  autocmd BufLeave * if &buftype ==# 'terminal' | let s:ctags_checked = '' | endif
   autocmd User NopackCancel call <SID>CancelTags()
   autocmd InsertEnter * call <SID>TagsCompletion()
   autocmd BufEnter * call <SID>TagsAttach(str2nr(expand('<abuf>')))
@@ -3038,10 +3080,6 @@ augroup END
 let s:netrw_git_timer = -1
 let s:netrw_git_cache = {}
 
-function! s:NetrwGitTop(win) abort
-  let buf = winbufnr(a:win)
-  return getwinvar(a:win, 'netrw_treetop', getbufvar(buf, 'netrw_curdir', ''))
-endfunction
 
 function! s:NetrwGitStatuses(root, output) abort
   let statuses = {}
@@ -3062,10 +3100,9 @@ function! s:NetrwGitStatuses(root, output) abort
 endfunction
 
 function! s:DrawNetrwGit(win, buf, top, statuses) abort
-  if winbufnr(a:win) != a:buf || getbufvar(a:buf, '&filetype') !=# 'netrw' || s:NetrwGitTop(a:win) !=# a:top
+  if winbufnr(a:win) != a:buf || getbufvar(a:buf, '&filetype') !=# 'netrw' || s:NetrwRoot(a:win) !=# a:top
     return
   endif
-  let s:netrw_git_cache[a:top] = a:statuses
   let existing = {}
   for sign in sign_getplaced(a:buf, {'group': 'nopack-netrw-git'})[0].signs
     let existing[sign.id] = sign
@@ -3115,14 +3152,16 @@ function! s:RedrawNetrwGit() abort
   endif
   for info in getwininfo()
     if getbufvar(info.bufnr, '&filetype') ==# 'netrw'
-      let top = s:NetrwGitTop(info.winid)
+      let top = s:NetrwRoot(info.winid)
       call s:DrawNetrwGit(info.winid, info.bufnr, top, get(s:netrw_git_cache, top, {}))
     endif
   endfor
 endfunction
 
 function! s:NetrwGitResult(win, buf, top, root, output, limited) abort
-  call s:DrawNetrwGit(a:win, a:buf, a:top, s:NetrwGitStatuses(a:root, a:output))
+  let statuses = s:NetrwGitStatuses(a:root, a:output)
+  let s:netrw_git_cache[a:top] = statuses
+  call s:DrawNetrwGit(a:win, a:buf, a:top, statuses)
 endfunction
 
 function! s:RefreshNetrwGit(timer) abort
@@ -3132,12 +3171,13 @@ function! s:RefreshNetrwGit(timer) abort
     if getbufvar(info.bufnr, '&filetype') !=# 'netrw'
       continue
     endif
-    let top = s:NetrwGitTop(info.winid)
+    let top = s:NetrwRoot(info.winid)
     let project = s:FindProject(top)
     let root = project.git ? project.root : ''
     let key = 'git-tree:' . info.bufnr
     call s:CancelTask(key)
     if root ==# '' || !isdirectory(top)
+      let s:netrw_git_cache[top] = {}
       call s:DrawNetrwGit(info.winid, info.bufnr, top, {})
       continue
     endif
@@ -3148,7 +3188,17 @@ function! s:RefreshNetrwGit(timer) abort
   endfor
 endfunction
 
+function! s:NetrwGitOnEnter() abort
+  if &filetype !=# 'netrw' | return | endif
+  if has_key(s:netrw_git_cache, s:NetrwRoot(win_getid()))
+    call s:RedrawNetrwGit()
+  else
+    call s:QueueNetrwGit()
+  endif
+endfunction
+
 function! s:QueueNetrwGit() abort
+  let s:netrw_git_cache = {}
   if empty(filter(getwininfo(), 'getbufvar(v:val.bufnr, "&filetype") ==# "netrw"')) | return | endif
   if s:netrw_git_timer != -1
     call timer_stop(s:netrw_git_timer)
@@ -3164,14 +3214,13 @@ endfunction
 augroup NopackNetrwGit
   autocmd!
   if exists('*sign_place') && exists('*job_start')
-    autocmd FileType netrw call <SID>QueueNetrwGit()
-    autocmd BufWinEnter,BufWritePost,FocusGained,ShellCmdPost * call <SID>QueueNetrwGit()
+    autocmd FileType netrw call <SID>NetrwGitOnEnter()
+    autocmd BufWinEnter * call <SID>NetrwGitOnEnter()
+    autocmd BufWritePost,FocusGained,ShellCmdPost * call <SID>QueueNetrwGit()
+    autocmd BufLeave * if &buftype ==# 'terminal' | call <SID>QueueNetrwGit() | endif
     autocmd TextChanged * if &filetype ==# 'netrw' | call <SID>RedrawNetrwGit() | endif
     autocmd BufWipeout * call <SID>CancelTask('git-tree:' . expand('<abuf>'))
     autocmd User NopackCancel call <SID>CancelNetrwGit()
-    if exists('##TerminalNormal')
-      autocmd TerminalNormal * call <SID>QueueNetrwGit()
-    endif
   endif
 augroup END
 
@@ -3204,23 +3253,34 @@ function! s:GitStatusResult(buf, file, output, limited) abort
   endif
 endfunction
 
-function! s:RefreshGitStatus(buf) abort
+let s:git_status_sources = {}
+function! s:RefreshGitStatus(buf, ...) abort
   if !bufloaded(a:buf)
     return
   endif
-  call s:CancelTask('git-status:' . a:buf)
   let file = fnamemodify(bufname(a:buf), ':p')
   let project = s:ProjectRoot(a:buf)
+  let key = string(a:buf)
+  let identity = [file, getbufvar(a:buf, '&filetype'), project.root, project.git, executable('git')]
+  if !a:0 && get(s:git_status_sources, key, []) ==# identity | return | endif
+  let s:git_status_sources[key] = identity
+  call s:CancelTask('git-status:' . a:buf)
   if !s:IsSource(a:buf) || bufname(a:buf) ==# '' || !project.git || !executable('git')
     call setbufvar(a:buf, 'nopack_git_status', '')
     return
   endif
   call s:RunCommand('git-status:' . a:buf,
         \ ['git', '--no-optional-locks', '--literal-pathspecs', 'status', '--porcelain=v2', '--branch', '--no-ahead-behind', '--', file],
-        \ {'cwd': project.root, 'quiet': 1}, function('<SID>GitStatusResult', [a:buf, file]))
+        \ {'cwd': project.root, 'quiet': 1, 'failed': function('<SID>ForgetGitStatus', [a:buf])}, function('<SID>GitStatusResult', [a:buf, file]))
+endfunction
+
+function! s:ForgetGitStatus(buf) abort
+  if has_key(s:git_status_sources, string(a:buf)) | call remove(s:git_status_sources, string(a:buf)) | endif
+  call s:CancelTask('git-status:' . a:buf)
 endfunction
 
 function! s:RefreshVisibleGitStatus() abort
+  let s:git_status_sources = {}
   for buf in uniq(sort(map(getwininfo(), 'v:val.bufnr')))
     call s:RefreshGitStatus(buf)
   endfor
@@ -3228,10 +3288,12 @@ endfunction
 
 augroup NopackGitStatus
   autocmd!
-  autocmd BufEnter,BufWritePost,FocusGained,ShellCmdPost * call <SID>RefreshGitStatus(str2nr(expand('<abuf>')))
-  if exists('##TerminalNormal')
-    autocmd TerminalNormal * call <SID>RefreshVisibleGitStatus()
-  endif
+  autocmd BufEnter * call <SID>RefreshGitStatus(str2nr(expand('<abuf>')))
+  autocmd BufWritePost,BufFilePost,FileType * call <SID>RefreshGitStatus(str2nr(expand('<abuf>')), 1)
+  autocmd FocusGained,ShellCmdPost * call <SID>RefreshVisibleGitStatus()
+  autocmd User NopackFilesChanged call <SID>RefreshVisibleGitStatus()
+  autocmd BufLeave * if &buftype ==# 'terminal' | call <SID>RefreshVisibleGitStatus() | endif
+  autocmd BufUnload,BufWipeout * call <SID>ForgetGitStatus(str2nr(expand('<abuf>')))
   if exists('##TerminalOpen')
     autocmd TerminalOpen * call <SID>RefreshVisibleGitStatus()
   endif
@@ -3401,20 +3463,6 @@ let s:git_sign_versions = {}
 let s:git_sign_timers = {}
 let s:git_sign_changes = {}
 
-function! s:BufferByteSize(buf, limit) abort
-  if a:buf == bufnr('%')
-    return line2byte(line('$') + 1) - 1
-  endif
-  let size = 0
-  let first = 1
-  while size <= a:limit
-    let lines = getbufline(a:buf, first, first + 127)
-    if empty(lines) | break | endif
-    let size += strlen(join(lines, "\n")) + 1
-    let first += len(lines)
-  endwhile
-  return size
-endfunction
 
 function! s:ClearGitSigns(buf) abort
   if exists('*sign_unplace')
@@ -3673,11 +3721,32 @@ function! s:ForgetGitSigns(buf) abort
   call s:CancelTask('git-signs:' . a:buf)
 endfunction
 
+function! s:InvalidateBufferGitSigns(buf) abort
+  let key = string(a:buf)
+  if has_key(s:git_sign_changes, key) | call remove(s:git_sign_changes, key) | endif
+  call setbufvar(a:buf, 'nopack_git_base', v:null)
+  call s:GitChanged(a:buf)
+endfunction
+
+function! s:RefreshVisibleGitSigns() abort
+  for info in getbufinfo({'bufloaded': 1})
+    call s:ForgetGitSigns(info.bufnr)
+    call setbufvar(info.bufnr, 'nopack_git_base', v:null)
+  endfor
+  for buf in uniq(sort(map(getwininfo(), 'v:val.bufnr')))
+    call s:GitChanged(buf)
+  endfor
+endfunction
+
 augroup NopackGitSigns
   autocmd!
   autocmd User NopackCancel call <SID>CancelGitSigns()
   if exists('*sign_place') && exists('*job_start')
-    autocmd BufEnter,BufWritePost,BufFilePost,FileType,FocusGained,ShellCmdPost * call setbufvar(str2nr(expand('<abuf>')), 'nopack_git_base', v:null) | call <SID>QueueGitSigns(str2nr(expand('<abuf>')))
+    autocmd BufEnter * call <SID>GitChanged(str2nr(expand('<abuf>')))
+    autocmd BufWritePost,BufFilePost,FileType * call <SID>InvalidateBufferGitSigns(str2nr(expand('<abuf>')))
+    autocmd FocusGained,ShellCmdPost * call <SID>RefreshVisibleGitSigns()
+    autocmd User NopackFilesChanged call <SID>RefreshVisibleGitSigns()
+    autocmd BufLeave * if &buftype ==# 'terminal' | call <SID>RefreshVisibleGitSigns() | endif
     autocmd TextChanged,TextChangedI * call <SID>GitChanged(str2nr(expand('<abuf>')))
     autocmd BufUnload,BufWipeout * call <SID>ForgetGitSigns(str2nr(expand('<abuf>')))
   endif
@@ -3719,6 +3788,27 @@ function! s:Formatter(ft) abort
   endfor
   return []
 endfunction
+
+function! s:ToolStatus(buf) abort
+  if !bufloaded(a:buf) || !s:IsSource(a:buf) | return | endif
+  call s:CtagsAvailable(1)
+  let formatter = s:Formatter(getbufvar(a:buf, '&filetype'))
+  let label = 'X'
+  " Strip .cmd/.exe only; Unix executable names may legitimately contain dots.
+  if !empty(formatter) | let label = ': ' . substitute(fnamemodify(formatter[0], ':t'), '\.\%(cmd\|exe\)$', '', '') | endif
+  call setbufvar(a:buf, 'nopack_format_status', '[FORMAT' . (label ==# 'X' ? ' X' : label) . ']')
+endfunction
+function! s:RefreshVisibleToolStatus() abort
+  for buf in uniq(sort(map(getwininfo(), 'v:val.bufnr')))
+    call s:ToolStatus(buf)
+  endfor
+endfunction
+augroup NopackTools
+  autocmd!
+  autocmd FileType,BufFilePost,BufWritePost * call <SID>ToolStatus(str2nr(expand('<abuf>')))
+  autocmd FocusGained,ShellCmdPost * call <SID>RefreshVisibleToolStatus()
+  autocmd BufLeave * if &buftype ==# 'terminal' | call <SID>RefreshVisibleToolStatus() | endif
+augroup END
 
 function! s:FormatterArguments(command, file) abort
   let result = []
@@ -4044,20 +4134,6 @@ function! s:StatusHighlights() abort
     execute 'hi NopackGit' . mode . ' gui=bold cterm=bold guifg=' . bg . ' guibg=' . color . ' ctermfg=0 ctermbg=' . terminal
   endfor
 endfunction
-function! s:ToolStatus(buf) abort
-  if !bufloaded(a:buf) || !s:IsSource(a:buf) | return | endif
-  call s:CtagsAvailable(1)
-  let formatter = s:Formatter(getbufvar(a:buf, '&filetype'))
-  let label = 'X'
-  " Strip .cmd/.exe only; Unix executable names may legitimately contain dots.
-  if !empty(formatter) | let label = ': ' . substitute(fnamemodify(formatter[0], ':t'), '\.\%(cmd\|exe\)$', '', '') | endif
-  call setbufvar(a:buf, 'nopack_format_status', '[FORMAT' . (label ==# 'X' ? ' X' : label) . ']')
-endfunction
-function! s:RefreshVisibleToolStatus() abort
-  for buf in uniq(sort(map(getwininfo(), 'v:val.bufnr')))
-    call s:ToolStatus(buf)
-  endfor
-endfunction
 function! NopackStatusline() abort
   let target = get(g:, 'statusline_winid', win_getid())
   let buf = winbufnr(target)
@@ -4085,9 +4161,6 @@ augroup NopackStatusline
   autocmd ColorScheme * call <SID>StatusHighlights()
   autocmd WinEnter,VimEnter * let s:active_window = win_getid() | redrawstatus
   autocmd ModeChanged * redrawstatus
-  autocmd FileType,BufFilePost,BufWritePost * call <SID>ToolStatus(str2nr(expand('<abuf>')))
-  autocmd FocusGained,ShellCmdPost * call <SID>ToolStatus(bufnr('%'))
-  autocmd BufLeave * if &buftype ==# 'terminal' | call <SID>RefreshVisibleToolStatus() | endif
 augroup END
 call s:StatusHighlights()
 

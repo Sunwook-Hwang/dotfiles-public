@@ -5,7 +5,6 @@ local shared = require("state")
 -- =========================================
 -- NvimTree 대체: 기본 netrw의 트리 모드와 버퍼 전용 키를 설정합니다.
 -- Enter/l: 열기·접기, h: 상위 가지 접기, Space nr: 새로고침, g?: 조작 도움말.
-shared.focus_editor = nil
 function shared.netrw_command(command)
 	local saved_lazyredraw = vim.o.lazyredraw
 	vim.o.lazyredraw = true
@@ -443,5 +442,120 @@ vim.api.nvim_create_autocmd("FileType", {
 			silent = true,
 			desc = "Collapse parent directory",
 		})
+	end,
+})
+
+local reveal_cache = {}
+function shared.reveal_tree_file(relative)
+	local buf = vim.api.nvim_get_current_buf()
+	local tick = vim.api.nvim_buf_get_changedtick(buf)
+	local top = vim.w.netrw_treetop or vim.b.netrw_curdir
+	local cached = reveal_cache[buf]
+	if cached and cached.relative == relative and cached.tick == tick and cached.top == top then
+		if vim.api.nvim_win_get_cursor(0)[1] ~= cached.row then
+			vim.api.nvim_win_set_cursor(0, { cached.row, 0 })
+			vim.cmd("normal! zz")
+		end
+		return
+	end
+	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+	-- Netrw uses either ASCII or UTF-8 tree bars, depending on its runtime.
+	local tree_bar = "| "
+	for _, line in ipairs(lines) do
+		if line:sub(1, #"│ ") == "│ " then
+			tree_bar = "│ "
+			break
+		elseif line:sub(1, 2) == "| " then
+			break
+		end
+	end
+	local parts = vim.split(relative, "/", { plain = true, trimempty = true })
+	local parent_line = 1
+	for depth, name in ipairs(parts) do
+		local directory = depth < #parts
+		local prefix = string.rep(tree_bar, depth)
+		local label = prefix .. name .. (directory and "/" or "")
+		local found
+		for row = parent_line + 1, #lines do
+			if depth > 1 and lines[row]:sub(1, #prefix) ~= prefix then
+				break
+			end
+			if lines[row] == label then
+				found = row
+				break
+			end
+		end
+		if not found then
+			return
+		end
+		vim.api.nvim_win_set_cursor(0, { found, 0 })
+		if directory then
+			local child_prefix = string.rep(tree_bar, depth + 1)
+			if not lines[found + 1] or lines[found + 1]:sub(1, #child_prefix) ~= child_prefix then
+				local open = vim.api.nvim_replace_termcodes("<Plug>NetrwLocalBrowseCheck", true, false, true)
+				shared.netrw_command("normal " .. open)
+				lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+			end
+		end
+		parent_line = found
+	end
+	reveal_cache[buf] = {
+		relative = relative,
+		tick = vim.api.nvim_buf_get_changedtick(buf),
+		top = top,
+		row = parent_line,
+	}
+	vim.cmd("normal! zz")
+end
+vim.api.nvim_create_autocmd("BufWipeout", {
+	callback = function(args)
+		reveal_cache[args.buf] = nil
+	end,
+})
+
+vim.api.nvim_create_autocmd("User", {
+	group = vim.api.nvim_create_augroup("nopack-explorer-context", { clear = true }),
+	pattern = "NopackProjectContext",
+	callback = function(args)
+		local root, file = args.data.root, args.data.file
+		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+			if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "netrw" then
+				local ok, err = pcall(vim.api.nvim_win_call, win, function()
+					local top = vim.w.netrw_treetop or vim.b.netrw_curdir or ""
+					if top:gsub("/+$", "") ~= root:gsub("/+$", "") then
+						shared.netrw_command("Explore " .. vim.fn.fnameescape(root))
+					end
+					shared.reveal_tree_file(file:sub(#root + 2))
+				end)
+				if not ok then
+					vim.notify(tostring(err), vim.log.levels.WARN)
+				end
+			end
+		end
+	end,
+})
+
+vim.api.nvim_create_autocmd("User", {
+	group = "nopack-explorer-context",
+	pattern = "NopackFilesCreated",
+	callback = function(args)
+		local files = args.data.files
+		for _, win in ipairs(vim.api.nvim_list_wins()) do
+			local buf = vim.api.nvim_win_get_buf(win)
+			if vim.bo[buf].filetype == "netrw" then
+				local top = vim.w[win].netrw_treetop or vim.b[buf].netrw_curdir or ""
+				top = vim.uv.fs_realpath(top) or vim.fs.normalize(top)
+				for file in pairs(files) do
+					file = vim.uv.fs_realpath(file) or vim.fs.normalize(file)
+					if vim.startswith(file, top:gsub("/+$", "") .. "/") then
+						vim.api.nvim_win_call(win, function()
+							-- Refresh expanded subdirectories too, retaining the tree/view.
+							shared.netrw_refresh()
+						end)
+						break
+					end
+				end
+			end
+		end
 	end,
 })

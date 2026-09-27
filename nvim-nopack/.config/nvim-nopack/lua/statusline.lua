@@ -94,17 +94,9 @@ vim.api.nvim_create_autocmd("ModeChanged", {
 		end
 	end,
 })
-vim.opt.whichwrap:append("<,>,[,],h,l")
-vim.opt.iskeyword:append("-")
--- Keep :find / Tab completion from recursively walking an entire server.
-vim.opt.path = { ".", "" }
-vim.opt.wildmenu = true
-vim.opt.wildmode = "longest:full,full"
-vim.opt.wildignore:append({ "*/.git/*", "*/node_modules/*", "*/__pycache__/*" })
 vim.opt.laststatus = 2
 shared.language_status_visible = true
-local diagnostic_counts, lsp_status_cache
-diagnostic_counts, lsp_status_cache, shared.format_status_cache = {}, {}, {}
+local diagnostic_counts, lsp_status_cache = {}, {}
 vim.api.nvim_create_autocmd({ "DiagnosticChanged", "BufWipeout" }, {
 	group = vim.api.nvim_create_augroup("nopack-diagnostic-status", { clear = true }),
 	callback = function(args)

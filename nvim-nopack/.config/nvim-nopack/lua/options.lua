@@ -107,6 +107,17 @@ for k, v in pairs(default_options) do
 	vim.opt[k] = v
 end
 
+-- Editing and command-line options are independent of the display modules.
+vim.cmd("filetype plugin indent on")
+vim.cmd("syntax enable")
+vim.opt.whichwrap:append("<,>,[,],h,l")
+vim.opt.iskeyword:append("-")
+-- Keep :find / Tab completion from recursively walking an entire server.
+vim.opt.path = { ".", "" }
+vim.opt.wildmenu = true
+vim.opt.wildmode = "longest:full,full"
+vim.opt.wildignore:append({ "*/.git/*", "*/node_modules/*", "*/__pycache__/*" })
+
 -- Runtime UI changes use vim.wo[win][0] / vim.opt_local, never window defaults.
 -- Numbering is window-local; ordinary navigation only touches the entered window.
 local function show_line_numbers(win)

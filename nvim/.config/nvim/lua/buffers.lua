@@ -56,8 +56,8 @@ do
 		end
 		return buffer_order
 	end
-	local function buffer_index(buf)
-		for i, candidate in ipairs(buffers()) do
+	local function buffer_index(buf, items)
+		for i, candidate in ipairs(items or buffers()) do
 			if candidate == buf then
 				return i
 			end
@@ -126,7 +126,7 @@ do
 		map("n", key, function()
 			focus_editor()
 			local items = buffers()
-			local index = buffer_index(vim.api.nvim_get_current_buf())
+			local index = buffer_index(vim.api.nvim_get_current_buf(), items)
 			local delta = command == "bnext" and 1 or -1
 			if #items > 0 then
 				select_buffer(items[(index + delta - 1) % #items + 1])
@@ -187,9 +187,10 @@ do
 		map("n", "<leader>" .. key, function()
 			focus_editor()
 			local current = vim.api.nvim_get_current_buf()
-			local index = buffer_index(current)
+			local items = buffers()
+			local index = buffer_index(current, items)
 			local targets = {}
-			for position, b in ipairs(buffers()) do
+			for position, b in ipairs(items) do
 				if
 					b ~= current
 					and (

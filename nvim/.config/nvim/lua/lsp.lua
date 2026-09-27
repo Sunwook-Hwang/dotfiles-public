@@ -41,8 +41,8 @@ do
 	vim.api.nvim_create_autocmd("LspAttach", {
 		group = vim.api.nvim_create_augroup("UserLspConfig", {}),
 		callback = function(ev)
-			local client = vim.lsp.get_client_by_id(ev.data.client_id)
 			if not policy.allows(ev.buf) then
+				local client = vim.lsp.get_client_by_id(ev.data.client_id)
 				-- Neovim completes attachment after LspAttach callbacks return.
 				vim.schedule(function()
 					if vim.lsp.buf_is_attached(ev.buf, client.id) then
@@ -50,18 +50,6 @@ do
 					end
 				end)
 				return
-			end
-			if client:supports_method("textDocument/completion") then
-				local completion = client.server_capabilities.completionProvider
-				completion.triggerCharacters = completion.triggerCharacters or {}
-				-- Also open completion while typing identifiers, not just after server punctuation.
-				for char in ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"):gmatch(".") do
-					if not vim.tbl_contains(completion.triggerCharacters, char) then
-						table.insert(completion.triggerCharacters, char)
-					end
-				end
-				vim.lsp.completion.enable(true, client.id, ev.buf, { autotrigger = true })
-				vim.bo[ev.buf].autocomplete = false
 			end
 		end,
 	})

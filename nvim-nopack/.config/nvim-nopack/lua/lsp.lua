@@ -275,9 +275,9 @@ shared.map("n", "<leader>lv", function()
 	end
 end, "Select Python environment for this project")
 -- =========================================
--- ==== LSP: COMPLETION / BUFFER KEYS ====
+-- ========== LSP: BUFFER KEYS ==========
 -- =========================================
--- 서버 연결 시 자동완성과 파일 버퍼 전용 키를 설정합니다.
+-- 서버 연결 시 파일 버퍼 전용 키를 설정합니다. 자동완성은 completion 모듈에서 관리합니다.
 -- gd/gr/gD/K: 직접 이동·조회; gR/gi/gt: picker; Space la/lr/Tr: 액션·이름 변경·심볼.
 local function attach(client, buf)
 	if not policy.allows(buf) then
@@ -290,11 +290,7 @@ local function attach(client, buf)
 	end
 	-- gd handles provider selection; native tag operations must read the ctags file.
 	vim.bo[buf].tagfunc = ""
-	if client:supports_method("textDocument/completion") then
-		-- Use server-defined triggers; Ctrl-Space requests completion explicitly.
-		vim.lsp.completion.enable(true, client.id, buf, { autotrigger = true })
-		vim.bo[buf].autocomplete = false
-	end
+
 	local actions = {
 		gr = "references",
 		gD = "declaration",
@@ -480,23 +476,11 @@ do
 						end
 					end
 				end
-				for _, win in ipairs(vim.api.nvim_list_wins()) do
-					local buf = vim.api.nvim_win_get_buf(win)
-					if vim.bo[buf].filetype == "netrw" then
-						local top = shared.netrw_git_top(win, buf)
-						top = vim.uv.fs_realpath(top) or vim.fs.normalize(top)
-						for file in pairs(files) do
-							file = vim.uv.fs_realpath(file) or vim.fs.normalize(file)
-							if vim.startswith(file, top:gsub("/+$", "") .. "/") then
-								vim.api.nvim_win_call(win, function()
-									-- Refresh expanded subdirectories too, retaining the tree/view.
-									shared.netrw_refresh()
-								end)
-								break
-							end
-						end
-					end
-				end
+				vim.api.nvim_exec_autocmds("User", {
+					pattern = "NopackFilesCreated",
+					data = { files = files },
+					modeline = false,
+				})
 			end)
 		end,
 	})

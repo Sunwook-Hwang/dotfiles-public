@@ -1,5 +1,6 @@
 local policy = require("buffer_policy")
 local shared = require("state")
+local format_status_cache = {}
 shared.format_versions = {}
 vim.api.nvim_create_autocmd("User", {
 	pattern = "NopackCancel",
@@ -51,11 +52,11 @@ local formatters = {
 vim.api.nvim_create_autocmd({ "FileType", "BufFilePost", "BufWritePost", "BufWipeout" }, {
 	group = vim.api.nvim_create_augroup("nopack-format-status", { clear = true }),
 	callback = function(args)
-		shared.format_status_cache[args.buf] = nil
+		format_status_cache[args.buf] = nil
 	end,
 })
 local function invalidate_format_status()
-	shared.format_status_cache = {}
+	format_status_cache = {}
 end
 vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermLeave", "TermClose" }, {
 	group = "nopack-format-status",
@@ -79,7 +80,7 @@ function _G.NopackFormatStatus()
 		return "[FORMAT X]"
 	end
 	local key = { vim.bo[buf].filetype, vim.env.PATH or "", vim.fn.getcwd(win) }
-	local cached = shared.format_status_cache[buf]
+	local cached = format_status_cache[buf]
 	if not cached or not vim.deep_equal(cached.key, key) then
 		cached = { key = key }
 		for _, candidate in ipairs(formatters[vim.bo[buf].filetype] or {}) do
@@ -88,7 +89,7 @@ function _G.NopackFormatStatus()
 				break
 			end
 		end
-		shared.format_status_cache[buf] = cached
+		format_status_cache[buf] = cached
 	end
 	if cached.formatter then
 		return "[FORMAT: " .. cached.formatter .. "]"

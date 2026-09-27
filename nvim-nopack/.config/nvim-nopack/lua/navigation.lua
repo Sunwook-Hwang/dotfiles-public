@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 -- =========================================
@@ -54,7 +55,7 @@ vim.keymap.set("n", "<leader>e", function()
 			return
 		end
 	end
-	local file = vim.bo.buftype == "" and vim.api.nvim_buf_get_name(0) or ""
+	local file = policy.is_source(0) and vim.api.nvim_buf_get_name(0) or ""
 	local root = shared.project_root():gsub("/+$", "")
 	local existing_buffers = {}
 	for _, buf in ipairs(vim.api.nvim_list_bufs()) do
@@ -72,7 +73,7 @@ vim.keymap.set("n", "<leader>e", function()
 		if
 			not existing_buffers[buf]
 			and vim.api.nvim_buf_get_name(buf) == ""
-			and vim.bo[buf].buftype == ""
+			and policy.is_source(buf)
 			and not vim.bo[buf].modified
 			and #vim.fn.win_findbuf(buf) == 0
 			and vim.deep_equal(vim.api.nvim_buf_get_lines(buf, 0, -1, false), { "" })
@@ -93,8 +94,7 @@ shared.focus_editor = function()
 	for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
 		local buf = vim.api.nvim_win_get_buf(win)
 		if
-			vim.bo[buf].buftype == ""
-			and vim.bo[buf].filetype ~= "netrw"
+			policy.is_source(buf)
 			and vim.api.nvim_win_get_config(win).relative == ""
 			and not vim.wo[win].previewwindow
 		then

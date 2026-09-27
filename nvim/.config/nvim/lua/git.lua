@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 -- =========================================
 -- ============ PLUGINS: SETUP =============
 -- =========================================
@@ -15,7 +16,7 @@ require("gitsigns").setup({
 	},
 
 	on_attach = function(bufnr)
-		if vim.b[bufnr].large_file then
+		if not policy.allows(bufnr) then
 			return false
 		end
 		local gs = package.loaded.gitsigns

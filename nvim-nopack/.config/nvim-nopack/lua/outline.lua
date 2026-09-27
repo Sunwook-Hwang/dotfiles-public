@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 -- =========================================
@@ -21,6 +22,14 @@ shared.cancel_outline = function(state)
 		state.cancel = nil
 	end
 end
+vim.api.nvim_create_autocmd("User", {
+	pattern = "NopackCancel",
+	callback = function()
+		if shared.outline then
+			shared.cancel_outline(shared.outline)
+		end
+	end,
+})
 local function ctags_outline(state)
 	local version, buf = state.version, state.source
 	state.items = {}
@@ -41,7 +50,7 @@ local function ctags_outline(state)
 	end
 	outline_text(state, { "Indexing saved file..." })
 	shared.build_tags(root, false, { file }, function(output)
-		if shared.outline ~= state or state.version ~= version or not vim.api.nvim_buf_is_valid(buf) then
+		if shared.outline ~= state or state.version ~= version or not policy.allows(buf) then
 			return
 		end
 		local items = {}
@@ -88,7 +97,7 @@ local function refresh_outline(state)
 	shared.cancel_outline(state)
 	local version, buf = state.version, state.source
 	state.items = {}
-	if not vim.api.nvim_buf_is_loaded(buf) then
+	if not policy.allows(buf) then
 		outline_text(state, { "Source buffer closed" })
 		return
 	end
@@ -112,7 +121,7 @@ local function refresh_outline(state)
 				return
 			end
 			state.cancel = nil
-			if not vim.api.nvim_buf_is_loaded(buf) then
+			if not policy.allows(buf) then
 				return
 			end
 			if vim.api.nvim_buf_get_changedtick(buf) ~= tick then
@@ -170,7 +179,7 @@ shared.map("n", "<leader>o", function()
 		return
 	end
 	shared.focus_editor()
-	if vim.bo.buftype ~= "" or vim.api.nvim_buf_get_name(0) == "" then
+	if not policy.allows(0) or vim.api.nvim_buf_get_name(0) == "" then
 		vim.notify("Open a code file to view its outline")
 		return
 	end
@@ -248,8 +257,7 @@ vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "LspAttach", "LspDetac
 		end
 		if
 			not state
-			or vim.bo[args.buf].buftype ~= ""
-			or vim.bo[args.buf].filetype == "netrw"
+			or not policy.allows(args.buf)
 			or vim.api.nvim_win_get_tabpage(state.win) ~= vim.api.nvim_get_current_tabpage()
 		then
 			return
@@ -271,6 +279,18 @@ vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "LspAttach", "LspDetac
 					refresh_outline(state)
 				end
 			end)
+		end
+	end,
+})
+
+vim.api.nvim_create_autocmd("User", {
+	pattern = "NopackBufferRestricted",
+	callback = function(args)
+		local state = shared.outline
+		if state and state.source == args.data.buf then
+			shared.cancel_outline(state)
+			state.items = {}
+			outline_text(state, { "Large-file protection is active" })
 		end
 	end,
 })

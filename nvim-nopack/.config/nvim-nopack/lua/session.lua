@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 -- Share file sessions with Pack; auxiliary windows and mode-specific options stay local.
@@ -21,9 +22,9 @@ local function write_session()
 	local has_file = false
 	local excluded = {}
 	for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-		if vim.bo[buf].buftype == "" and vim.api.nvim_buf_get_name(buf) ~= "" then
+		if policy.is_source(buf) and vim.api.nvim_buf_get_name(buf) ~= "" then
 			has_file = true
-		elseif vim.bo[buf].buflisted and vim.bo[buf].buftype ~= "" then
+		elseif vim.bo[buf].buflisted and not policy.is_source(buf) then
 			excluded[#excluded + 1] = buf
 		end
 	end

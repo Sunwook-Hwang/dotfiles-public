@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 -- =========================================
 -- ======== COMPLETION / SNIPPETS ========
 -- =========================================
@@ -27,17 +28,22 @@ end
 -- Buffers without completion providers use words/tags; connected providers use the async engine.
 local completion_buffers, pending_completion = {}, {}
 local function buffer_completion(buf)
-	vim.bo[buf].autocomplete = vim.bo[buf].buftype == ""
-		and vim.bo[buf].filetype ~= "netrw"
-		and not vim.b[buf].nopack_large_file
+	local eligible = policy.allows(buf)
+	vim.bo[buf].autocomplete = eligible
 		and #vim.lsp.get_clients({ bufnr = buf, method = "textDocument/completion" }) == 0
-	completion_buffers[buf] = vim.bo[buf].buftype
+	completion_buffers[buf] = eligible
 end
+vim.api.nvim_create_autocmd("User", {
+	pattern = "NopackBufferRestricted",
+	callback = function(args)
+		buffer_completion(args.data.buf)
+	end,
+})
 vim.api.nvim_create_autocmd({ "BufEnter", "FileType", "LspDetach" }, {
 	callback = function(args)
 		if
 			pending_completion[args.buf]
-			or (args.event == "BufEnter" and completion_buffers[args.buf] == vim.bo[args.buf].buftype)
+			or (args.event == "BufEnter" and completion_buffers[args.buf] == policy.allows(args.buf))
 		then
 			return
 		end

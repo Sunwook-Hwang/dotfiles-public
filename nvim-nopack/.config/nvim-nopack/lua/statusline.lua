@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 local git_mode_group
@@ -165,7 +166,7 @@ function _G.NopackLspStatus()
 	end
 	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 	local buf = vim.api.nvim_win_get_buf(win)
-	if vim.bo[buf].buftype ~= "" then
+	if not policy.is_source(buf) then
 		return ""
 	end
 	local state = shared.status_clients(buf)

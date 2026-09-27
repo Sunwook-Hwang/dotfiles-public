@@ -12,6 +12,7 @@ require("state").config_root = config_root
 
 -- Preserve initialization order; shared functions are defined before events run.
 require("options")
+require("bigfile")
 require("keymaps")
 require("theme")
 require("statusline")
@@ -34,7 +35,6 @@ require("tags")
 require("lsp")
 require("outline")
 require("diagnostics")
-require("bigfile")
 require("syntax")
 require("context")
 require("whichkey")

@@ -1,13 +1,11 @@
 -- Snacks owns the explorer, pickers, dashboard, terminal and utility UI.
 local Snacks = require("snacks")
+local policy = require("buffer_policy")
 local function toggle_bottom_terminal()
 	return require("terminal")()
 end
 local function dim_filter(buf)
-	return vim.bo[buf].buftype == ""
-		and not vim.b[buf].large_file
-		and vim.g.snacks_dim ~= false
-		and vim.b[buf].snacks_dim ~= false
+	return policy.allows(buf) and vim.g.snacks_dim ~= false and vim.b[buf].snacks_dim ~= false
 end
 Snacks.setup({
 	bigfile = require("bigfile"),
@@ -20,8 +18,10 @@ Snacks.setup({
 		right = {},
 	},
 	scope = {
-		enabled = true,
+		-- Register guarded mappings below; resolve scopes only when requested.
+		enabled = false,
 		treesitter = { enabled = false },
+		filter = policy.allows,
 	},
 	dim = {
 		animate = { enabled = false },
@@ -54,6 +54,9 @@ Snacks.setup({
 	},
 	indent = {
 		enabled = true,
+		filter = function(buf)
+			return policy.allows(buf) and vim.g.snacks_indent ~= false and vim.b[buf].snacks_indent ~= false
+		end,
 		indent = { char = "┊" },
 		scope = {
 			enabled = false,
@@ -67,10 +70,7 @@ Snacks.setup({
 	scroll = {
 		enabled = false,
 		filter = function(buf)
-			return vim.bo[buf].buftype == ""
-				and not vim.b[buf].large_file
-				and vim.g.snacks_scroll ~= false
-				and vim.b[buf].snacks_scroll ~= false
+			return policy.allows(buf) and vim.g.snacks_scroll ~= false and vim.b[buf].snacks_scroll ~= false
 		end,
 	},
 	terminal = {
@@ -240,6 +240,27 @@ vim.api.nvim_create_autocmd("BufWinEnter", {
 vim.keymap.set("n", "<leader>A", function()
 	Snacks.dashboard()
 end, { desc = "Open dashboard" })
+for _, mapping in ipairs({
+	{ "[i", "jump", "Jump to top edge of scope" },
+	{ "]i", "jump", "Jump to bottom edge of scope" },
+	{ "ii", "textobject", "Inner scope" },
+	{ "ai", "textobject", "Full scope" },
+}) do
+	local jump = mapping[2] == "jump"
+	vim.keymap.set(
+		jump and { "n", "x", "o" } or { "x", "o" },
+		mapping[1],
+		policy.guard(function()
+			Snacks.scope[mapping[2]]({
+				cursor = false,
+				min_size = jump and 1 or 2,
+				edge = mapping[1] ~= "ii",
+				bottom = mapping[1] == "]i",
+			})
+		end),
+		{ silent = true, desc = mapping[3] }
+	)
+end
 Snacks.toggle.indent():map("<leader>Ti")
 Snacks.toggle.scroll():map("<leader>TS")
 Snacks.toggle.dim():map("<leader>Tm")

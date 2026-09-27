@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 -- =========================================
 -- ============== KEYMAPS: BASE ============
 -- =========================================
@@ -33,7 +34,7 @@ local function pair_mapping(key, callback, description)
 end
 for opening, closing in pairs(insert_pairs) do
 	pair_mapping(opening, function()
-		if vim.bo.buftype ~= "" or vim.b.large_file then
+		if not policy.allows(0) then
 			return opening
 		end
 		local line, col = vim.api.nvim_get_current_line(), vim.api.nvim_win_get_cursor(0)[2]
@@ -51,7 +52,7 @@ for opening, closing in pairs(insert_pairs) do
 	end, "Insert " .. opening .. closing .. " pair")
 	if opening ~= closing then
 		pair_mapping(closing, function()
-			if vim.bo.buftype == "" and not vim.b.large_file then
+			if policy.allows(0) then
 				local line, col = vim.api.nvim_get_current_line(), vim.api.nvim_win_get_cursor(0)[2]
 				if line:sub(col + 1, col + 1) == closing and not pair_escaped(line:sub(1, col)) then
 					return "<C-g>U<Right>"
@@ -62,7 +63,7 @@ for opening, closing in pairs(insert_pairs) do
 	end
 end
 pair_mapping("<BS>", function()
-	if vim.bo.buftype == "" and not vim.b.large_file then
+	if policy.allows(0) then
 		local line, col = vim.api.nvim_get_current_line(), vim.api.nvim_win_get_cursor(0)[2]
 		if
 			col > 0
@@ -147,7 +148,7 @@ do
 			return
 		end
 		local win, buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
-		if vim.bo[buf].buftype ~= "" or vim.b[buf].large_file or vim.fn.mode() ~= "n" then
+		if not policy.allows(buf) or vim.fn.mode() ~= "n" then
 			return
 		end
 		local word = vim.fn.expand("<cword>")
@@ -160,6 +161,15 @@ do
 	end
 	vim.cmd("highlight default link CursorWord Visual")
 	local group = vim.api.nvim_create_augroup("pack-cursor-word", { clear = true })
+	vim.api.nvim_create_autocmd("User", {
+		group = group,
+		pattern = "PackBufferRestricted",
+		callback = function(args)
+			for _, win in ipairs(vim.fn.win_findbuf(args.data.buf)) do
+				clear(win)
+			end
+		end,
+	})
 	vim.api.nvim_create_autocmd("ColorScheme", {
 		group = group,
 		callback = function()

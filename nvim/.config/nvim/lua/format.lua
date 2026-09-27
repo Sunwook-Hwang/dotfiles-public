@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 -- -------------------------------------
 -- Formatting: conform.nvim (manual)
 -- -------------------------------------
@@ -37,12 +38,12 @@ require("conform").setup({
 })
 vim.keymap.set("n", "<leader>lf", function()
 	local buf = vim.api.nvim_get_current_buf()
-	if vim.bo[buf].buftype ~= "" or not vim.bo[buf].modifiable then
+	if not policy.is_source(buf) or not vim.bo[buf].modifiable then
 		vim.notify("Open an editable file before formatting")
 		return
 	end
-	if vim.api.nvim_buf_get_offset(buf, vim.api.nvim_buf_line_count(buf)) > 2 * 1024 * 1024 then
-		vim.notify("Formatting skipped: file exceeds 2 MiB")
+	if not policy.allows(buf) then
+		vim.notify("Formatting skipped: large-file protection is active")
 		return
 	end
 	require("conform").format({ bufnr = buf, async = true })

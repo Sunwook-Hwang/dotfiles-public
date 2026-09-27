@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 -- =========================================
@@ -211,12 +212,6 @@ vim.api.nvim_create_autocmd("User", {
 	pattern = "NopackNetrwRedraw",
 	callback = redraw_netrw_git,
 })
-vim.api.nvim_create_autocmd("VimLeavePre", {
-	group = netrw_git_group,
-	callback = function()
-		vim.fn.timer_stop(netrw_git_timer)
-	end,
-})
 
 local function refresh_git_status(buf, force)
 	if not vim.api.nvim_buf_is_loaded(buf) then
@@ -224,7 +219,7 @@ local function refresh_git_status(buf, force)
 	end
 	local key = "git-status:" .. buf
 	local file = vim.api.nvim_buf_get_name(buf)
-	local root = vim.bo[buf].buftype == "" and file ~= "" and shared.find_git_root(vim.fs.dirname(file))
+	local root = policy.is_source(buf) and file ~= "" and shared.find_git_root(vim.fs.dirname(file))
 	local task = shared.running[key]
 	-- Navigation can join an identical pending read; writes/external changes must replace it.
 	if not force and task and task.file == file and task.root == root then
@@ -412,7 +407,7 @@ for key, revision in pairs({ gd = ":", gD = "HEAD:" }) do
 	shared.map("n", "<leader>" .. key, function()
 		local file, buf, win =
 			vim.api.nvim_buf_get_name(0), vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win()
-		if vim.bo.buftype ~= "" or file == "" then
+		if not policy.is_source(0) or file == "" then
 			vim.notify("Open a tracked file first")
 			return
 		end
@@ -432,6 +427,7 @@ end
 -- 미추적·바이너리·256 KiB 초과 파일은 제외합니다. 창 이동만으로 index를 다시 읽지 않습니다.
 shared.git_signs = vim.api.nvim_create_namespace("nopack-git-signs")
 local git_sign_timers
+local git_sign_changes = {}
 shared.git_sign_versions, git_sign_timers, shared.git_diff_jobs, shared.git_sign_rendered = {}, {}, {}, {}
 local git_base_cache = {}
 -- Git atomically replaces the index. Include inode and nanosecond timestamps so
@@ -540,12 +536,7 @@ local function refresh_inline_blame()
 	inline_blame.timer = -1
 	local buf = vim.api.nvim_get_current_buf()
 	clear_inline_blame(buf)
-	if
-		not inline_blame.enabled
-		or vim.bo[buf].buftype ~= ""
-		or vim.bo[buf].modified
-		or vim.b[buf].nopack_large_file
-	then
+	if not inline_blame.enabled or not policy.allows(buf) or vim.bo[buf].modified then
 		return
 	end
 	local file = vim.api.nvim_buf_get_name(buf)
@@ -599,7 +590,7 @@ local function refresh_inline_blame()
 end
 local function queue_inline_blame(delay)
 	stop_inline_blame()
-	if not inline_blame.enabled then
+	if not inline_blame.enabled or not policy.allows(0) then
 		return
 	end
 	inline_blame.buf = vim.api.nvim_get_current_buf()
@@ -799,7 +790,7 @@ local function request_git_marks(buf, base, current, count, apply)
 end
 
 local function queue_git_signs(buf)
-	if not vim.api.nvim_buf_is_loaded(buf) then
+	if not policy.allows(buf) then
 		return
 	end
 	shared.git_sign_versions[buf] = {} -- unique token, also across unload/reload
@@ -827,8 +818,7 @@ local function queue_git_signs(buf)
 		local file = vim.api.nvim_buf_get_name(buf)
 		local limit = 256 * 1024
 		if
-			vim.bo[buf].buftype ~= ""
-			or vim.b[buf].nopack_large_file
+			not policy.allows(buf)
 			or file == ""
 			or vim.fn.executable("git") == 0
 			or vim.api.nvim_buf_line_count(buf) > 20000
@@ -858,7 +848,7 @@ local function queue_git_signs(buf)
 				and vim.api.nvim_buf_is_loaded(buf)
 				and vim.api.nvim_buf_get_changedtick(buf) == tick
 				and vim.api.nvim_buf_get_name(buf) == file
-				and not vim.b[buf].nopack_large_file
+				and policy.allows(buf)
 				and git_index_stamp(root) == stamp
 		end
 		local function apply_base(base)
@@ -924,6 +914,13 @@ vim.api.nvim_create_autocmd({
 }, {
 	group = vim.api.nvim_create_augroup("nopack-git-signs", { clear = true }),
 	callback = function(args)
+		if args.event == "TextChanged" or args.event == "TextChangedI" then
+			local tick = vim.api.nvim_buf_get_changedtick(args.buf)
+			if git_sign_changes[args.buf] == tick then
+				return
+			end
+			git_sign_changes[args.buf] = tick
+		end
 		if
 			args.event == "FocusGained"
 			or args.event == "ShellCmdPost"
@@ -946,6 +943,7 @@ vim.api.nvim_create_autocmd({
 vim.api.nvim_create_autocmd({ "BufUnload", "BufWipeout" }, {
 	group = "nopack-git-signs",
 	callback = function(args)
+		git_sign_changes[args.buf] = nil
 		shared.stop_git_sign_timer(args.buf)
 		shared.git_sign_versions[args.buf], git_base_cache[args.buf], shared.git_sign_rendered[args.buf] = nil, nil, nil
 		if shared.git_diff_jobs[args.buf] then
@@ -954,15 +952,41 @@ vim.api.nvim_create_autocmd({ "BufUnload", "BufWipeout" }, {
 		shared.cancel_command("git-signs:" .. args.buf)
 	end,
 })
-vim.api.nvim_create_autocmd("VimLeavePre", {
+vim.api.nvim_create_autocmd("User", {
 	group = "nopack-git-signs",
+	pattern = "NopackCancel",
 	callback = function()
+		vim.fn.timer_stop(netrw_git_timer)
+		netrw_git_timer = -1
+		stop_inline_blame()
+		inline_blame.version = inline_blame.version + 1
 		for buf in pairs(git_sign_timers) do
 			shared.stop_git_sign_timer(buf)
 		end
 		shared.git_sign_versions = {}
 		for _, job in pairs(shared.git_diff_jobs) do
 			job.pending = nil
+		end
+	end,
+})
+
+vim.api.nvim_create_autocmd("User", {
+	pattern = "NopackBufferRestricted",
+	callback = function(args)
+		local buf = args.data.buf
+		shared.stop_git_sign_timer(buf)
+		shared.git_sign_versions[buf], shared.git_sign_rendered[buf] = nil, nil
+		if shared.git_diff_jobs[buf] then
+			shared.git_diff_jobs[buf].pending = nil
+		end
+		shared.cancel_command("git-signs:" .. buf)
+		if vim.api.nvim_buf_is_loaded(buf) then
+			vim.api.nvim_buf_clear_namespace(buf, shared.git_signs, 0, -1)
+		end
+		if inline_blame.buf == buf then
+			stop_inline_blame()
+			inline_blame.version = inline_blame.version + 1
+			clear_inline_blame(buf)
 		end
 	end,
 })

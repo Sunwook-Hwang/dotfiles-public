@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 -- =========================================
@@ -19,7 +20,7 @@ local function pair_mapping(key, callback, description)
 end
 for opening, closing in pairs(insert_pairs) do
 	pair_mapping(opening, function()
-		if vim.bo.buftype ~= "" or vim.b.nopack_large_file then
+		if not policy.allows(0) then
 			return opening
 		end
 		local line, col = vim.api.nvim_get_current_line(), vim.api.nvim_win_get_cursor(0)[2]
@@ -37,7 +38,7 @@ for opening, closing in pairs(insert_pairs) do
 	end, "Insert " .. opening .. closing .. " pair")
 	if opening ~= closing then
 		pair_mapping(closing, function()
-			if vim.bo.buftype == "" and not vim.b.nopack_large_file then
+			if policy.allows(0) then
 				local line, col = vim.api.nvim_get_current_line(), vim.api.nvim_win_get_cursor(0)[2]
 				if line:sub(col + 1, col + 1) == closing and not pair_escaped(line:sub(1, col)) then
 					return "<C-g>U<Right>"
@@ -48,7 +49,7 @@ for opening, closing in pairs(insert_pairs) do
 	end
 end
 pair_mapping("<BS>", function()
-	if vim.bo.buftype == "" and not vim.b.nopack_large_file then
+	if policy.allows(0) then
 		local line, col = vim.api.nvim_get_current_line(), vim.api.nvim_win_get_cursor(0)[2]
 		if
 			col > 0

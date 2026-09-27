@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 -- =========================================
 -- =========== STICKY SCROLL =============
 -- =========================================
@@ -101,9 +102,7 @@ do
 		if
 			not enabled
 			or vim.api.nvim_win_get_config(win).relative ~= ""
-			or vim.bo[buf].buftype ~= ""
-			or vim.bo[buf].filetype == "netrw"
-			or vim.b[buf].nopack_large_file
+			or not policy.allows(buf)
 			or vim.fn.getcmdwintype() ~= ""
 		then
 			close()
@@ -299,6 +298,16 @@ do
 		end)
 	end
 	local group = vim.api.nvim_create_augroup("nopack-sticky-scroll", { clear = true })
+	vim.api.nvim_create_autocmd("User", {
+		group = group,
+		pattern = "NopackBufferRestricted",
+		callback = function(args)
+			if cache and cache.key[2] == args.data.buf then
+				close()
+				cache = nil
+			end
+		end,
+	})
 	vim.api.nvim_create_autocmd({
 		"VimEnter",
 		"BufEnter",

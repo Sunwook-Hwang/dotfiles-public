@@ -1,4 +1,4 @@
-local shared = require("state")
+local policy = require("buffer_policy")
 
 -- =========================================
 -- ========== LARGE FILE GUARDS ==========
@@ -10,30 +10,12 @@ local function protect_large_file(buf)
 	if not vim.api.nvim_buf_is_loaded(buf) then
 		return
 	end
-	local file = vim.api.nvim_buf_get_name(buf)
-	file = vim.uv.fs_realpath(file) or file
-	local root = file ~= "" and shared.find_project(vim.fs.dirname(file))
-	local project = root and shared.tag_projects[root]
-	if project and (project.pending[file] or (project.active and project.active.files[file])) then
-		shared.cancel_tag_build(root, project)
-		project.pending[file] = nil
-		if next(project.pending) then
-			shared.build_tags(root, false)
-		end
+	policy.restrict(buf)
+	if vim.bo[buf].syntax ~= "OFF" then
+		vim.bo[buf].syntax = "OFF"
 	end
-	shared.stop_git_sign_timer(buf)
-	shared.git_sign_versions[buf], shared.git_sign_rendered[buf] = nil, nil
-	if shared.git_diff_jobs[buf] then
-		shared.git_diff_jobs[buf].pending = nil
-	end
-	shared.cancel_command("git-signs:" .. buf)
-	vim.api.nvim_buf_clear_namespace(buf, shared.git_signs, 0, -1)
-	pcall(vim.treesitter.stop, buf)
-	vim.bo[buf].syntax = "OFF"
+	vim.bo[buf].indentexpr = ""
 	vim.bo[buf].autocomplete = false
-	for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
-		vim.lsp.buf_detach_client(buf, client.id)
-	end
 	for _, win in ipairs(vim.fn.win_findbuf(buf)) do
 		-- Like :setlocal: limit the guard to this buffer, preserving window defaults.
 		vim.wo[win][0].foldmethod = "manual"
@@ -42,6 +24,19 @@ local function protect_large_file(buf)
 		vim.wo[win][0].wrap = false
 	end
 end
+vim.api.nvim_create_autocmd("User", {
+	pattern = "NopackBufferRestricted",
+	callback = function(args)
+		local buf = args.data.buf
+		if not vim.api.nvim_buf_is_loaded(buf) then
+			return
+		end
+		pcall(vim.treesitter.stop, buf)
+		for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
+			vim.lsp.buf_detach_client(buf, client.id)
+		end
+	end,
+})
 local function check_large_file(buf, first, last)
 	if vim.b[buf].nopack_large_file or not vim.api.nvim_buf_is_loaded(buf) then
 		return
@@ -64,7 +59,6 @@ local function check_large_file(buf, first, last)
 		end
 	end
 	if large then
-		vim.b[buf].nopack_large_file = true
 		protect_large_file(buf)
 	end
 end
@@ -96,13 +90,19 @@ end
 vim.api.nvim_create_autocmd("BufReadPre", {
 	callback = function(args)
 		local stat = vim.uv.fs_stat(vim.api.nvim_buf_get_name(args.buf))
-		vim.b[args.buf].nopack_large_file = stat and stat.size > 2 * 1024 * 1024 or false
+		if stat and stat.size > 2 * 1024 * 1024 then
+			policy.restrict(args.buf)
+		end
 	end,
 })
 vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile", "FileType", "BufWinEnter" }, {
 	callback = function(args)
 		local buf = args.buf
-		if vim.bo[buf].buftype ~= "" or vim.bo[buf].filetype == "netrw" then
+		if not policy.is_source(buf) then
+			return
+		end
+		if vim.b[buf].nopack_large_file then
+			protect_large_file(buf)
 			return
 		end
 		if not watched_buffers[buf] then
@@ -119,13 +119,10 @@ vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile", "FileType", "BufWinEn
 				end,
 			})
 			if attached then
-				queue_large_file_check(buf, 0, math.huge)
+				check_large_file(buf, 0, math.huge)
 			else
 				watched_buffers[buf] = nil
 			end
-		end
-		if vim.b[buf].nopack_large_file then
-			protect_large_file(buf)
 		end
 	end,
 })

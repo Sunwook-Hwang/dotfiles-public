@@ -1,4 +1,5 @@
 -- Persistent outline with cursor tracking in both directions.
+local policy = require("buffer_policy")
 require("aerial").setup({
 	lazy_load = true,
 	backends = { "lsp", "markdown", "asciidoc", "man" },
@@ -9,6 +10,11 @@ require("aerial").setup({
 	show_guides = true,
 	nerd_font = false,
 	icons = { Collapsed = ">" },
+	ignore = {
+		buftypes = function(buf)
+			return not policy.allows(buf)
+		end,
+	},
 	on_attach = function(buf)
 		-- Aerial keeps its cursor listener after closing; only track a visible outline.
 		for _, autocmd in
@@ -22,7 +28,7 @@ require("aerial").setup({
 					buffer = buf,
 					desc = autocmd.desc,
 					callback = function(args)
-						if require("aerial").is_open() then
+						if policy.allows(buf) and require("aerial").is_open() then
 							return callback(args)
 						end
 					end,
@@ -31,4 +37,20 @@ require("aerial").setup({
 		end
 	end,
 })
-vim.keymap.set("n", "<leader>o", "<Cmd>AerialToggle<CR>", { desc = "Toggle symbols outline" })
+vim.api.nvim_create_autocmd("User", {
+	group = vim.api.nvim_create_augroup("PackOutlinePolicy", { clear = true }),
+	pattern = "PackBufferRestricted",
+	callback = function(args)
+		local backends = package.loaded["aerial.backends"]
+		local name = backends and backends.get_attached_backend(args.data.buf)
+		if name then
+			backends.get_backend_by_name(name).detach(args.data.buf)
+			vim.b[args.data.buf].aerial_backend = nil
+		end
+	end,
+})
+vim.keymap.set("n", "<leader>o", function()
+	if policy.allows(0) or require("aerial").is_open() then
+		vim.cmd("AerialToggle")
+	end
+end, { desc = "Toggle symbols outline" })

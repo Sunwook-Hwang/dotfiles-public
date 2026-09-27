@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 -- =========================================
 -- ========= TREESITTER / SYNTAX =========
 -- =========================================
@@ -5,7 +6,7 @@
 -- 없으면 기본 syntax를 유지하며 외부 파서·쿼리 다운로드는 하지 않습니다.
 vim.api.nvim_create_autocmd("FileType", {
 	callback = function(args)
-		if vim.bo[args.buf].buftype ~= "" or vim.b[args.buf].nopack_large_file then
+		if not policy.allows(args.buf) then
 			return
 		end
 		local lang = vim.treesitter.language.get_lang(vim.bo[args.buf].filetype)

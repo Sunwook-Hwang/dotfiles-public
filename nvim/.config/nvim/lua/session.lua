@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 -- -------------------------------------
 -- Session management: persistence.nvim
 -- -------------------------------------
@@ -13,7 +14,7 @@ vim.api.nvim_create_autocmd("User", {
 	callback = function()
 		excluded = {}
 		for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-			if vim.bo[buf].buflisted and vim.bo[buf].buftype ~= "" then
+			if vim.bo[buf].buflisted and not policy.is_source(buf) then
 				excluded[#excluded + 1] = buf
 				vim.bo[buf].buflisted = false
 			end

@@ -11,29 +11,30 @@ when moving it to a server. The installed `pvi`/`npvi` aliases select named
 configurations through shell functions in `.zshrc`; `vi` retains the last selection. Pack plugin packages and Mason tools are separate
 from these configuration files and must also be available on a network-isolated server.
 
-| Module            | Responsibility                                                   |
-| ----------------- | ---------------------------------------------------------------- |
-| `options.lua`     | Disable defaults, editor options, leader                         |
-| `keymaps.lua`     | Editing, window movement/resizing, cursor word highlight         |
-| `bigfile.lua`     | Snacks bigfile configuration and supplemental growth checks      |
-| `plugins.lua`     | `vim.pack` package registration                                  |
-| `context.lua`     | Native sticky context and its update lifecycle                   |
-| `ui.lua`          | Snacks setup: dashboard, indent, picker styling, terminal layout |
-| `git.lua`         | Gitsigns, hunk operations, inline blame                          |
-| `session.lua`     | Session persistence                                              |
-| `clipboard.lua`   | SSH clipboard copying                                            |
-| `whichkey.lua`    | Keybinding help                                                  |
-| `pickers.lua`     | Search picker mappings                                           |
-| `breadcrumbs.lua` | Dropbar sources and updates                                      |
-| `outline.lua`     | Aerial outline and cursor tracking                               |
-| `terminal.lua`    | Bottom terminal and lazygit toggles                              |
-| `format.lua`      | Conform formatter registration and formatting                    |
-| `completion.lua`  | Native completion and snippets                                   |
-| `explorer.lua`    | Explorer root discovery and toggle                               |
-| `lsp.lua`         | Native LSP, Snacks capability-aware keys, servers, Python, Mason |
-| `buffers.lua`     | Tabline, buffer selection and deletion                           |
-| `statusline.lua`  | Statusline rendering and invalidation                            |
-| `theme.lua`       | Final editor commands and colorscheme                            |
+| Module              | Responsibility                                                    |
+| ------------------- | ----------------------------------------------------------------- |
+| `options.lua`       | Disable defaults, editor options, leader                          |
+| `buffer_policy.lua` | Shared buffer eligibility, guarded actions and restriction events |
+| `keymaps.lua`       | Editing, window movement/resizing, cursor word highlight          |
+| `bigfile.lua`       | Snacks bigfile configuration and supplemental growth checks       |
+| `plugins.lua`       | `vim.pack` package registration                                   |
+| `context.lua`       | Native sticky context and its update lifecycle                    |
+| `ui.lua`            | Snacks setup: dashboard, indent, picker styling, terminal layout  |
+| `git.lua`           | Gitsigns, hunk operations, inline blame                           |
+| `session.lua`       | Session persistence                                               |
+| `clipboard.lua`     | SSH clipboard copying                                             |
+| `whichkey.lua`      | Keybinding help                                                   |
+| `pickers.lua`       | Search picker mappings                                            |
+| `breadcrumbs.lua`   | Dropbar sources and updates                                       |
+| `outline.lua`       | Aerial outline and cursor tracking                                |
+| `terminal.lua`      | Bottom terminal and lazygit toggles                               |
+| `format.lua`        | Conform formatter registration and formatting                     |
+| `completion.lua`    | Native completion and snippets                                    |
+| `explorer.lua`      | Explorer root discovery and toggle                                |
+| `lsp.lua`           | Native LSP, Snacks capability-aware keys, servers, Python, Mason  |
+| `buffers.lua`       | Tabline, buffer selection and deletion                            |
+| `statusline.lua`    | Statusline rendering and invalidation                             |
+| `theme.lua`         | Final editor commands and colorscheme                             |
 
 `ui.lua` passes the configuration from `bigfile.lua` to Snacks and calls the cached
 terminal toggle from `terminal.lua` when an explorer terminal shortcut is pressed.
@@ -43,6 +44,37 @@ rendering keep their existing implementations and default states.
 Modules that use Snacks import the installed
 `snacks` plugin directly. Configuration module names intentionally differ from
 plugin entry points such as `snacks` and `dropbar`.
+
+Automatic editing and code-analysis features use `buffer_policy.allows(buf)`;
+normal loaded buffers are eligible unless marked as large files. Manual source
+operations that should remain available on large files can use `is_source(buf)`,
+which also recognizes unloaded normal buffers for buffer lists and sessions.
+Manual formatting follows the same protection limits as code analysis.
+Use `guard(callback)` for code-analysis keymaps. Do not duplicate `large_file`
+checks in feature modules. `bigfile.lua` detects size and edit growth, then calls
+`restrict(buf)` once. This disables Snacks buffer features and emits
+`PackBufferRestricted` to clean up active overlays, breadcrumbs, and outline
+backends. Global defaults and other buffers stay unchanged.
+
+새 기능의 실행 조건은 `buffer_policy`에서 가져옵니다. 큰 파일 판정은
+`bigfile.lua`만 담당하고, 전환 시 공통 이벤트로 이미 켜진 기능도 정리합니다.
+플러그인의 실행 필터·단축키·종료 처리를 연결해야 하며,
+버퍼 플래그 하나만 설정한다고 외부 플러그인이 자동으로 차단되는 것은 아닙니다.
+
+The Nopack profile implements the same contract in its own `buffer_policy.lua`,
+without importing Pack modules or plugins. Vim keeps the equivalent `IsSource`,
+`BufferAllows`, and `RestrictBuffer` helpers inside `.vimrc`. Their
+`NopackBufferRestricted` event cancels affected automatic work and clears active
+UI. All three profiles protect files exceeding 2 MiB, 50,000 lines, or a single
+10,000-byte line. Detection on open and changed-range checks on edits share the
+same limits; features may retain stricter workload budgets, such as native Git
+sign diff limits. Protection lasts until the buffer is discarded. Buffer lists,
+project browsing, and sessions still recognize protected or unloaded source buffers.
+
+npvi도 독립적인 `buffer_policy.lua`를 사용하고, vimrc는 같은 정책을 파일 내부
+함수로 구현합니다. 큰 파일 제한 전환은 한 번만 알리고, 각 기능이 자신의 요청·타이머·
+표시를 정리합니다. 파일 열기와 편집 중 증가를 모두 검사하며, 커서 이동마다 파일
+전체를 다시 검사하지 않습니다. 큰 파일의 기본 편집·탐색·버퍼 목록·세션은 유지합니다.
 
 When investigating cursor lag, start with the events and callbacks in the relevant
 feature module. File splitting does not itself change refresh frequency, introduce

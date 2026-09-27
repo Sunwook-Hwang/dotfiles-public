@@ -114,10 +114,29 @@ let &sessionoptions = 'buffers,curdir,folds,help,tabpages,winsize,winpos'
       \ . (has('terminal') ? ',terminal' : '')
 set shortmess+=c
 
+" Shared buffer policy: source operations survive large-file protection.
+function! s:IsSource(buf) abort
+  return bufexists(a:buf) && getbufvar(a:buf, '&buftype') ==# ''
+        \ && getbufvar(a:buf, '&filetype') !=# 'netrw'
+endfunction
+function! s:BufferAllows(buf) abort
+  return bufloaded(a:buf) && s:IsSource(a:buf) && !getbufvar(a:buf, 'nopack_large_file', 0)
+endfunction
+function! s:RestrictBuffer(buf) abort
+  if getbufvar(a:buf, 'nopack_large_file', 0) | return | endif
+  call setbufvar(a:buf, 'nopack_large_file', 1)
+  let s:restricted_buf = a:buf
+  try
+    doautocmd <nomodeline> User NopackBufferRestricted
+  finally
+    unlet s:restricted_buf
+  endtry
+endfunction
+
 " Restore only affected windows; do not rewrite window options during redraw.
 function! s:ShowLineNumbers(winid) abort
   let buf = winbufnr(a:winid)
-  if buf > 0 && (getbufvar(buf, '&buftype') ==# '' || getbufvar(buf, '&filetype') ==# 'netrw')
+  if buf > 0 && (s:IsSource(buf) || getbufvar(buf, '&filetype') ==# 'netrw')
     if !getwinvar(a:winid, '&number')
       call setwinvar(a:winid, '&number', 1)
     endif
@@ -506,7 +525,7 @@ function! s:ClearCursorWord(winid) abort
   endif
 endfunction
 function! s:HighlightCursorWord() abort
-  if !s:cursor_word_enabled || &buftype !=# '' || get(b:, 'nopack_large_file', 0) || mode() !=# 'n'
+  if !s:cursor_word_enabled || !s:BufferAllows(bufnr('%')) || mode() !=# 'n'
     return
   endif
   let word = expand('<cword>')
@@ -545,7 +564,7 @@ let &listchars = s:base_listchars
 let s:has_indent_guides = 1
 function! s:UpdateIndentGuides() abort
   let markers = s:base_listchars
-  if s:has_indent_guides && &l:buftype ==# '' && &l:filetype !=# 'netrw'
+  if s:has_indent_guides && s:BufferAllows(bufnr('%'))
     let markers .= ',leadmultispace:┊' . repeat(' ', shiftwidth() - 1)
   endif
   let &l:listchars = markers
@@ -568,6 +587,7 @@ augroup NopackFiletypes
 augroup END
 
 function! s:Pair(open, close) abort
+  if !s:BufferAllows(bufnr('%')) | return a:open | endif
   let next = strpart(getline('.'), col('.') - 1, 1)
   let previous = strpart(getline('.'), col('.') - 2, 1)
   if a:open ==# a:close && (previous =~# '\k\|\\' || next =~# '\k')
@@ -579,9 +599,11 @@ function! s:Pair(open, close) abort
   return next ==# '' || next =~# '\s\|[]})]' ? a:open . a:close . "\<Left>" : a:open
 endfunction
 function! s:PairClose(char) abort
+  if !s:BufferAllows(bufnr('%')) | return a:char | endif
   return strpart(getline('.'), col('.') - 1, 1) ==# a:char ? "\<Right>" : a:char
 endfunction
 function! s:PairBackspace() abort
+  if !s:BufferAllows(bufnr('%')) | return "\<BS>" | endif
   let pair = strpart(getline('.'), col('.') - 2, 2)
   return index(['()', '[]', '{}', '""', "''", '``'], pair) >= 0 ? "\<BS>\<Del>" : "\<BS>"
 endfunction
@@ -619,7 +641,7 @@ inoremap <expr> <S-Tab> pumvisible() ? "\<C-P>" : "\<S-Tab>"
 
 " Native completion combines buffer words and the project ctags index.
 function! s:BufferCompletion() abort
-  let &l:autocomplete = &l:buftype ==# '' && &l:filetype !=# 'netrw' && !get(b:, 'nopack_large_file', 0)
+  let &l:autocomplete = s:BufferAllows(bufnr('%'))
 endfunction
 if exists('+autocomplete')
   if exists('+autocompletedelay')
@@ -641,7 +663,7 @@ else
 
   function! s:AutoComplete(buf, tick, position, timer) abort
     let s:completion_timer = -1
-    if mode() !=# 'i' || bufnr('%') != a:buf || b:changedtick != a:tick
+    if !s:BufferAllows(a:buf) || mode() !=# 'i' || bufnr('%') != a:buf || b:changedtick != a:tick
           \ || getcurpos() != a:position || pumvisible()
       return
     endif
@@ -650,7 +672,7 @@ else
 
   function! s:QueueCompletion() abort
     call s:CancelCompletion()
-    if &buftype !=# '' || &filetype ==# 'netrw' || get(b:, 'nopack_large_file', 0) || pumvisible()
+    if !s:BufferAllows(bufnr('%')) || pumvisible()
       return
     endif
     if strpart(getline('.'), 0, col('.') - 1) =~# '\k\{2,}$'
@@ -683,7 +705,7 @@ function! s:RunNetrw(command, root) abort
     for info in getbufinfo()
       if index(existing, info.bufnr) < 0 && info.name ==# '' && info.loaded
             \ && !info.changed && empty(win_findbuf(info.bufnr))
-            \ && getbufvar(info.bufnr, '&buftype') ==# ''
+            \ && s:IsSource(info.bufnr)
             \ && getbufline(info.bufnr, 1, '$') ==# ['']
         execute 'bwipeout ' . info.bufnr
       endif
@@ -1049,25 +1071,30 @@ function! s:RevealTreeFile(relative) abort
 endfunction
 
 let s:project_roots = {}
+let s:project_markers = ['CMakeLists.txt', 'compile_commands.json', 'Makefile', 'package.json', 'pyproject.toml', 'Cargo.toml', 'WORKSPACE', 'WORKSPACE.bazel', 'MODULE.bazel', 'buf.yaml']
 
 function! s:ProjectRoot(...) abort
   let buf = a:0 ? a:1 : bufnr('%')
   let dir = ''
   if !a:0 && getbufvar(buf, '&filetype') ==# 'netrw'
     let dir = get(w:, 'netrw_treetop', getbufvar(buf, 'netrw_curdir', ''))
-  elseif getbufvar(buf, '&buftype') ==# '' && bufname(buf) !=# ''
+  elseif s:IsSource(buf) && bufname(buf) !=# ''
     let dir = fnamemodify(bufname(buf), ':p:h')
   endif
   if dir ==# '' && !a:0
     for winid in s:TabWindows()
       let candidate = winbufnr(winid)
-      if getbufvar(candidate, '&buftype') ==# '' && getbufvar(candidate, '&filetype') !=# 'netrw' && bufname(candidate) !=# ''
+      if s:IsSource(candidate) && bufname(candidate) !=# ''
         let dir = fnamemodify(bufname(candidate), ':p:h')
         break
       endif
     endfor
   endif
-  let dir = dir ==# '' ? getcwd() : fnamemodify(dir, ':p')
+  return s:FindProject(dir ==# '' ? getcwd() : dir)
+endfunction
+
+function! s:FindProject(dir) abort
+  let dir = fnamemodify(a:dir, ':p')
   let dir = substitute(dir, '/\+$', '', '')
   if dir ==# ''
     let dir = '/'
@@ -1091,7 +1118,7 @@ function! s:ProjectRoot(...) abort
       break
     endif
     if empty(marker)
-      for name in ['CMakeLists.txt', 'compile_commands.json', 'Makefile', 'package.json', 'pyproject.toml', 'Cargo.toml', 'WORKSPACE', 'WORKSPACE.bazel', 'MODULE.bazel', 'buf.yaml']
+      for name in s:project_markers
         if filereadable(dir . '/' . name)
           let marker = dir
           break
@@ -1124,7 +1151,7 @@ function! s:ToggleExplorer() abort
     endif
   endfor
 
-  let file = &l:buftype ==# '' ? expand('%:p') : ''
+  let file = s:IsSource(bufnr('%')) ? expand('%:p') : ''
   let root = s:ProjectRoot().root
   let width = max([20, min([40, &columns / 4])])
   execute 'topleft vertical ' . width . 'split'
@@ -1147,7 +1174,7 @@ nnoremap <silent><nowait> <leader>e :call <SID>ToggleExplorer()<CR>
 
 let s:syncing_project = 0
 function! s:SyncProjectContext() abort
-  if s:syncing_project || &l:buftype !=# '' || &l:filetype ==# 'netrw' || expand('%:p') ==# ''
+  if s:syncing_project || !s:IsSource(bufnr('%')) || expand('%:p') ==# ''
     return
   endif
   let project = s:ProjectRoot()
@@ -1182,7 +1209,8 @@ endfunction
 augroup NopackProjectContext
   autocmd!
   autocmd BufEnter * call <SID>SyncProjectContext()
-  autocmd BufWritePost,FocusGained,ShellCmdPost,DirChanged * let s:project_roots = {}
+  autocmd BufFilePost,FocusGained,ShellCmdPost,DirChanged * let s:project_roots = {}
+  execute 'autocmd BufWritePost ' . join(s:project_markers + ['.git', 'os.py', '__init__.py'], ',') . ' let s:project_roots = {}'
 augroup END
 
 " =========================================
@@ -1192,7 +1220,7 @@ let s:buffer_order = []
 
 function! s:IsEditorBuffer(buf) abort
   return bufexists(a:buf) && buflisted(a:buf)
-        \ && index(['', 'terminal'], getbufvar(a:buf, '&buftype')) >= 0
+        \ && (s:IsSource(a:buf) || getbufvar(a:buf, '&buftype') ==# 'terminal')
 endfunction
 
 function! s:Buffers() abort
@@ -1235,7 +1263,7 @@ function! s:FocusEditor() abort
   endif
   for winid in s:TabWindows()
     let buf = winbufnr(winid)
-    if index(['', 'terminal'], getbufvar(buf, '&buftype')) >= 0 && getbufvar(buf, '&filetype') !=# 'netrw'
+    if s:IsSource(buf) || getbufvar(buf, '&buftype') ==# 'terminal'
       call win_gotoid(winid)
       return
     endif
@@ -1477,19 +1505,7 @@ function! s:CancelTask(key) abort
 endfunction
 
 function! s:CancelCommands() abort
-  for project in values(get(s:, 'tag_projects', {}))
-    if project.timer != -1
-      call timer_stop(project.timer)
-      let project.timer = -1
-    endif
-    let project.busy = 0
-    let project.full = 1
-    let project.callbacks = []
-  endfor
-  for timer in values(get(s:, 'git_sign_timers', {}))
-    call timer_stop(timer)
-  endfor
-  let s:git_sign_timers = {}
+  silent doautocmd <nomodeline> User NopackCancel
   for key in keys(copy(s:running))
     call s:CancelTask(key)
   endfor
@@ -1659,7 +1675,7 @@ function! s:OutputLines(output, limited, ...) abort
   return lines
 endfunction
 
-command! NopackCancel call <SID>CancelCommands() | call <SID>CloseActivePicker()
+command! NopackCancel call <SID>CloseActivePicker() | call <SID>CancelCommands()
 
 augroup NopackCommands
   autocmd!
@@ -2322,7 +2338,7 @@ function! s:TextPicker(open_only, ...) abort
     let paths = []
     for buf in s:Buffers()
       let name = bufname(buf)
-      if getbufvar(buf, '&buftype') ==# '' && name !=# ''
+      if s:IsSource(buf) && name !=# ''
         call add(paths, fnamemodify(name, ':p'))
       endif
     endfor
@@ -2409,7 +2425,7 @@ function! s:UseTags(buf, path) abort
 endfunction
 
 function! s:TagsAttach(buf) abort
-  if getbufvar(a:buf, '&buftype') !=# '' || bufname(a:buf) ==# ''
+  if !s:IsSource(a:buf) || bufname(a:buf) ==# ''
     return
   endif
   let root = s:ProjectRoot(a:buf).root
@@ -2474,6 +2490,7 @@ function! s:OutlineRefresh() abort
 endfunction
 
 function! s:TagsShow(buf, win, root, mode, word) abort
+  if !s:BufferAllows(a:buf) | return | endif
   " A background build must not redirect a window now editing another file.
   if win_getid() != a:win || winbufnr(a:win) != a:buf
     call s:Info('Ctags index ready; reopen definition/outline in the desired file')
@@ -2554,6 +2571,7 @@ function! s:TagsCommand() abort
 endfunction
 
 function! s:TagsRun(root, files, After, command, opts) abort
+  let s:tag_projects[a:root].active_files = a:files
   let opts = extend(copy(a:opts), {'failed': function('<SID>TagsFailed', [a:root])})
   call s:RunCommand('ctags:' . a:root, a:command, opts,
         \ function('<SID>TagsBuilt', [a:root, a:files, a:After]))
@@ -2652,7 +2670,7 @@ function! s:CtagsOpen(mode) abort
     endfor
   endif
   call s:FocusEditor()
-  if &buftype !=# '' || expand('%:p') ==# '' || !s:CtagsAvailable()
+  if !s:BufferAllows(bufnr('%')) || expand('%:p') ==# '' || !s:CtagsAvailable()
     return
   endif
   let root = s:ProjectRoot().root
@@ -2681,12 +2699,13 @@ function! s:CtagsOpen(mode) abort
 endfunction
 
 function! s:TagsRefresh(root, timer) abort
+  if !has_key(s:tag_projects, a:root) || s:tag_projects[a:root].timer != a:timer | return | endif
   let s:tag_projects[a:root].timer = -1
   call s:TagsBuild(a:root, 0, [])
 endfunction
 
 function! s:TagsSaved(buf) abort
-  if getbufvar(a:buf, '&buftype') !=# '' || bufname(a:buf) ==# ''
+  if !s:BufferAllows(a:buf) || bufname(a:buf) ==# ''
     return
   endif
   let root = s:ProjectRoot(a:buf).root
@@ -2703,8 +2722,7 @@ endfunction
 
 function! s:TagsCompletion() abort
   " Index the current file on first editing use, never on individual keystrokes.
-  if &buftype !=# '' || empty(&filetype)
-        \ || expand('%:p') ==# '' || get(b:, 'nopack_large_file', 0)
+  if !s:BufferAllows(bufnr('%')) || empty(&filetype) || expand('%:p') ==# ''
     return
   endif
   if !get(b:, 'nopack_tags_requested', 0) && s:CtagsAvailable(1)
@@ -2712,6 +2730,21 @@ function! s:TagsCompletion() abort
     call s:CtagsOpen('completion')
   endif
   call s:TagsAttach(bufnr('%'))
+endfunction
+
+function! s:CancelTags() abort
+  for project in values(s:tag_projects)
+    if project.timer != -1
+      call timer_stop(project.timer)
+      let project.timer = -1
+    endif
+    let project.busy = 0
+    let project.full = 1
+    let project.callbacks = []
+  endfor
+  for info in getbufinfo()
+    call setbufvar(info.bufnr, 'nopack_tags_requested', 0)
+  endfor
 endfunction
 
 function! s:CtagsClearAll() abort
@@ -2737,6 +2770,7 @@ command! CtagsUpdate call <SID>CtagsOpen('refresh')
 command! CtagsClearAll call <SID>CtagsClearAll()
 augroup NopackCtags
   autocmd!
+  autocmd User NopackCancel call <SID>CancelTags()
   autocmd InsertEnter * call <SID>TagsCompletion()
   autocmd BufEnter * call <SID>TagsAttach(str2nr(expand('<abuf>')))
   autocmd BufWritePost * call <SID>TagsSaved(str2nr(expand('<abuf>')))
@@ -2785,7 +2819,7 @@ endfunction
 
 function! s:UndoPicker() abort
   call s:FocusEditor()
-  if &buftype !=# '' || !&modifiable
+  if !s:IsSource(bufnr('%')) || !&modifiable
     call s:Warn('Undo history is available for editable file buffers')
     return
   endif
@@ -3040,17 +3074,15 @@ function! s:NetrwGitResult(win, buf, top, root, output, limited) abort
 endfunction
 
 function! s:RefreshNetrwGit(timer) abort
+  if a:timer != s:netrw_git_timer | return | endif
   let s:netrw_git_timer = -1
   for info in getwininfo()
     if getbufvar(info.bufnr, '&filetype') !=# 'netrw'
       continue
     endif
     let top = s:NetrwGitTop(info.winid)
-    let root = substitute(top, '/\+$', '', '')
-    while root !=# '' && !isdirectory(root . '/.git') && !filereadable(root . '/.git')
-      let parent = fnamemodify(root, ':h')
-      let root = parent ==# root ? '' : parent
-    endwhile
+    let project = s:FindProject(top)
+    let root = project.git ? project.root : ''
     let key = 'git-tree:' . info.bufnr
     call s:CancelTask(key)
     if root ==# '' || !isdirectory(top)
@@ -3072,6 +3104,11 @@ function! s:QueueNetrwGit() abort
   let s:netrw_git_timer = timer_start(100, function('<SID>RefreshNetrwGit'))
 endfunction
 
+function! s:CancelNetrwGit() abort
+  call timer_stop(s:netrw_git_timer)
+  let s:netrw_git_timer = -1
+endfunction
+
 augroup NopackNetrwGit
   autocmd!
   if exists('*sign_place') && exists('*job_start')
@@ -3079,7 +3116,7 @@ augroup NopackNetrwGit
     autocmd BufWinEnter,BufWritePost,FocusGained,ShellCmdPost * call <SID>QueueNetrwGit()
     autocmd TextChanged * if &filetype ==# 'netrw' | call <SID>RedrawNetrwGit() | endif
     autocmd BufWipeout * call <SID>CancelTask('git-tree:' . expand('<abuf>'))
-    autocmd VimLeavePre * call timer_stop(s:netrw_git_timer)
+    autocmd User NopackCancel call <SID>CancelNetrwGit()
     if exists('##TerminalNormal')
       autocmd TerminalNormal * call <SID>QueueNetrwGit()
     endif
@@ -3122,7 +3159,7 @@ function! s:RefreshGitStatus(buf) abort
   call s:CancelTask('git-status:' . a:buf)
   let file = fnamemodify(bufname(a:buf), ':p')
   let project = s:ProjectRoot(a:buf)
-  if getbufvar(a:buf, '&buftype') !=# '' || bufname(a:buf) ==# '' || !project.git || !executable('git')
+  if !s:IsSource(a:buf) || bufname(a:buf) ==# '' || !project.git || !executable('git')
     call setbufvar(a:buf, 'nopack_git_status', '')
     return
   endif
@@ -3264,7 +3301,7 @@ augroup END
 
 function! s:GitDiff(revision) abort
   let file = expand('%:p')
-  if &l:buftype !=# '' || file ==# ''
+  if !s:IsSource(bufnr('%')) || file ==# ''
     call s:Warn('Open a tracked file first')
     return
   endif
@@ -3309,6 +3346,7 @@ endif
 
 let s:git_sign_versions = {}
 let s:git_sign_timers = {}
+let s:git_sign_changes = {}
 
 function! s:BufferByteSize(buf, limit) abort
   if a:buf == bufnr('%')
@@ -3439,7 +3477,7 @@ function! s:PlaceGitHunks(buf, hunks, ...) abort
 endfunction
 
 function! s:GitSignsCurrent(buf, revision_id, tick, file) abort
-  return bufloaded(a:buf)
+  return s:BufferAllows(a:buf)
         \ && get(s:git_sign_versions, string(a:buf), -1) == a:revision_id
         \ && getbufvar(a:buf, 'changedtick', -1) == a:tick
         \ && fnamemodify(bufname(a:buf), ':p') ==# a:file
@@ -3502,13 +3540,14 @@ function! s:GitSignsFailed(buf, revision_id) abort
 endfunction
 
 function! s:StartGitSigns(buf, revision_id, timer) abort
+  if get(s:git_sign_timers, string(a:buf), -1) != a:timer | return | endif
   call remove(s:git_sign_timers, string(a:buf))
   if !bufloaded(a:buf) || get(s:git_sign_versions, string(a:buf), -1) != a:revision_id
     return
   endif
   let file = fnamemodify(bufname(a:buf), ':p')
   let limit = 256 * 1024
-  if getbufvar(a:buf, '&buftype') !=# '' || file ==# '' || !executable('git')
+  if !s:BufferAllows(a:buf) || file ==# '' || !executable('git')
     call s:ClearGitSigns(a:buf)
     return
   endif
@@ -3538,8 +3577,7 @@ function! s:StartGitSigns(buf, revision_id, timer) abort
 endfunction
 
 function! s:QueueGitSigns(buf) abort
-  if !bufloaded(a:buf) || empty(bufname(a:buf)) || getbufvar(a:buf, '&buftype') !=# ''
-        \ || getbufvar(a:buf, 'nopack_large_file', 0)
+  if !s:BufferAllows(a:buf) || empty(bufname(a:buf))
     call s:ForgetGitSigns(a:buf)
     if bufloaded(a:buf) | call s:ClearGitSigns(a:buf) | endif
     return
@@ -3554,8 +3592,25 @@ function! s:QueueGitSigns(buf) abort
   let s:git_sign_timers[key] = timer_start(200, function('<SID>StartGitSigns', [a:buf, revision_id]))
 endfunction
 
+function! s:GitChanged(buf) abort
+  let key = string(a:buf)
+  let tick = getbufvar(a:buf, 'changedtick', -1)
+  if get(s:git_sign_changes, key, -2) == tick | return | endif
+  let s:git_sign_changes[key] = tick
+  call s:QueueGitSigns(a:buf)
+endfunction
+
+function! s:CancelGitSigns() abort
+  for timer in values(s:git_sign_timers)
+    call timer_stop(timer)
+  endfor
+  let s:git_sign_timers = {}
+  let s:git_sign_versions = {}
+endfunction
+
 function! s:ForgetGitSigns(buf) abort
   let key = string(a:buf)
+  if has_key(s:git_sign_changes, key) | call remove(s:git_sign_changes, key) | endif
   if has_key(s:git_sign_timers, key)
     call timer_stop(remove(s:git_sign_timers, key))
   endif
@@ -3567,10 +3622,11 @@ endfunction
 
 augroup NopackGitSigns
   autocmd!
+  autocmd User NopackCancel call <SID>CancelGitSigns()
   if exists('*sign_place') && exists('*job_start')
     autocmd BufEnter,BufWritePost,FocusGained,ShellCmdPost * call setbufvar(str2nr(expand('<abuf>')), 'nopack_git_base', v:null) | call <SID>QueueGitSigns(str2nr(expand('<abuf>')))
-    autocmd TextChanged,TextChangedI * call <SID>QueueGitSigns(str2nr(expand('<abuf>')))
-    autocmd BufWipeout * call <SID>ForgetGitSigns(str2nr(expand('<abuf>')))
+    autocmd TextChanged,TextChangedI * call <SID>GitChanged(str2nr(expand('<abuf>')))
+    autocmd BufUnload,BufWipeout * call <SID>ForgetGitSigns(str2nr(expand('<abuf>')))
   endif
 augroup END
 
@@ -3704,7 +3760,7 @@ function! s:ReplaceBufferLines(buf, content) abort
 endfunction
 
 function! s:FormatStep(buf, tick, file, root, commands, index, content, limited) abort
-  if !bufloaded(a:buf) || !getbufvar(a:buf, '&modifiable') || getbufvar(a:buf, 'changedtick', -1) != a:tick || fnamemodify(bufname(a:buf), ':p') !=# a:file
+  if !s:BufferAllows(a:buf) || !getbufvar(a:buf, '&modifiable') || getbufvar(a:buf, 'changedtick', -1) != a:tick || fnamemodify(bufname(a:buf), ':p') !=# a:file
     call s:Warn('Buffer changed during formatting; result discarded')
     return
   endif
@@ -3718,8 +3774,13 @@ function! s:FormatStep(buf, tick, file, root, commands, index, content, limited)
 endfunction
 
 function! s:FormatBuffer() abort
-  if &l:buftype !=# '' || !&l:modifiable
+  if !s:IsSource(bufnr('%')) || !&l:modifiable
     call s:Warn('Open an editable file before formatting')
+    return
+  endif
+  let buf = bufnr('%')
+  if !s:BufferAllows(buf)
+    call s:Warn('Formatting skipped: large-file protection is active')
     return
   endif
   let command = s:Formatter(&l:filetype)
@@ -3729,11 +3790,6 @@ function! s:FormatBuffer() abort
     return
   endif
   let commands = [command]
-  let buf = bufnr('%')
-  if s:BufferByteSize(buf, 2 * 1024 * 1024) > 2 * 1024 * 1024
-    call s:Warn('Formatting skipped: file exceeds 2 MiB')
-    return
-  endif
   let input = join(getline(1, '$'), "\n") . (&l:endofline ? "\n" : '')
   call s:FormatStep(buf, getbufvar(buf, 'changedtick', -1), expand('%:p'), s:ProjectRoot().root, commands, 0, input, 0)
 endfunction
@@ -3744,21 +3800,132 @@ nnoremap <silent> <leader>lf :call <SID>FormatBuffer()<CR>
 " available, while Neovim-only LSP actions and diagnostics are intentionally
 " omitted from this plugin-free port.
 
-" Keep large files responsive before syntax setup.
+" Only the detector owns thresholds; listeners inspect changed ranges after textlock.
+let s:large_watchers = {}
 function! s:MarkLargeFile(path) abort
-  let b:nopack_large_file = getfsize(a:path) > 2 * 1024 * 1024
+  if getfsize(a:path) > 2 * 1024 * 1024 | call s:RestrictBuffer(bufnr('%')) | endif
 endfunction
-
+function! s:ReleaseLargeWindow() abort
+  if exists('w:nopack_large_window') && w:nopack_large_window.buf != bufnr('%')
+    let saved = remove(w:, 'nopack_large_window')
+    for [name, value] in items(saved.options) | call setwinvar(win_getid(), '&' . name, value) | endfor
+  endif
+endfunction
 function! s:ApplyLargeFileSettings() abort
-  if get(b:, 'nopack_large_file', 0)
-    if &l:syntax !=# 'OFF' | setlocal syntax=OFF | endif
-    if &l:foldmethod !=# 'manual' | setlocal foldmethod=manual | endif
-    if exists('+autocomplete')
-      setlocal noautocomplete
-    else
-      call s:CancelCompletion()
+  if s:BufferAllows(bufnr('%')) || !s:IsSource(bufnr('%')) | return | endif
+  if &l:syntax !=# 'OFF' | setlocal syntax=OFF | endif
+  setlocal indentexpr=
+  if !exists('w:nopack_large_window')
+    let options = {}
+    for name in ['foldmethod', 'cursorline', 'cursorcolumn', 'wrap']
+      let options[name] = getwinvar(win_getid(), '&' . name)
+    endfor
+    let w:nopack_large_window = {'buf': bufnr('%'), 'options': options}
+  endif
+  setlocal foldmethod=manual nocursorline nocursorcolumn nowrap
+endfunction
+function! s:CheckLargeFile(buf, first, last) abort
+  if !s:BufferAllows(a:buf) | return | endif
+  let line_count = getbufinfo(a:buf)[0].linecount
+  let large = line_count > 50000 || s:BufferByteSize(a:buf, 2 * 1024 * 1024) > 2 * 1024 * 1024
+  let first = max([1, min([a:first, line_count])])
+  let last = min([a:last, line_count])
+  while !large && first <= last
+    for text in getbufline(a:buf, first, min([first + 511, last]))
+      if strlen(text) > 10000 | let large = 1 | break | endif
+    endfor
+    let first += 512
+  endwhile
+  if large | call s:RestrictBuffer(a:buf) | endif
+endfunction
+function! s:RunLargeCheck(buf, state, timer) abort
+  if get(s:large_watchers, a:buf, {}) isnot a:state | return | endif
+  let a:state.timer = -1
+  let first = a:state.first
+  let last = a:state.last
+  let a:state.first = 0
+  let a:state.last = 0
+  call s:CheckLargeFile(a:buf, first, last)
+endfunction
+function! s:LargeFileChanged(buf, first, last, added, changes) abort
+  if !has_key(s:large_watchers, a:buf) || !s:BufferAllows(a:buf) | return | endif
+  let state = s:large_watchers[a:buf]
+  let state.first = state.first ? min([state.first, a:first]) : a:first
+  let state.last = max([state.last + max([0, a:added]), a:last + max([0, a:added])])
+  if state.timer == -1
+    let state.timer = timer_start(0, function('<SID>RunLargeCheck', [a:buf, state]))
+  endif
+endfunction
+function! s:WatchLargeFile(buf) abort
+  if !s:BufferAllows(a:buf) | return | endif
+  if !has_key(s:large_watchers, a:buf)
+    let s:large_watchers[a:buf] = {'listener': listener_add(function('<SID>LargeFileChanged'), a:buf), 'timer': -1, 'first': 0, 'last': 0}
+    call s:CheckLargeFile(a:buf, 1, getbufinfo(a:buf)[0].linecount)
+  endif
+endfunction
+function! s:ForgetLargeFile(buf) abort
+  if !has_key(s:large_watchers, a:buf) | return | endif
+  let state = remove(s:large_watchers, a:buf)
+  call listener_remove(state.listener)
+  call timer_stop(state.timer)
+endfunction
+function! s:RestrictEditing(buf) abort
+  call s:ForgetLargeFile(a:buf)
+  if getbufvar(a:buf, '&syntax') !=# 'OFF' | call setbufvar(a:buf, '&syntax', 'OFF') | endif
+  call setbufvar(a:buf, '&indentexpr', '')
+  for winid in win_findbuf(a:buf)
+    call s:ClearCursorWord(winid)
+    call win_execute(winid, 'call <SID>ApplyLargeFileSettings() | call <SID>UpdateIndentGuides()')
+  endfor
+  if exists('+autocomplete')
+    call setbufvar(a:buf, '&autocomplete', 0)
+  elseif a:buf == bufnr('%')
+    call s:CancelCompletion()
+  endif
+  call s:CancelTask('format:' . a:buf)
+  if a:buf == bufnr('%')
+    call timer_stop(s:scroll_timer)
+    let s:scroll_timer = -1
+    call timer_stop(s:sticky_timer)
+    let s:sticky_timer = -1
+    call s:CloseSticky()
+    let s:sticky_cache = {}
+  endif
+endfunction
+function! s:RestrictGit(buf) abort
+  call s:ForgetGitSigns(a:buf)
+  if bufloaded(a:buf) | call s:ClearGitSigns(a:buf) | endif
+  if !empty(s:blame_key) && s:blame_key[1] == a:buf
+    call s:CloseBlame()
+    call s:CancelTask('blame')
+    let s:blame_key = []
+  endif
+endfunction
+function! s:RestrictTags(buf) abort
+  if empty(bufname(a:buf)) | return | endif
+  let root = s:ProjectRoot(a:buf).root
+  let project = get(s:tag_projects, root, {})
+  let file = resolve(fnamemodify(bufname(a:buf), ':p'))
+  if !empty(project)
+    if has_key(project.pending, file) | call remove(project.pending, file) | endif
+    if project.busy && (project.building_full || index(get(project, 'active_files', []), file) >= 0)
+      call s:CancelTask('ctags:' . root)
+      let project.busy = 0
+      let project.full = 0
+      let project.callbacks = []
+    endif
+    if empty(project.pending)
+      call timer_stop(project.timer)
+      let project.timer = -1
+    elseif !project.busy
+      call s:TagsDrain(root)
     endif
   endif
+  for info in getwininfo()
+    if get(getbufvar(info.bufnr, 'nopack_outline', {}), 'source', -1) == a:buf
+      call win_execute(info.winid, 'call <SID>OutlineClose()')
+    endif
+  endfor
 endfunction
 
 function! s:OwnUtilityWindow() abort
@@ -3778,12 +3945,19 @@ function! s:ReleaseUtilityWindow() abort
   endif
 endfunction
 
+augroup NopackBufferPolicy
+  autocmd!
+  autocmd User NopackBufferRestricted call <SID>RestrictEditing(s:restricted_buf) | call <SID>RestrictGit(s:restricted_buf) | call <SID>RestrictTags(s:restricted_buf)
+augroup END
 augroup NopackLargeFiles
   autocmd!
   autocmd BufReadPre * call <SID>MarkLargeFile(expand('<afile>:p'))
-  autocmd BufReadPost,TextChanged,TextChangedI * if &buftype ==# '' && !get(b:, 'nopack_large_file', 0) && (line('$') > 50000 || line2byte(line('$') + 1) > 2 * 1024 * 1024) | let b:nopack_large_file = 1 | call <SID>ApplyLargeFileSettings() | endif
+  autocmd BufReadPost * call <SID>ForgetLargeFile(str2nr(expand('<abuf>'))) | call <SID>WatchLargeFile(str2nr(expand('<abuf>')))
+  autocmd BufNewFile,FileType,BufWinEnter * call <SID>WatchLargeFile(str2nr(expand('<abuf>')))
+  autocmd TextChanged,TextChangedI * call listener_flush(str2nr(expand('<abuf>')))
+  autocmd BufUnload,BufWipeout * call <SID>ForgetLargeFile(str2nr(expand('<abuf>')))
+  autocmd BufWinEnter * call <SID>ReleaseUtilityWindow() | call <SID>ReleaseLargeWindow()
   autocmd FileType,BufWinEnter * call <SID>ApplyLargeFileSettings()
-  autocmd BufWinEnter * call <SID>ReleaseUtilityWindow()
 augroup END
 
 " Status rendering reads cached tool information; no processes or filesystem scans.
@@ -3812,7 +3986,7 @@ function! s:StatusHighlights() abort
   endfor
 endfunction
 function! s:ToolStatus(buf) abort
-  if !bufloaded(a:buf) || getbufvar(a:buf, '&buftype') !=# '' | return | endif
+  if !bufloaded(a:buf) || !s:IsSource(a:buf) | return | endif
   call s:CtagsAvailable(1)
   let formatter = s:Formatter(getbufvar(a:buf, '&filetype'))
   let label = 'X'
@@ -3830,9 +4004,10 @@ function! NopackStatusline() abort
   let group = mode =~# '^[iRt]' ? 'I' : mode =~# '^[vV\x16sS]' ? 'V' : 'N'
   let result = empty(branch) ? '%#NopackStatus# ' : '%#NopackGit' . group . '#' . branch . '%#NopackStatus# '
   let result .= '%f %m%r%h %='
-  if s:show_tools && getbufvar(buf, '&buftype') ==# ''
+  if s:show_tools && s:IsSource(buf)
     let tags = empty(s:ctags_command) ? 'X' : ': ' . (s:ctags_kind ==# 'universal' ? 'Universal' : 'Exuberant')
-    let result .= '[CTAGS' . (tags ==# 'X' ? ' X' : tags) . '] ' . getbufvar(buf, 'nopack_format_status', '[FORMAT X]') . ' '
+    let format = s:BufferAllows(buf) && getbufvar(buf, '&modifiable') ? getbufvar(buf, 'nopack_format_status', '[FORMAT X]') : '[FORMAT X]'
+    let result .= '[CTAGS' . (tags ==# 'X' ? ' X' : tags) . '] ' . format . ' '
   endif
   return result . '%y | %6l:%-4c | %3p%% '
 endfunction
@@ -3861,7 +4036,12 @@ function! s:CloseBlame() abort
   let s:blame_timer = -1
   if s:blame_popup | call popup_close(s:blame_popup) | let s:blame_popup = 0 | endif
 endfunction
+function! s:CancelBlame() abort
+  call s:CloseBlame()
+  let s:blame_key = []
+endfunction
 function! s:BlameResult(key, output, limited) abort
+  if !s:BufferAllows(a:key[1]) | return | endif
   if !s:blame_enabled || a:key !=# s:blame_key || bufnr('%') != a:key[1] || b:changedtick != a:key[3] || &modified | return | endif
   let author = matchstr(a:output, '\nauthor \zs[^\n]*')
   let summary = matchstr(a:output, '\nsummary \zs[^\n]*')
@@ -3874,8 +4054,9 @@ function! s:BlameResult(key, output, limited) abort
         \ 'maxwidth': win_screenpos(0)[1] + winwidth(0) - position.col - 1, 'highlight': 'Comment', 'zindex': 10})
 endfunction
 function! s:BlameStart(key, timer) abort
+  if a:timer != s:blame_timer | return | endif
   let s:blame_timer = -1
-  if a:key !=# s:blame_key || !s:blame_enabled | return | endif
+  if a:key !=# s:blame_key || !s:blame_enabled || !s:BufferAllows(a:key[1]) | return | endif
   let row = a:key[2]
   call s:RunCommand('blame', ['git', '--no-pager', 'blame', '--line-porcelain', '-L', row . ',' . row, '--', expand('%:p')],
         \ {'cwd': s:ProjectRoot().root, 'quiet': 1}, function('<SID>BlameResult', [a:key]))
@@ -3887,7 +4068,7 @@ function! s:QueueBlame() abort
   call s:CloseBlame()
   call s:CancelTask('blame')
   let s:blame_key = key
-  if &buftype !=# '' || &modified || get(b:, 'nopack_large_file', 0) || !s:ProjectRoot().git | return | endif
+  if !s:BufferAllows(bufnr('%')) || &modified || !s:ProjectRoot().git | return | endif
   let s:blame_timer = timer_start(150, function('<SID>BlameStart', [key]))
 endfunction
 function! s:ToggleBlame() abort
@@ -3899,6 +4080,7 @@ function! s:ToggleBlame() abort
 endfunction
 augroup NopackBlame
   autocmd!
+  autocmd User NopackCancel call <SID>CancelBlame()
   autocmd CursorMoved,BufEnter,WinEnter,WinScrolled,BufWritePost * call <SID>QueueBlame()
   autocmd InsertEnter,BufLeave,WinLeave * call <SID>CloseBlame() | let s:blame_key = []
 augroup END
@@ -3950,7 +4132,7 @@ endfunction
 
 function! s:StickyUpdate(timer) abort
   let s:sticky_timer = -1
-  if !s:sticky_enabled || &buftype !=# '' || &filetype ==# 'netrw' || get(b:, 'nopack_large_file', 0) || getcmdwintype() !=# ''
+  if !s:sticky_enabled || !s:BufferAllows(bufnr('%')) || getcmdwintype() !=# ''
     call s:CloseSticky()
     return
   endif
@@ -4119,7 +4301,7 @@ nnoremap <silent> <Space> :call <SID>SpaceGuide(' ')<CR>
 let s:smooth_enabled = 0
 let s:scroll_timer = -1
 function! s:ScrollFrame(win, buf, direction, state, timer) abort
-  if win_getid() != a:win || bufnr('%') != a:buf || mode() !~# '^n'
+  if !s:BufferAllows(a:buf) || win_getid() != a:win || bufnr('%') != a:buf || mode() !~# '^n'
     call timer_stop(a:timer)
     return
   endif
@@ -4132,7 +4314,7 @@ function! s:ScrollFrame(win, buf, direction, state, timer) abort
 endfunction
 function! s:Scroll(key) abort
   call timer_stop(s:scroll_timer)
-  if !s:smooth_enabled || &diff || &buftype !=# '' || reg_executing() !=# '' || reg_recording() !=# ''
+  if !s:smooth_enabled || &diff || !s:BufferAllows(bufnr('%')) || reg_executing() !=# '' || reg_recording() !=# ''
     execute 'normal! ' . (v:count ? v:count : '') . a:key
     return
   endif

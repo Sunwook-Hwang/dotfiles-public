@@ -1,4 +1,5 @@
 -- Snacks handles files on open; retain protection for growth and isolated long lines.
+local policy = require("buffer_policy")
 local protect_large_file
 do
 	local watched_buffers = {}
@@ -18,12 +19,10 @@ do
 		if not vim.api.nvim_buf_is_loaded(buf) then
 			return
 		end
+		policy.restrict(buf)
 		if package.loaded.gitsigns then
 			require("gitsigns").detach(buf)
 		end
-		vim.b[buf].snacks_indent = false
-		vim.b[buf].snacks_scroll = false
-		vim.b[buf].snacks_words = false
 		pcall(vim.treesitter.stop, buf)
 		for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
 			vim.lsp.buf_detach_client(buf, client.id)
@@ -52,7 +51,6 @@ do
 			end
 		end
 		if large then
-			vim.b[buf].large_file = true
 			protect_large_file(buf)
 		end
 	end
@@ -84,7 +82,7 @@ do
 	vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile", "FileType", "BufWinEnter" }, {
 		callback = function(args)
 			local buf = args.buf
-			if vim.bo[buf].buftype ~= "" then
+			if not policy.is_source(buf) then
 				return
 			end
 			if vim.b[buf].large_file then
@@ -124,7 +122,6 @@ return {
 	size = 2 * 1024 * 1024,
 	line_length = 10000, -- Snacks checks the average; the supplement checks individual lines.
 	setup = function(ctx)
-		vim.b[ctx.buf].large_file = true
 		protect_large_file(ctx.buf)
 	end,
 }

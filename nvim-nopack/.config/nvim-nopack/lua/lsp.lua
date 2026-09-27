@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 -- =========================================
@@ -122,7 +123,7 @@ shared.map("n", "<leader>lv", function()
 						local id = vim.lsp.start(config, { attach = false })
 						if id then
 							for _, buf in ipairs(buffers) do
-								if vim.api.nvim_buf_is_loaded(buf) and not vim.b[buf].nopack_large_file then
+								if policy.allows(buf) then
 									vim.lsp.buf_attach_client(buf, id)
 								end
 							end
@@ -217,8 +218,12 @@ end, "Select Python environment for this project")
 -- 서버 연결 시 자동완성과 파일 버퍼 전용 키를 설정합니다.
 -- gd/gr/gD/K: 직접 이동·조회; gR/gi/gt: picker; Space la/lr/Tr: 액션·이름 변경·심볼.
 local function attach(client, buf)
-	if vim.b[buf].nopack_large_file then
-		vim.lsp.buf_detach_client(buf, client.id)
+	if not policy.allows(buf) then
+		vim.schedule(function()
+			if vim.lsp.buf_is_attached(buf, client.id) then
+				vim.lsp.buf_detach_client(buf, client.id)
+			end
+		end)
 		return
 	end
 	-- gd handles provider selection; native tag operations must read the ctags file.
@@ -236,23 +241,35 @@ local function attach(client, buf)
 	}
 	-- Direct jumps stay direct; the original Telescope mappings remain selectable lists.
 	for key, method in pairs({ gR = "references", gi = "implementation", gt = "type_definition" }) do
-		vim.keymap.set("n", key, function()
-			local opts = {
-				on_list = function(list)
-					shared.location_picker(method, list.items)
-				end,
-			}
-			if method == "references" then
-				vim.lsp.buf.references(nil, opts)
-			else
-				vim.lsp.buf[method](opts)
-			end
-		end, { buf = buf, desc = "Select LSP " .. method })
+		vim.keymap.set(
+			"n",
+			key,
+			policy.guard(function()
+				local opts = {
+					on_list = function(list)
+						if policy.allows(buf) then
+							shared.location_picker(method, list.items)
+						end
+					end,
+				}
+				if method == "references" then
+					vim.lsp.buf.references(nil, opts)
+				else
+					vim.lsp.buf[method](opts)
+				end
+			end),
+			{ buf = buf, desc = "Select LSP " .. method }
+		)
 	end
 	for key, action in pairs(actions) do
-		vim.keymap.set("n", key, vim.lsp.buf[action], { buf = buf, desc = "LSP: " .. action })
+		vim.keymap.set("n", key, policy.guard(vim.lsp.buf[action]), { buf = buf, desc = "LSP: " .. action })
 	end
-	vim.keymap.set({ "n", "x" }, "<leader>la", vim.lsp.buf.code_action, { buf = buf, desc = "Code action" })
+	vim.keymap.set(
+		{ "n", "x" },
+		"<leader>la",
+		policy.guard(vim.lsp.buf.code_action),
+		{ buf = buf, desc = "Code action" }
+	)
 end
 -- =========================================
 -- ======== LSP: RESOLVE / ENABLE ========
@@ -313,7 +330,7 @@ for _, server in ipairs(servers) do
 			end,
 			on_attach = attach,
 			root_dir = function(buf, on_dir)
-				if vim.b[buf].nopack_large_file then
+				if not policy.allows(buf) then
 					return
 				end
 				local file = vim.api.nvim_buf_get_name(buf)
@@ -326,7 +343,14 @@ for _, server in ipairs(servers) do
 		vim.lsp.enable(name)
 	end
 end
-shared.map("n", "<leader>ls", "<Cmd>lsp restart<CR>", "Restart current buffer LSP clients")
+shared.map(
+	"n",
+	"<leader>ls",
+	policy.guard(function()
+		vim.cmd("lsp restart")
+	end),
+	"Restart current buffer LSP clients"
+)
 
 -- :edit opens a buffer before a file exists. Only its first successful write
 -- needs a directory refresh and recovery of ty's cached missing-module state.
@@ -338,7 +362,7 @@ do
 		group = group,
 		callback = function(args)
 			writes[args.buf] = nil
-			if vim.bo[args.buf].buftype ~= "" then
+			if not policy.is_source(args.buf) then
 				return
 			end
 			local stat, _, code = vim.uv.fs_stat(args.match)
@@ -387,7 +411,7 @@ do
 						local id = vim.lsp.start(config, { attach = false })
 						if id then
 							for _, buf in ipairs(attached) do
-								if vim.api.nvim_buf_is_loaded(buf) and not vim.b[buf].nopack_large_file then
+								if policy.allows(buf) then
 									vim.lsp.buf_attach_client(buf, id)
 								end
 							end

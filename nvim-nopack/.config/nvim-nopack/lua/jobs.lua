@@ -5,12 +5,8 @@ local shared = require("state")
 -- =========================================
 -- 검색·Git·외부 포맷터 공통 실행부. 같은 key의 새 요청은 이전 작업을 취소합니다.
 -- 기본 제한: 5초 / stdout 2 MiB. 검색은 부분 결과 허용, 포맷팅·diff는 완성된 결과만 적용.
--- :NopackCancel: 실행 중인 명령과 picker 취소.
+-- :NopackCancel: 예약·실행 중인 작업과 picker 취소.
 shared.running = {}
-shared.format_versions = {}
-shared.tag_projects = {}
-shared.definition_requests = {}
-shared.outline, shared.cancel_outline = nil, nil
 local function stop_command_timer(task)
 	if task.timer then
 		task.timer:stop()
@@ -32,55 +28,19 @@ function shared.cancel_command(key)
 		shared.running[key] = nil
 	end
 end
-function shared.finish_tag_waiters(waiters, succeeded, output)
-	for _, waiter in ipairs(waiters) do
-		local callback = waiter.failed
-		if succeeded then
-			callback = waiter.after
-		end
-		if callback then
-			local ok, err = pcall(callback, output)
-			if not ok then
-				vim.notify(tostring(err), vim.log.levels.WARN)
-			end
-		end
-	end
-end
-function shared.cancel_tag_build(root, project)
-	project.generation = project.generation + 1
-	shared.cancel_command("ctags:" .. root)
-	local waiters = project.waiters
-	if project.active then
-		vim.list_extend(waiters, project.active.waiters)
-		for file in pairs(project.active.files) do
-			project.pending[file] = true
-		end
-	end
-	project.active, project.save_version = nil, nil
-	project.waiters, project.full, project.quiet = {}, false, true
-	shared.finish_tag_waiters(waiters, false)
-end
 local function cancel_commands()
-	shared.format_versions = {}
-	if shared.outline and shared.cancel_outline then
-		shared.cancel_outline(shared.outline)
-	end
-	for root, project in pairs(shared.tag_projects) do
-		shared.cancel_tag_build(root, project)
-	end
-	for buf, cancel in pairs(shared.definition_requests) do
-		shared.definition_requests[buf] = nil
-		cancel()
-	end
+	-- Features own their queued work and invalidation; the runner owns processes.
+	vim.api.nvim_exec_autocmds("User", { pattern = "NopackCancel", modeline = false })
 	for key in pairs(shared.running) do
 		shared.cancel_command(key)
 	end
 end
 vim.api.nvim_create_user_command("NopackCancel", function()
-	cancel_commands()
 	if shared.active_picker then
 		shared.active_picker.close()
 	end
+	-- Restoring the editor can queue work through BufEnter; cancel after closing.
+	cancel_commands()
 end, {})
 vim.api.nvim_create_autocmd("VimLeavePre", { callback = cancel_commands })
 function shared.run_command(key, argv, opts, callback)

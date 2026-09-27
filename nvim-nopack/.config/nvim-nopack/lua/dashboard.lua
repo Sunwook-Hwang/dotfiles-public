@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 -- =========================================
@@ -118,10 +119,16 @@ local function open_dashboard()
 		group = group,
 		callback = function(args)
 			if vim.api.nvim_get_current_win() == win and args.buf ~= buf then
-				close()
-				if vim.api.nvim_win_is_valid(source) then
-					vim.api.nvim_win_set_buf(source, args.buf)
-				end
+				-- Move outside the current BufEnter so the editor receives its own entry events.
+				vim.schedule(function()
+					if not vim.api.nvim_win_is_valid(win) or vim.api.nvim_win_get_buf(win) ~= args.buf then
+						return
+					end
+					close()
+					if vim.api.nvim_win_is_valid(source) and vim.api.nvim_buf_is_valid(args.buf) then
+						vim.api.nvim_win_set_buf(source, args.buf)
+					end
+				end)
 			end
 		end,
 	})
@@ -301,7 +308,7 @@ vim.api.nvim_create_autocmd("VimEnter", {
 		if
 			vim.fn.argc() == 0
 			and vim.api.nvim_buf_get_name(0) == ""
-			and vim.bo.buftype == ""
+			and policy.is_source(0)
 			and vim.api.nvim_buf_line_count(0) == 1
 			and vim.api.nvim_buf_get_lines(0, 0, 1, false)[1] == ""
 		then

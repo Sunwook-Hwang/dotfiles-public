@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local Snacks = require("snacks")
 
 -- =========================================
@@ -103,9 +104,8 @@ do
 		if
 			not enabled
 			or vim.api.nvim_win_get_config(win).relative ~= ""
-			or vim.bo[buf].buftype ~= ""
+			or not policy.allows(buf)
 			or vim.bo[buf].filetype == "netrw"
-			or vim.b[buf].large_file
 			or vim.fn.getcmdwintype() ~= ""
 		then
 			close()
@@ -301,6 +301,16 @@ do
 		end)
 	end
 	local group = vim.api.nvim_create_augroup("pack-sticky-scroll", { clear = true })
+	vim.api.nvim_create_autocmd("User", {
+		group = group,
+		pattern = "PackBufferRestricted",
+		callback = function(args)
+			if cache and cache.key[2] == args.data.buf then
+				close()
+				cache = nil
+			end
+		end,
+	})
 	vim.api.nvim_create_autocmd({
 		"VimEnter",
 		"BufEnter",

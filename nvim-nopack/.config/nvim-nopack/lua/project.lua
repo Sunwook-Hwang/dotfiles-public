@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 -- =========================================
@@ -6,6 +7,18 @@ local shared = require("state")
 -- Python 패키지·표준 라이브러리 경계 안에서 Git을 찾고, 일반 파일은 Git을 우선합니다.
 -- 트리·검색·LSP가 같은 기준을 쓰며 BufEnter에서 편집 창의 lcd와 트리를 맞춥니다.
 -- Reuse roots until project/external changes; :NopackRefresh also forces discovery.
+local markers = {
+	"CMakeLists.txt",
+	"compile_commands.json",
+	"Makefile",
+	"package.json",
+	"pyproject.toml",
+	"Cargo.toml",
+	"WORKSPACE",
+	"WORKSPACE.bazel",
+	"MODULE.bazel",
+	"buf.yaml",
+}
 local git_roots, project_roots = {}, {}
 function shared.find_git_root(dir)
 	local cached = git_roots[dir]
@@ -55,18 +68,7 @@ function shared.find_project(dir)
 	elseif library_root then
 		cached = { library_root, false, true }
 	else
-		local marker = vim.fs.find({
-			"CMakeLists.txt",
-			"compile_commands.json",
-			"Makefile",
-			"package.json",
-			"pyproject.toml",
-			"Cargo.toml",
-			"WORKSPACE",
-			"WORKSPACE.bazel",
-			"MODULE.bazel",
-			"buf.yaml",
-		}, { path = dir, upward = true, type = "file", limit = 1 })[1]
+		local marker = vim.fs.find(markers, { path = dir, upward = true, type = "file", limit = 1 })[1]
 		cached = { marker and vim.fs.dirname(marker) or dir, false, marker ~= nil }
 	end
 	project_roots[dir] = cached
@@ -76,12 +78,12 @@ end
 -- Use the current file/tree's project or package, independent of the startup cwd.
 shared.project_root = function()
 	local dir = vim.bo.filetype == "netrw" and (vim.w.netrw_treetop or vim.b.netrw_curdir)
-		or (vim.bo.buftype == "" and vim.api.nvim_buf_get_name(0) ~= "" and vim.fn.expand("%:p:h"))
+		or (policy.is_source(0) and vim.api.nvim_buf_get_name(0) ~= "" and vim.fn.expand("%:p:h"))
 	if not dir then
 		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
 			local buf = vim.api.nvim_win_get_buf(win)
 			local name = vim.api.nvim_buf_get_name(buf)
-			if vim.bo[buf].buftype == "" and vim.bo[buf].filetype ~= "netrw" and name ~= "" then
+			if policy.is_source(buf) and name ~= "" then
 				dir = vim.fn.fnamemodify(name, ":h")
 				break
 			end
@@ -98,7 +100,7 @@ vim.api.nvim_create_autocmd("BufEnter", {
 	callback = function()
 		if
 			syncing_project
-			or vim.bo.buftype ~= ""
+			or not policy.is_source(0)
 			or vim.bo.filetype == "netrw"
 			or vim.api.nvim_buf_get_name(0) == ""
 		then
@@ -139,21 +141,7 @@ vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermLeave", "TermC
 })
 vim.api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
 	group = "nopack-project-context",
-	pattern = {
-		".git",
-		"CMakeLists.txt",
-		"compile_commands.json",
-		"Makefile",
-		"package.json",
-		"pyproject.toml",
-		"Cargo.toml",
-		"WORKSPACE",
-		"WORKSPACE.bazel",
-		"MODULE.bazel",
-		"buf.yaml",
-		"os.py",
-		"__init__.py",
-	},
+	pattern = vim.list_extend(vim.deepcopy(markers), { ".git", "os.py", "__init__.py" }),
 	callback = invalidate_project_roots,
 })
 vim.api.nvim_create_autocmd("User", {

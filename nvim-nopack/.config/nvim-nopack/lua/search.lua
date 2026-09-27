@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 -- =========================================
@@ -256,7 +257,7 @@ local function text_picker(open_only, word)
 		paths = {}
 		for _, buf in ipairs(shared.buffers()) do
 			local name = vim.api.nvim_buf_get_name(buf)
-			if vim.bo[buf].buftype == "" and name ~= "" then
+			if policy.is_source(buf) and name ~= "" then
 				paths[#paths + 1] = name
 			end
 		end

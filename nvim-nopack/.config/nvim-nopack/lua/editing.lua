@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 -- =========================================
@@ -7,7 +8,7 @@ local shared = require("state")
 local function undo_picker()
 	shared.focus_editor()
 	local source = vim.api.nvim_get_current_buf()
-	if vim.bo[source].buftype ~= "" or not vim.bo[source].modifiable then
+	if not policy.is_source(source) or not vim.bo[source].modifiable then
 		vim.notify("Undo history is available for editable file buffers", vim.log.levels.WARN)
 		return
 	end
@@ -114,7 +115,7 @@ do
 			return
 		end
 		local win, buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
-		if vim.bo[buf].buftype ~= "" or vim.b[buf].nopack_large_file or vim.fn.mode() ~= "n" then
+		if not policy.allows(buf) or vim.fn.mode() ~= "n" then
 			return
 		end
 		local word = vim.fn.expand("<cword>")
@@ -127,6 +128,15 @@ do
 	end
 	vim.cmd("highlight default link CursorWord Visual")
 	local group = vim.api.nvim_create_augroup("nopack-cursor-word", { clear = true })
+	vim.api.nvim_create_autocmd("User", {
+		group = group,
+		pattern = "NopackBufferRestricted",
+		callback = function(args)
+			for _, win in ipairs(vim.fn.win_findbuf(args.data.buf)) do
+				clear(win)
+			end
+		end,
+	})
 	vim.api.nvim_create_autocmd("ColorScheme", {
 		group = group,
 		callback = function()
@@ -193,9 +203,7 @@ do
 			or vim.wo[win].diff
 			or vim.wo[win].scrollbind
 			or vim.wo[win].cursorbind
-			or vim.bo[buf].buftype ~= ""
-			or vim.bo[buf].filetype == "netrw"
-			or vim.b[buf].nopack_large_file
+			or not policy.allows(buf)
 			or vim.fn.reg_executing() ~= ""
 			or vim.fn.reg_recording() ~= ""
 		then
@@ -254,6 +262,14 @@ do
 		end, keys_ns)
 		advance()
 	end
+	vim.api.nvim_create_autocmd("User", {
+		pattern = "NopackBufferRestricted",
+		callback = function(args)
+			if animation and animation.buf == args.data.buf then
+				stop(false)
+			end
+		end,
+	})
 	shared.map("n", "<C-d>", function()
 		scroll("<C-d>")
 	end, "Scroll down half a page")

@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 -- Neovim 0.12+ 전용. 사용자 플러그인 경로를 제외하고 설치본의 기본 런타임만 사용합니다.
@@ -113,7 +114,7 @@ local function show_line_numbers(win)
 		return
 	end
 	local buf = vim.api.nvim_win_get_buf(win)
-	if vim.bo[buf].buftype == "" or vim.bo[buf].filetype == "netrw" then
+	if policy.is_source(buf) or vim.bo[buf].filetype == "netrw" then
 		if not vim.wo[win].number then
 			vim.wo[win][0].number = true
 		end

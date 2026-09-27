@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 -- =========================================
@@ -6,6 +7,36 @@ local shared = require("state")
 -- Universal / Exuberant Ctags only. No automatic installation.
 -- gd builds the project once; InsertEnter and outline index only the current file.
 -- Saves replace that file's tags after 750ms; failed jobs preserve the old cache.
+shared.tag_projects = {}
+shared.definition_requests = {}
+function shared.finish_tag_waiters(waiters, succeeded, output)
+	for _, waiter in ipairs(waiters) do
+		local callback = waiter.failed
+		if succeeded then
+			callback = waiter.after
+		end
+		if callback then
+			local ok, err = pcall(callback, output)
+			if not ok then
+				vim.notify(tostring(err), vim.log.levels.WARN)
+			end
+		end
+	end
+end
+function shared.cancel_tag_build(root, project)
+	project.generation = project.generation + 1
+	shared.cancel_command("ctags:" .. root)
+	local waiters = project.waiters
+	if project.active then
+		vim.list_extend(waiters, project.active.waiters)
+		for file in pairs(project.active.files) do
+			project.pending[file] = true
+		end
+	end
+	project.active, project.save_version = nil, nil
+	project.waiters, project.full, project.quiet = {}, false, true
+	shared.finish_tag_waiters(waiters, false)
+end
 local ctags_checked, ctags_kind, ctags_command
 local tag_work_sequence = 0
 local function ctags_candidates()
@@ -25,6 +56,22 @@ local function ctags_candidates()
 	return candidates
 end
 local ctags_probe
+local cancel_generation = 0
+vim.api.nvim_create_autocmd("User", {
+	pattern = "NopackCancel",
+	callback = function()
+		cancel_generation = cancel_generation + 1
+		if ctags_probe then
+			ctags_probe, ctags_checked = nil, nil
+		end
+		for root, project in pairs(shared.tag_projects) do
+			shared.cancel_tag_build(root, project)
+		end
+		for _, cancel in pairs(shared.definition_requests) do
+			cancel()
+		end
+	end,
+})
 local function ctags_available(quiet, callback)
 	local candidates = ctags_candidates()
 	local checked = table.concat(candidates, "\0")
@@ -101,12 +148,7 @@ local function ctags_available(quiet, callback)
 	next_candidate()
 end
 function shared.tag_context(buf)
-	if
-		not vim.api.nvim_buf_is_valid(buf)
-		or vim.bo[buf].buftype ~= ""
-		or vim.bo[buf].filetype == "netrw"
-		or vim.b[buf].nopack_large_file
-	then
+	if not vim.api.nvim_buf_is_valid(buf) or not policy.allows(buf) then
 		return
 	end
 	local file = vim.api.nvim_buf_get_name(buf)
@@ -407,7 +449,7 @@ vim.api.nvim_create_autocmd("BufEnter", {
 local function ensure_tag_completion(buf)
 	if
 		vim.b[buf].nopack_tags_requested
-		or vim.b[buf].nopack_large_file
+		or not policy.allows(buf)
 		or not vim.tbl_contains({ "c", "cpp", "python" }, vim.bo[buf].filetype)
 		or #vim.lsp.get_clients({ bufnr = buf, method = "textDocument/completion" }) > 0
 	then
@@ -426,8 +468,9 @@ local function ensure_tag_completion(buf)
 end
 vim.api.nvim_create_autocmd({ "InsertEnter", "LspDetach" }, {
 	callback = function(args)
+		local generation = cancel_generation
 		vim.schedule(function()
-			if vim.api.nvim_buf_is_valid(args.buf) then
+			if generation == cancel_generation and vim.api.nvim_buf_is_valid(args.buf) then
 				ensure_tag_completion(args.buf)
 			end
 		end)
@@ -483,6 +526,9 @@ end
 shared.map("n", "gd", function()
 	shared.focus_editor()
 	local buf, win = vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win()
+	if not policy.allows(buf) then
+		return
+	end
 	local source_word = vim.fn.expand("<cword>")
 	if shared.definition_requests[buf] then
 		shared.definition_requests[buf]()
@@ -508,7 +554,8 @@ shared.map("n", "gd", function()
 		stop()
 		-- A late response must not redirect another window, file, or a moved cursor.
 		if
-			not vim.api.nvim_win_is_valid(win)
+			not policy.allows(buf)
+			or not vim.api.nvim_win_is_valid(win)
 			or vim.api.nvim_get_current_win() ~= win
 			or vim.api.nvim_win_get_buf(win) ~= buf
 			or vim.api.nvim_buf_get_changedtick(buf) ~= tick
@@ -564,3 +611,24 @@ shared.map("n", "gd", function()
 		finish({})
 	end, 5000)
 end, "Go to definition: LSP, then ctags")
+
+vim.api.nvim_create_autocmd("User", {
+	pattern = "NopackBufferRestricted",
+	callback = function(args)
+		local buf = args.data.buf
+		if shared.definition_requests[buf] then
+			shared.definition_requests[buf]()
+		end
+		local file = vim.api.nvim_buf_get_name(buf)
+		file = vim.uv.fs_realpath(file) or file
+		local root = file ~= "" and shared.find_project(vim.fs.dirname(file))
+		local project = root and shared.tag_projects[root]
+		if project and (project.pending[file] or (project.active and project.active.files[file])) then
+			shared.cancel_tag_build(root, project)
+			project.pending[file] = nil
+			if next(project.pending) then
+				shared.build_tags(root, false)
+			end
+		end
+	end,
+})

@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local Snacks = require("snacks")
 
 -- -------------------------------------
@@ -13,7 +14,7 @@ do
 		end
 		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
 			local buf = vim.api.nvim_win_get_buf(win)
-			if vim.bo[buf].buftype == "" then
+			if policy.is_source(buf) then
 				vim.api.nvim_set_current_win(win)
 				return
 			end
@@ -39,7 +40,7 @@ do
 		buffer_order = vim.tbl_filter(function(buf)
 			local keep = vim.api.nvim_buf_is_valid(buf)
 				and vim.bo[buf].buflisted
-				and (vim.bo[buf].buftype == "" or vim.bo[buf].buftype == "terminal")
+				and (policy.is_source(buf) or vim.bo[buf].buftype == "terminal")
 			if keep then
 				seen[buf] = true
 			end
@@ -49,7 +50,7 @@ do
 			if
 				not seen[buf]
 				and vim.bo[buf].buflisted
-				and (vim.bo[buf].buftype == "" or vim.bo[buf].buftype == "terminal")
+				and (policy.is_source(buf) or vim.bo[buf].buftype == "terminal")
 			then
 				buffer_order[#buffer_order + 1] = buf
 			end

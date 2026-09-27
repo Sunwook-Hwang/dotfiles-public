@@ -1,4 +1,12 @@
+local policy = require("buffer_policy")
 local shared = require("state")
+shared.format_versions = {}
+vim.api.nvim_create_autocmd("User", {
+	pattern = "NopackCancel",
+	callback = function()
+		shared.format_versions = {}
+	end,
+})
 
 -- =========================================
 -- ============== FORMATTING =============
@@ -64,13 +72,10 @@ function _G.NopackFormatStatus()
 	end
 	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 	local buf = vim.api.nvim_win_get_buf(win)
-	if vim.bo[buf].buftype ~= "" then
+	if not policy.is_source(buf) then
 		return ""
 	end
-	if
-		not vim.bo[buf].modifiable
-		or vim.api.nvim_buf_get_offset(buf, vim.api.nvim_buf_line_count(buf)) > 2 * 1024 * 1024
-	then
+	if not vim.bo[buf].modifiable or not policy.allows(buf) then
 		return "[FORMAT X]"
 	end
 	local key = { vim.bo[buf].filetype, vim.env.PATH or "", vim.fn.getcwd(win) }
@@ -98,22 +103,22 @@ function _G.NopackFormatStatus()
 	return #sorted > 0 and ("[FORMAT: " .. table.concat(sorted, ", ") .. "]") or "[FORMAT X]"
 end
 shared.map("n", "<leader>lf", function()
-	if vim.bo.buftype ~= "" or not vim.bo.modifiable then
+	if not policy.is_source(0) or not vim.bo.modifiable then
 		vim.notify("Open an editable file before formatting")
 		return
 	end
 	local buf = vim.api.nvim_get_current_buf()
 	local tick = vim.api.nvim_buf_get_changedtick(buf)
 	local file = vim.api.nvim_buf_get_name(buf)
-	if vim.api.nvim_buf_get_offset(buf, vim.api.nvim_buf_line_count(buf)) > 2 * 1024 * 1024 then
-		vim.notify("Formatting skipped: file exceeds 2 MiB")
+	if not policy.allows(buf) then
+		vim.notify("Formatting skipped: large-file protection is active")
 		return
 	end
 	shared.cancel_command("format:" .. buf)
 	local version = {}
 	shared.format_versions[buf] = version
 	local function is_current()
-		if shared.format_versions[buf] ~= version or not vim.api.nvim_buf_is_loaded(buf) then
+		if shared.format_versions[buf] ~= version or not policy.allows(buf) then
 			return false
 		end
 		if
@@ -209,5 +214,13 @@ vim.api.nvim_create_autocmd({ "BufUnload", "BufWipeout" }, {
 	callback = function(args)
 		shared.format_versions[args.buf] = nil
 		shared.cancel_command("format:" .. args.buf)
+	end,
+})
+
+vim.api.nvim_create_autocmd("User", {
+	pattern = "NopackBufferRestricted",
+	callback = function(args)
+		shared.format_versions[args.data.buf] = nil
+		shared.cancel_command("format:" .. args.data.buf)
 	end,
 })

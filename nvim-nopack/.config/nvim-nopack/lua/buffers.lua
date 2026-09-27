@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 -- =========================================
@@ -13,18 +14,14 @@ function shared.buffers()
 	buffer_order = vim.tbl_filter(function(buf)
 		local keep = vim.api.nvim_buf_is_valid(buf)
 			and vim.bo[buf].buflisted
-			and (vim.bo[buf].buftype == "" or vim.bo[buf].buftype == "terminal")
+			and (policy.is_source(buf) or vim.bo[buf].buftype == "terminal")
 		if keep then
 			seen[buf] = true
 		end
 		return keep
 	end, buffer_order)
 	for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-		if
-			not seen[buf]
-			and vim.bo[buf].buflisted
-			and (vim.bo[buf].buftype == "" or vim.bo[buf].buftype == "terminal")
-		then
+		if not seen[buf] and vim.bo[buf].buflisted and (policy.is_source(buf) or vim.bo[buf].buftype == "terminal") then
 			buffer_order[#buffer_order + 1] = buf
 		end
 	end

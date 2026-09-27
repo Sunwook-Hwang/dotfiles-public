@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local Snacks = require("snacks")
 
 -- -------------------------------------
@@ -148,7 +149,7 @@ do
 		end
 		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 		local buf = vim.api.nvim_win_get_buf(win)
-		if vim.bo[buf].buftype ~= "" then
+		if not policy.is_source(buf) then
 			return ""
 		end
 		local state = lsp_status_cache[buf]
@@ -216,13 +217,10 @@ do
 		end
 		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
 		local buf = vim.api.nvim_win_get_buf(win)
-		if vim.bo[buf].buftype ~= "" then
+		if not policy.is_source(buf) then
 			return ""
 		end
-		if
-			not vim.bo[buf].modifiable
-			or vim.api.nvim_buf_get_offset(buf, vim.api.nvim_buf_line_count(buf)) > 2 * 1024 * 1024
-		then
+		if not vim.bo[buf].modifiable or not policy.allows(buf) then
 			return "[FORMAT X]"
 		end
 		-- Conform probes executable paths and project roots; do not repeat on every redraw.

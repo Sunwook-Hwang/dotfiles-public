@@ -1,3 +1,5 @@
+local policy = require("buffer_policy")
+local project = require("project")
 local Snacks = require("snacks")
 
 -- -------------------------------------
@@ -8,7 +10,7 @@ do
 		group = vim.api.nvim_create_augroup("UserLspConfig", {}),
 		callback = function(ev)
 			local client = vim.lsp.get_client_by_id(ev.data.client_id)
-			if vim.b[ev.buf].large_file then
+			if not policy.allows(ev.buf) then
 				-- Neovim completes attachment after LspAttach callbacks return.
 				vim.schedule(function()
 					if vim.lsp.buf_is_attached(ev.buf, client.id) then
@@ -42,21 +44,32 @@ do
 		{ "gi", "implementation", "lsp_implementations", "Show LSP implementations" },
 		{ "gt", "typeDefinition", "lsp_type_definitions", "Show LSP type definitions" },
 	}) do
-		Snacks.keymap.set("n", mapping[1], function()
-			Snacks.picker[mapping[3]]()
-		end, {
-			lsp = { method = "textDocument/" .. mapping[2] },
-			enabled = function(buf)
-				return not vim.b[buf].large_file
-			end,
-			desc = mapping[4],
-		})
+		Snacks.keymap.set(
+			"n",
+			mapping[1],
+			policy.guard(function()
+				Snacks.picker[mapping[3]]()
+			end),
+			{
+				lsp = { method = "textDocument/" .. mapping[2] },
+				enabled = policy.allows,
+				desc = mapping[4],
+			}
+		)
 	end
 	for _, mapping in ipairs({
 		{ { "n", "v" }, "<leader>la", "codeAction", vim.lsp.buf.code_action, "See available code actions" },
 		{ "n", "K", "hover", vim.lsp.buf.hover, "Show documentation for what is under cursor" },
 		{ "n", "<leader>lr", "rename", vim.lsp.buf.rename, "Smart rename" },
-		{ "n", "<leader>ls", false, "<Cmd>lsp restart<CR>", "Restart LSP" },
+		{
+			"n",
+			"<leader>ls",
+			false,
+			function()
+				vim.cmd("lsp restart")
+			end,
+			"Restart LSP",
+		},
 		{
 			"n",
 			"[d",
@@ -86,11 +99,9 @@ do
 		},
 		{ "n", "<leader>ld", false, vim.diagnostic.open_float, "Show line diagnostics" },
 	}) do
-		Snacks.keymap.set(mapping[1], mapping[2], mapping[4], {
+		Snacks.keymap.set(mapping[1], mapping[2], policy.guard(mapping[4]), {
 			lsp = mapping[3] and { method = "textDocument/" .. mapping[3] } or {},
-			enabled = function(buf)
-				return not vim.b[buf].large_file
-			end,
+			enabled = policy.allows,
 			desc = mapping[5],
 		})
 	end
@@ -129,15 +140,7 @@ end
 local function python_project_root(buf)
 	local file = vim.api.nvim_buf_get_name(buf)
 	local dir = file ~= "" and vim.fs.dirname(file) or vim.fn.getcwd()
-	local root = vim.fs.root(dir, ".git")
-	if root then
-		return root
-	end
-	local marker = vim.fs.find(
-		{ "CMakeLists.txt", "compile_commands.json", "Makefile", "package.json", "pyproject.toml" },
-		{ path = dir, upward = true, type = "file", limit = 1 }
-	)[1]
-	return marker and vim.fs.dirname(marker) or dir
+	return project.for_dir(dir).root
 end
 
 -- Space lv: 현재 프로젝트의 Python LSP 분석 환경 선택. 재실행 전까지 프로젝트별로 기억합니다.
@@ -198,7 +201,7 @@ vim.keymap.set("n", "<leader>lv", function()
 						local id = vim.lsp.start(config, { attach = false })
 						if id then
 							for _, buf in ipairs(buffers) do
-								if vim.api.nvim_buf_is_loaded(buf) and not vim.b[buf].large_file then
+								if policy.allows(buf) then
 									vim.lsp.buf_attach_client(buf, id)
 								end
 							end
@@ -528,7 +531,7 @@ for name, config in pairs(servers) do
 		end
 	end
 	config.root_dir = function(buf, on_dir)
-		if vim.b[buf].large_file or vim.fn.executable(config.cmd[1]) == 0 then
+		if not policy.allows(buf) or vim.fn.executable(config.cmd[1]) == 0 then
 			return
 		end
 		local file = vim.api.nvim_buf_get_name(buf)

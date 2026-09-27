@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local Snacks = require("snacks")
 
 -- LSP breadcrumbs without Treesitter or font icons.
@@ -34,9 +35,8 @@ do
 	})
 	local function eligible(buf, win)
 		return enabled
-			and vim.bo[buf].buftype == ""
+			and policy.allows(buf)
 			and vim.api.nvim_buf_get_name(buf) ~= ""
-			and not vim.b[buf].large_file
 			and vim.api.nvim_win_get_config(win).relative == ""
 			and (vim.wo[win].winbar == "" or vim.wo[win].winbar == expression)
 	end
@@ -70,6 +70,21 @@ do
 		group = group,
 		callback = function()
 			refresh_window(vim.api.nvim_get_current_win())
+		end,
+	})
+	vim.api.nvim_create_autocmd("User", {
+		group = group,
+		pattern = "PackBufferRestricted",
+		callback = function(args)
+			local bars = vim.tbl_values(require("dropbar.utils.bar").get({ buf = args.data.buf }))
+			for _, bar in ipairs(bars) do
+				bar.last_update_request_time = nil
+				bar:del()
+			end
+			for _, win in ipairs(vim.fn.win_findbuf(args.data.buf)) do
+				path_cache[win] = nil
+				refresh_window(win)
+			end
 		end,
 	})
 	Snacks.toggle({

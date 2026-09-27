@@ -3,6 +3,12 @@ local Snacks = require("snacks")
 local function toggle_bottom_terminal()
 	return require("terminal")()
 end
+local function dim_filter(buf)
+	return vim.bo[buf].buftype == ""
+		and not vim.b[buf].large_file
+		and vim.g.snacks_dim ~= false
+		and vim.b[buf].snacks_dim ~= false
+end
 Snacks.setup({
 	bigfile = require("bigfile"),
 	quickfile = { enabled = true },
@@ -16,6 +22,11 @@ Snacks.setup({
 	scope = {
 		enabled = true,
 		treesitter = { enabled = false },
+	},
+	dim = {
+		animate = { enabled = false },
+		filter = dim_filter,
+		scope = { treesitter = { enabled = false }, filter = dim_filter },
 	},
 	profiler = {
 		on_stop = { highlights = false },
@@ -231,6 +242,7 @@ vim.keymap.set("n", "<leader>A", function()
 end, { desc = "Open dashboard" })
 Snacks.toggle.indent():map("<leader>Ti")
 Snacks.toggle.scroll():map("<leader>TS")
+Snacks.toggle.dim():map("<leader>Tm")
 Snacks.toggle.profiler():map("<leader>Pp")
 Snacks.toggle.profiler_highlights():map("<leader>Ph")
 vim.keymap.set("n", "<leader>PP", function()

@@ -4053,6 +4053,11 @@ function! s:ToolStatus(buf) abort
   if !empty(formatter) | let label = ': ' . substitute(fnamemodify(formatter[0], ':t'), '\.\%(cmd\|exe\)$', '', '') | endif
   call setbufvar(a:buf, 'nopack_format_status', '[FORMAT' . (label ==# 'X' ? ' X' : label) . ']')
 endfunction
+function! s:RefreshVisibleToolStatus() abort
+  for buf in uniq(sort(map(getwininfo(), 'v:val.bufnr')))
+    call s:ToolStatus(buf)
+  endfor
+endfunction
 function! NopackStatusline() abort
   let target = get(g:, 'statusline_winid', win_getid())
   let buf = winbufnr(target)
@@ -4082,6 +4087,7 @@ augroup NopackStatusline
   autocmd ModeChanged * redrawstatus
   autocmd FileType,BufFilePost,BufWritePost * call <SID>ToolStatus(str2nr(expand('<abuf>')))
   autocmd FocusGained,ShellCmdPost * call <SID>ToolStatus(bufnr('%'))
+  autocmd BufLeave * if &buftype ==# 'terminal' | call <SID>RefreshVisibleToolStatus() | endif
 augroup END
 call s:StatusHighlights()
 

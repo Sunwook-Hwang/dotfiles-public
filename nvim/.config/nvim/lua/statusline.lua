@@ -199,7 +199,7 @@ do
 	local function invalidate_format_status()
 		format_status_cache = {}
 	end
-	vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermClose" }, {
+	vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermLeave", "TermClose" }, {
 		group = "pack-format-status",
 		callback = invalidate_format_status,
 	})

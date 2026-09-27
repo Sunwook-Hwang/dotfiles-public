@@ -1,3 +1,4 @@
+local policy = require("buffer_policy")
 local shared = require("state")
 
 -- =========================================
@@ -264,8 +265,10 @@ shared.open_picker = function(title, opts)
 			return
 		end
 		state.close(true)
-		if vim.api.nvim_win_is_valid(target) then
+		if policy.is_editor(target) then
 			vim.api.nvim_set_current_win(target)
+		else
+			shared.focus_editor()
 		end
 		if item.action then
 			item.action()

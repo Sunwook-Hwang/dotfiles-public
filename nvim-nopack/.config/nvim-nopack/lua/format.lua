@@ -108,9 +108,8 @@ shared.map("n", "<leader>lf", function()
 		return
 	end
 	local buf = vim.api.nvim_get_current_buf()
-	local tick = vim.api.nvim_buf_get_changedtick(buf)
-	local file = vim.api.nvim_buf_get_name(buf)
-	local filetype = vim.bo[buf].filetype
+	local context = policy.source_context(buf)
+	local file, filetype = context.file, context.filetype
 	if not policy.allows(buf) then
 		vim.notify("Formatting skipped: large-file protection is active")
 		return
@@ -122,12 +121,7 @@ shared.map("n", "<leader>lf", function()
 		if shared.format_versions[buf] ~= version or not policy.allows(buf) then
 			return false
 		end
-		if
-			not vim.bo[buf].modifiable
-			or vim.api.nvim_buf_get_name(buf) ~= file
-			or vim.bo[buf].filetype ~= filetype
-			or vim.api.nvim_buf_get_changedtick(buf) ~= tick
-		then
+		if not vim.bo[buf].modifiable or not policy.source_unchanged(context) then
 			vim.notify("Buffer changed during formatting; result discarded")
 			return false
 		end
@@ -171,7 +165,7 @@ shared.map("n", "<leader>lf", function()
 				if edits and edits ~= vim.NIL then
 					vim.lsp.util.apply_text_edits(edits, buf, client.offset_encoding)
 				end
-				tick = vim.api.nvim_buf_get_changedtick(buf)
+				context.tick = vim.api.nvim_buf_get_changedtick(buf)
 				format_next(index + 1)
 			end, buf)
 		end

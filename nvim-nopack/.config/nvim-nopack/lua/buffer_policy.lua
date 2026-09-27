@@ -20,6 +20,26 @@ function M.is_editor(win)
 		and not vim.wo[win].previewwindow
 end
 
+-- Background results must still belong to the source they were requested for.
+function M.source_context(buf)
+	buf = (buf == nil or buf == 0) and vim.api.nvim_get_current_buf() or buf
+	return {
+		buf = buf,
+		file = vim.api.nvim_buf_get_name(buf),
+		filetype = vim.bo[buf].filetype,
+		tick = vim.api.nvim_buf_get_changedtick(buf),
+	}
+end
+
+function M.source_unchanged(context)
+	local buf = context.buf
+	return vim.api.nvim_buf_is_loaded(buf)
+		and M.is_source(buf)
+		and vim.api.nvim_buf_get_name(buf) == context.file
+		and vim.bo[buf].filetype == context.filetype
+		and vim.api.nvim_buf_get_changedtick(buf) == context.tick
+end
+
 function M.guard(callback)
 	return function(...)
 		if M.allows(0) then

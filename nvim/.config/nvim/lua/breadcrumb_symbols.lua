@@ -8,7 +8,7 @@ function M.clear(buf)
 	local state = states[buf]
 	states[buf] = nil
 	queued[buf] = nil
-	if state and state.request and state.client.requests[state.request] then
+	if state and state.request then
 		state.client:cancel_request(state.request)
 	end
 end
@@ -96,15 +96,17 @@ local function refresh(buf, force)
 		tick = tick,
 	}
 	states[buf] = state
+	local completed = false
 	local ok, id = client:request(
 		"textDocument/documentSymbol",
 		{ textDocument = { uri = vim.uri_from_bufnr(buf) } },
 		function(err, symbols)
+			completed = true
+			state.request = nil
 			vim.schedule(function()
 				if states[buf] ~= state then
 					return
 				end
-				state.request = nil
 				if not enabled() or not policy.allows(buf) then
 					M.clear(buf)
 					return
@@ -125,7 +127,7 @@ local function refresh(buf, force)
 		end,
 		buf
 	)
-	state.request = ok and id or nil
+	state.request = ok and not completed and id or nil
 end
 
 local function convert(node, buf, win, encoding, siblings, index)

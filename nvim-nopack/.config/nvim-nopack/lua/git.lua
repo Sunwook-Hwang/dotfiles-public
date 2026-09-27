@@ -413,10 +413,10 @@ for key, revision in pairs({ gd = ":", gD = "HEAD:" }) do
 		end
 		local root = shared.project_root()
 		local relative = file:sub(#root + 2)
-		local ft = vim.bo.filetype
+		local context = policy.source_context(buf)
 		git({ "show", revision .. relative }, function(output)
-			if policy.allows(buf) and vim.api.nvim_buf_get_name(buf) == file then
-				open_git_diff(buf, win, shared.records(output, "\n"), ft)
+			if policy.allows(buf) and policy.source_unchanged(context) then
+				open_git_diff(buf, win, shared.records(output, "\n"), context.filetype)
 			end
 		end)
 	end, "Diff against " .. revision .. " (:q to close)")

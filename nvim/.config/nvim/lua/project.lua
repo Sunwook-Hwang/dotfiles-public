@@ -6,6 +6,8 @@ local markers = {
 	"Makefile",
 	"package.json",
 	"pyproject.toml",
+	"ty.toml",
+	"pyrightconfig.json",
 	"Cargo.toml",
 	"WORKSPACE",
 	"WORKSPACE.bazel",

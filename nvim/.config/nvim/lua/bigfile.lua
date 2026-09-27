@@ -20,13 +20,7 @@ do
 			return
 		end
 		policy.restrict(buf)
-		if package.loaded.gitsigns then
-			require("gitsigns").detach(buf)
-		end
 		pcall(vim.treesitter.stop, buf)
-		for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
-			vim.lsp.buf_detach_client(buf, client.id)
-		end
 		protect_options(buf)
 	end
 	local function check_large_file(buf, first, last)

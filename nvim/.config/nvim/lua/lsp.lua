@@ -1,11 +1,43 @@
 local policy = require("buffer_policy")
 local project = require("project")
 local Snacks = require("snacks")
+local python_selection
+local function cancel_python_selection(buf)
+	if python_selection and (not buf or python_selection.buf == buf) then
+		local previous = python_selection
+		python_selection = nil
+		if previous.job then
+			previous.job:kill(15)
+		end
+	end
+end
 
 -- -------------------------------------
 -- LSP: native client and buffer mappings
 -- -------------------------------------
 do
+	vim.api.nvim_create_autocmd("User", {
+		group = vim.api.nvim_create_augroup("PackLspPolicy", { clear = true }),
+		pattern = "PackBufferRestricted",
+		callback = function(args)
+			cancel_python_selection(args.data.buf)
+			for _, client in ipairs(vim.lsp.get_clients({ bufnr = args.data.buf })) do
+				vim.lsp.buf_detach_client(args.data.buf, client.id)
+			end
+		end,
+	})
+	vim.api.nvim_create_autocmd({ "BufUnload", "BufFilePost", "FileType" }, {
+		group = "PackLspPolicy",
+		callback = function(args)
+			cancel_python_selection(args.buf)
+		end,
+	})
+	vim.api.nvim_create_autocmd("VimLeavePre", {
+		group = "PackLspPolicy",
+		callback = function()
+			cancel_python_selection()
+		end,
+	})
 	vim.api.nvim_create_autocmd("LspAttach", {
 		group = vim.api.nvim_create_augroup("UserLspConfig", {}),
 		callback = function(ev)
@@ -31,7 +63,6 @@ do
 				vim.lsp.completion.enable(true, client.id, ev.buf, { autotrigger = true })
 				vim.bo[ev.buf].autocomplete = false
 			end
-			vim.diagnostic.enable(true, { bufnr = ev.buf })
 		end,
 	})
 
@@ -164,11 +195,20 @@ local function apply_python_path(client, path)
 	client.config.settings = client.settings
 end
 vim.keymap.set("n", "<leader>lv", function()
+	if not policy.allows(0) then
+		return
+	end
 	if vim.bo.filetype ~= "python" then
 		vim.notify("Open a Python file to select its environment")
 		return
 	end
 	local root = python_project_root(0)
+	cancel_python_selection()
+	local selection = { buf = vim.api.nvim_get_current_buf(), win = vim.api.nvim_get_current_win() }
+	python_selection = selection
+	local function active()
+		return python_selection == selection and policy.allows(selection.buf)
+	end
 	local choices, seen = {}, {}
 	local function add(label, path)
 		if path and path ~= "" and not seen[path] and vim.fn.executable(path) == 1 then
@@ -186,6 +226,10 @@ vim.keymap.set("n", "<leader>lv", function()
 	choices[#choices + 1] = { label = "Enter Python path...", manual = true }
 	choices[#choices + 1] = { label = "Automatic (project settings / inherited PATH)" }
 	local function select_path(path)
+		if not active() then
+			return
+		end
+		python_selection = nil
 		local changed = python_paths[root] ~= path
 		python_paths[root] = path
 		local attached, restarting = false, false
@@ -221,7 +265,11 @@ vim.keymap.set("n", "<leader>lv", function()
 		)
 	end
 	local function choose(item)
+		if not active() then
+			return
+		end
 		if not item then
+			cancel_python_selection()
 			return
 		end
 		if not item.manual then
@@ -229,7 +277,11 @@ vim.keymap.set("n", "<leader>lv", function()
 			return
 		end
 		vim.ui.input({ prompt = "Python executable or venv directory: ", completion = "file" }, function(path)
+			if not active() then
+				return
+			end
 			if not path or path == "" then
+				cancel_python_selection()
 				return
 			end
 			path = vim.fs.normalize(path)
@@ -247,6 +299,16 @@ vim.keymap.set("n", "<leader>lv", function()
 		end)
 	end
 	local function show_picker()
+		if
+			not active()
+			or vim.api.nvim_get_current_win() ~= selection.win
+			or vim.api.nvim_get_current_buf() ~= selection.buf
+		then
+			if python_selection == selection then
+				cancel_python_selection()
+			end
+			return
+		end
 		vim.ui.select(choices, {
 			prompt = "Python environment: " .. vim.fn.fnamemodify(root, ":t"),
 			format_item = function(item)
@@ -262,20 +324,28 @@ vim.keymap.set("n", "<leader>lv", function()
 		show_picker()
 		return
 	end
-	vim.system({ conda, "env", "list", "--json" }, { cwd = root, text = true, timeout = 5000 }, function(result)
-		vim.schedule(function()
-			local ok, data = pcall(vim.json.decode, result.stdout or "")
-			if result.code == 0 and ok and type(data) == "table" and type(data.envs) == "table" then
-				for _, env in ipairs(data.envs) do
-					if type(env) == "string" then
-						local path = vim.fs.normalize(env)
-						add("Conda " .. vim.fs.basename(path), path .. "/bin/python")
+	selection.job = vim.system(
+		{ conda, "env", "list", "--json" },
+		{ cwd = root, text = true, timeout = 5000 },
+		function(result)
+			selection.job = nil
+			vim.schedule(function()
+				if not active() then
+					return
+				end
+				local ok, data = pcall(vim.json.decode, result.stdout or "")
+				if result.code == 0 and ok and type(data) == "table" and type(data.envs) == "table" then
+					for _, env in ipairs(data.envs) do
+						if type(env) == "string" then
+							local path = vim.fs.normalize(env)
+							add("Conda " .. vim.fs.basename(path), path .. "/bin/python")
+						end
 					end
 				end
-			end
-			show_picker()
-		end)
-	end)
+				show_picker()
+			end)
+		end
+	)
 end, { desc = "Select Python environment for this project" })
 
 -- Prefer PATH tools; append Mason's installed executables as a fallback.

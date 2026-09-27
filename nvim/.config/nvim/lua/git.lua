@@ -21,7 +21,7 @@ require("gitsigns").setup({
 		end
 		local gs = package.loaded.gitsigns
 		local map = function(mode, lhs, rhs, desc)
-			vim.keymap.set(mode, lhs, rhs, { buffer = bufnr, silent = true, noremap = true, desc = desc })
+			vim.keymap.set(mode, lhs, policy.guard(rhs), { buffer = bufnr, silent = true, noremap = true, desc = desc })
 		end
 
 		-- Hunk navigation (leader g n/p)
@@ -62,7 +62,14 @@ require("gitsigns").setup({
 		map("n", "<leader>gt", gs.toggle_deleted, "Git: Toggle deleted")
 
 		-- Text object (hunk)
-		map({ "o", "x" }, "ih", ":<C-U>Gitsigns select_hunk<CR>", "Git: inner hunk")
+		map({ "o", "x" }, "ih", gs.select_hunk, "Git: inner hunk")
+	end,
+})
+vim.api.nvim_create_autocmd("User", {
+	group = vim.api.nvim_create_augroup("PackGitPolicy", { clear = true }),
+	pattern = "PackBufferRestricted",
+	callback = function(args)
+		require("gitsigns").detach(args.data.buf)
 	end,
 })
 vim.keymap.set("n", "<leader>gb", function()

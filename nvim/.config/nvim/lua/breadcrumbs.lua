@@ -4,6 +4,9 @@ local Snacks = require("snacks")
 -- LSP breadcrumbs without Treesitter or font icons.
 do
 	local enabled = true
+	local symbol_source = require("breadcrumb_symbols").setup(function()
+		return enabled
+	end)
 	local expression = "%{%v:lua.dropbar()%}"
 	local path_cache = {}
 	local path_source = {
@@ -48,11 +51,10 @@ do
 		},
 		bar = {
 			enable = eligible,
-			-- The LSP source also uses these events to request document symbols.
+			-- Bar redraws are separate from the symbol source's request lifecycle.
 			update_events = { buf = { "TextChanged", "FileChangedShellPost", "BufFilePost" } },
 			sources = function()
-				local sources = require("dropbar.sources")
-				return { path_source, sources.lsp }
+				return { path_source, symbol_source }
 			end,
 		},
 	})
@@ -76,6 +78,7 @@ do
 		group = group,
 		pattern = "PackBufferRestricted",
 		callback = function(args)
+			symbol_source.clear(args.data.buf)
 			local bars = vim.tbl_values(require("dropbar.utils.bar").get({ buf = args.data.buf }))
 			for _, bar in ipairs(bars) do
 				bar.last_update_request_time = nil
@@ -96,6 +99,9 @@ do
 			enabled = state
 			path_cache = {}
 			if not enabled then
+				for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+					symbol_source.clear(buf)
+				end
 				local bars = {}
 				for _, windows in pairs(require("dropbar.utils.bar").get()) do
 					for _, bar in pairs(windows) do

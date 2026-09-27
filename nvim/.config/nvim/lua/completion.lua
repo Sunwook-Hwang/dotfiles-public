@@ -5,6 +5,9 @@ local policy = require("buffer_policy")
 -- Native completion and snippets; LSP automatic popup is enabled on attach.
 -- Ctrl-Space: request, Ctrl-n/p: select, Enter: accept, Tab/Shift-Tab: snippet/completion.
 vim.keymap.set("i", "<C-Space>", function()
+	if not policy.allows(0) then
+		return
+	end
 	if #vim.lsp.get_clients({ bufnr = 0, method = "textDocument/completion" }) > 0 then
 		vim.lsp.completion.get()
 	else

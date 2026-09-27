@@ -26,6 +26,7 @@ from these configuration files and must also be available on a network-isolated 
 | `whichkey.lua`      | Keybinding help                                                   |
 | `pickers.lua`       | Search picker mappings                                            |
 | `breadcrumbs.lua`   | Dropbar sources and updates                                       |
+| `breadcrumb_symbols.lua` | Per-buffer LSP symbol requests, cancellation and Dropbar menus |
 | `outline.lua`       | Aerial outline and cursor tracking                                |
 | `terminal.lua`      | Bottom terminal and lazygit toggles                               |
 | `format.lua`        | Conform formatter registration and formatting                     |
@@ -53,9 +54,17 @@ which also recognizes unloaded normal buffers for buffer lists and sessions.
 Manual formatting follows the same protection limits as code analysis.
 Use `guard(callback)` for code-analysis keymaps. Do not duplicate `large_file`
 checks in feature modules. `bigfile.lua` detects size and edit growth, then calls
-`restrict(buf)` once. This disables Snacks buffer features and emits
-`PackBufferRestricted` to clean up active overlays, breadcrumbs, and outline
-backends. Global defaults and other buffers stay unchanged.
+`restrict(buf)` once. The policy disables Snacks buffer features and emits
+`PackBufferRestricted`; each feature owns its cleanup, including Git/LSP detachment,
+pending requests, overlays and outline data. Check eligibility when an action runs
+and when an asynchronous result arrives. Global defaults and other buffers stay unchanged.
+
+Breadcrumb LSP requests belong to individual buffers. Cursor movement reads cached
+symbols; edits, saves and LSP attachment changes refresh them. Disabling breadcrumbs
+or restricting a buffer cancels pending requests and rejects late results. Empty
+symbol results are valid and do not start a retry loop. Python environment selection
+also cancels superseded requests and drops results after its source is unloaded,
+renamed or restricted.
 
 새 기능의 실행 조건은 `buffer_policy`에서 가져옵니다. 큰 파일 판정은
 `bigfile.lua`만 담당하고, 전환 시 공통 이벤트로 이미 켜진 기능도 정리합니다.

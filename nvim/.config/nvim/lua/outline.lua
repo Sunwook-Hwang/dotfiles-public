@@ -15,6 +15,9 @@ require("aerial").setup({
 			return not policy.allows(buf)
 		end,
 	},
+	post_add_all_symbols = function(buf, items)
+		return policy.allows(buf) and items or {}
+	end,
 	on_attach = function(buf)
 		-- Aerial keeps its cursor listener after closing; only track a visible outline.
 		for _, autocmd in
@@ -44,8 +47,10 @@ vim.api.nvim_create_autocmd("User", {
 		local backends = package.loaded["aerial.backends"]
 		local name = backends and backends.get_attached_backend(args.data.buf)
 		if name then
+			backends.set_symbols(args.data.buf, {}, { backend_name = name, lang = vim.bo[args.data.buf].filetype })
 			backends.get_backend_by_name(name).detach(args.data.buf)
 			vim.b[args.data.buf].aerial_backend = nil
+			vim.api.nvim_clear_autocmds({ group = "AerialBuffer", event = "CursorMoved", buffer = args.data.buf })
 		end
 	end,
 })

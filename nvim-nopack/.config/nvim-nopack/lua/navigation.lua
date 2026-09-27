@@ -88,16 +88,11 @@ end, { silent = true, nowait = true, desc = "Toggle file explorer" })
 -- =========================================
 -- 트리에서 파일/버퍼를 선택할 때 결과를 표시할 편집 창을 확보합니다.
 shared.focus_editor = function()
-	if vim.bo.filetype ~= "netrw" and vim.bo.filetype ~= "nopack_outline" then
+	if policy.is_editor(0) then
 		return
 	end
 	for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-		local buf = vim.api.nvim_win_get_buf(win)
-		if
-			policy.is_source(buf)
-			and vim.api.nvim_win_get_config(win).relative == ""
-			and not vim.wo[win].previewwindow
-		then
+		if policy.is_editor(win) then
 			vim.api.nvim_set_current_win(win)
 			return
 		end

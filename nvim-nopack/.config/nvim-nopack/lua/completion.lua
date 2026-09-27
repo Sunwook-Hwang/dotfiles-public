@@ -5,6 +5,9 @@ local policy = require("buffer_policy")
 -- Blink 대체: 내장 LSP 완성과 스니펫. LSP 자동 팝업 활성화는 아래 LSP attach에서 합니다.
 -- Ctrl-Space: 요청, Ctrl-n/p: 선택, Enter: 선택 확정, Tab/Shift-Tab: 스니펫·후보 이동.
 vim.keymap.set("i", "<C-Space>", function()
+	if not policy.allows(0) then
+		return
+	end
 	if #vim.lsp.get_clients({ bufnr = 0, method = "textDocument/completion" }) > 0 then
 		vim.lsp.completion.get()
 	else

@@ -68,6 +68,49 @@ local servers = {
 -- Space lv: 현재 프로젝트의 Python LSP 분석 환경 선택. 재실행 전까지 프로젝트별로 기억합니다.
 -- 가상환경을 생성하거나 셸/포맷터 PATH를 바꾸지 않습니다. symlink 경로는 그대로 보존합니다.
 local python_paths = {}
+local python_selection
+local function cancel_python_selection(buf)
+	local selection = python_selection
+	if not selection or (buf and selection.buf ~= buf) then
+		return
+	end
+	python_selection = nil
+	shared.cancel_command("conda-envs")
+	if selection.picker and shared.active_picker == selection.picker then
+		selection.picker.close()
+	end
+end
+local lsp_policy_group = vim.api.nvim_create_augroup("nopack-lsp-policy", { clear = true })
+vim.api.nvim_create_autocmd("User", {
+	group = lsp_policy_group,
+	pattern = "NopackBufferRestricted",
+	callback = function(args)
+		local buf = args.data.buf
+		cancel_python_selection(buf)
+		for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
+			vim.lsp.buf_detach_client(buf, client.id)
+		end
+	end,
+})
+vim.api.nvim_create_autocmd({ "BufUnload", "BufFilePost", "FileType" }, {
+	group = lsp_policy_group,
+	callback = function(args)
+		cancel_python_selection(args.buf)
+	end,
+})
+vim.api.nvim_create_autocmd("User", {
+	group = lsp_policy_group,
+	pattern = "NopackCancel",
+	callback = function()
+		cancel_python_selection()
+	end,
+})
+vim.api.nvim_create_autocmd("VimLeavePre", {
+	group = lsp_policy_group,
+	callback = function()
+		cancel_python_selection()
+	end,
+})
 local function apply_python_path(client, path)
 	client.settings = vim.deepcopy(client.settings)
 	if client.name == "ty" then
@@ -86,9 +129,18 @@ local function apply_python_path(client, path)
 	client.config.settings = client.settings
 end
 shared.map("n", "<leader>lv", function()
+	if not policy.allows(0) then
+		return
+	end
 	if vim.bo.filetype ~= "python" then
 		vim.notify("Open a Python file to select its environment")
 		return
+	end
+	cancel_python_selection()
+	local selection = { buf = vim.api.nvim_get_current_buf() }
+	python_selection = selection
+	local function active()
+		return python_selection == selection and policy.allows(selection.buf)
 	end
 	local root = shared.project_root()
 	local choices, seen = {}, {}
@@ -108,6 +160,10 @@ shared.map("n", "<leader>lv", function()
 	choices[#choices + 1] = { label = "Enter Python path...", manual = true }
 	choices[#choices + 1] = { label = "Automatic (project settings / inherited PATH)" }
 	local function select_path(path)
+		if not active() then
+			return
+		end
+		python_selection = nil
 		local changed = python_paths[root] ~= path
 		python_paths[root] = path
 		local attached, restarting = false, false
@@ -143,7 +199,7 @@ shared.map("n", "<leader>lv", function()
 		)
 	end
 	local function choose(item)
-		if not item then
+		if not item or not active() then
 			return
 		end
 		if not item.manual then
@@ -151,7 +207,7 @@ shared.map("n", "<leader>lv", function()
 			return
 		end
 		vim.ui.input({ prompt = "Python executable or venv directory: ", completion = "file" }, function(path)
-			if not path or path == "" then
+			if not active() or not path or path == "" then
 				return
 			end
 			path = vim.fs.normalize(path)
@@ -183,7 +239,13 @@ shared.map("n", "<leader>lv", function()
 		cancel = function()
 			shared.cancel_command("conda-envs")
 		end,
+		on_cancel = function()
+			if python_selection == selection then
+				python_selection = nil
+			end
+		end,
 	})
+	selection.picker = picker
 	local conda = vim.fn.exepath("conda")
 	if conda == "" and vim.env.CONDA_EXE and vim.fn.executable(vim.env.CONDA_EXE) == 1 then
 		conda = vim.env.CONDA_EXE
@@ -194,7 +256,7 @@ shared.map("n", "<leader>lv", function()
 			{ conda, "env", "list", "--json" },
 			{ cwd = root, quiet = true },
 			function(output)
-				if picker.closed then
+				if picker.closed or not active() then
 					return
 				end
 				local ok, result = pcall(vim.json.decode, output)

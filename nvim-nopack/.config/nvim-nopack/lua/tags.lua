@@ -393,8 +393,17 @@ local function request_tags(full, after, quiet)
 	if not root or file:find("[\r\n]") then
 		return
 	end
+	local position, tick = vim.api.nvim_win_get_cursor(win), vim.api.nvim_buf_get_changedtick(buf)
 	shared.build_tags(root, full, { file }, after and function()
-		if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == buf then
+		if
+			policy.allows(buf)
+			and vim.api.nvim_win_is_valid(win)
+			and vim.api.nvim_get_current_win() == win
+			and vim.api.nvim_win_get_buf(win) == buf
+			and vim.api.nvim_buf_get_changedtick(buf) == tick
+			and (vim.uv.fs_realpath(vim.api.nvim_buf_get_name(buf)) or vim.api.nvim_buf_get_name(buf)) == file
+			and vim.deep_equal(vim.api.nvim_win_get_cursor(win), position)
+		then
 			vim.api.nvim_win_call(win, after)
 		else
 			vim.notify("Ctags index ready; repeat navigation in the desired file")

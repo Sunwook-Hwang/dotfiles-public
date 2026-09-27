@@ -122,6 +122,19 @@ endfunction
 function! s:BufferAllows(buf) abort
   return bufloaded(a:buf) && s:IsSource(a:buf) && !getbufvar(a:buf, 'nopack_large_file', 0)
 endfunction
+" Results belong to one loaded source identity, not just its buffer number.
+function! s:SourceContext(buf) abort
+  return {'buf': a:buf, 'file': fnamemodify(bufname(a:buf), ':p'),
+        \ 'filetype': getbufvar(a:buf, '&filetype'), 'tick': getbufvar(a:buf, 'changedtick', -1)}
+endfunction
+function! s:SourceUnchanged(context) abort
+  let buf = a:context.buf
+  return bufloaded(buf) && s:IsSource(buf)
+        \ && fnamemodify(bufname(buf), ':p') ==# a:context.file
+        \ && getbufvar(buf, '&filetype') ==# a:context.filetype
+        \ && getbufvar(buf, 'changedtick', -1) == a:context.tick
+endfunction
+
 function! s:RestrictBuffer(buf) abort
   if getbufvar(a:buf, 'nopack_large_file', 0) | return | endif
   call setbufvar(a:buf, 'nopack_large_file', 1)
@@ -634,7 +647,7 @@ function! s:CompletionEnter() abort
   return pumvisible() && complete_info().selected >= 0 ? "\<C-Y>" : "\<CR>"
 endfunction
 
-inoremap <C-Space> <C-N>
+inoremap <expr> <C-Space> <SID>BufferAllows(bufnr("%")) ? "\<C-N>" : ""
 inoremap <expr> <CR> <SID>CompletionEnter()
 inoremap <expr> <Tab> pumvisible() ? "\<C-N>" : "\<Tab>"
 inoremap <expr> <S-Tab> pumvisible() ? "\<C-P>" : "\<S-Tab>"
@@ -1071,7 +1084,7 @@ function! s:RevealTreeFile(relative) abort
 endfunction
 
 let s:project_roots = {}
-let s:project_markers = ['CMakeLists.txt', 'compile_commands.json', 'Makefile', 'package.json', 'pyproject.toml', 'Cargo.toml', 'WORKSPACE', 'WORKSPACE.bazel', 'MODULE.bazel', 'buf.yaml']
+let s:project_markers = ['CMakeLists.txt', 'compile_commands.json', 'Makefile', 'package.json', 'pyproject.toml', 'ty.toml', 'pyrightconfig.json', 'Cargo.toml', 'WORKSPACE', 'WORKSPACE.bazel', 'MODULE.bazel', 'buf.yaml']
 
 function! s:ProjectRoot(...) abort
   let buf = a:0 ? a:1 : bufnr('%')
@@ -1210,6 +1223,9 @@ augroup NopackProjectContext
   autocmd!
   autocmd BufEnter * call <SID>SyncProjectContext()
   autocmd BufFilePost,FocusGained,ShellCmdPost,DirChanged * let s:project_roots = {}
+  if exists('##TerminalNormal')
+    autocmd TerminalNormal * let s:project_roots = {}
+  endif
   execute 'autocmd BufWritePost ' . join(s:project_markers + ['.git', 'os.py', '__init__.py'], ',') . ' let s:project_roots = {}'
 augroup END
 
@@ -1253,22 +1269,25 @@ function! s:BufferIndex(buf) abort
   return 0
 endfunction
 
+function! s:IsEditorWindow(winid) abort
+  return win_id2win(a:winid) > 0 && s:IsSource(winbufnr(a:winid))
+        \ && !getwinvar(a:winid, '&previewwindow')
+endfunction
+
 function! s:FocusEditor() abort
-  if !empty(get(b:, 'nopack_outline', {}))
-    if win_gotoid(b:nopack_outline.target)
-      return
-    endif
-  elseif &l:filetype !=# 'netrw'
+  if s:IsEditorWindow(win_getid()) | return | endif
+  let target = get(get(b:, 'nopack_outline', {}), 'target', 0)
+  if s:IsEditorWindow(target)
+    call win_gotoid(target)
     return
   endif
   for winid in s:TabWindows()
-    let buf = winbufnr(winid)
-    if s:IsSource(buf) || getbufvar(buf, '&buftype') ==# 'terminal'
+    if s:IsEditorWindow(winid)
       call win_gotoid(winid)
       return
     endif
   endfor
-  let buffers = s:Buffers()
+  let buffers = filter(s:Buffers(), 's:IsSource(v:val)')
   if empty(buffers)
     botright vnew
   else
@@ -1313,6 +1332,7 @@ set tabline=%!NopackTabline()
 augroup NopackTabline
   autocmd!
   autocmd BufAdd,BufDelete,BufEnter,BufFilePost,FileType * let s:tabline_cache = ''
+  autocmd OptionSet buflisted,buftype let s:tabline_cache = ''
   autocmd TextChanged,TextChangedI,BufWritePost * call <SID>TablineModified()
 augroup END
 
@@ -1378,10 +1398,10 @@ endfunction
 
 " Keep edit windows alive: switch every view of the target before wiping it.
 function! s:WipeBuffer(buf, force) abort
-  if !s:IsEditorBuffer(a:buf)
+  let terminal = getbufvar(a:buf, '&buftype') ==# 'terminal'
+  if !terminal && !s:IsEditorBuffer(a:buf)
     return
   endif
-  let terminal = getbufvar(a:buf, '&buftype') ==# 'terminal'
   if getbufvar(a:buf, '&modified') && !terminal && !a:force
     call s:Warn('Unsaved changes: save the buffer before closing')
     return
@@ -1403,10 +1423,10 @@ function! s:WipeBuffer(buf, force) abort
         " Use a real window switch: netrw's BufEnter handler uses :redir,
         " which cannot run inside win_execute()'s output capture.
         if replacement > 0
-          execute 'buffer ' . replacement
+          execute 'buffer' . (a:force || terminal ? '!' : '') . ' ' . replacement
         else
           " Vim needs one edit buffer when the last file is closed.
-          enew
+          execute 'enew' . (a:force || terminal ? '!' : '')
           let replacement = bufnr('%')
         endif
       endif
@@ -1419,7 +1439,7 @@ function! s:WipeBuffer(buf, force) abort
 endfunction
 
 function! s:CloseCurrentBuffer(force) abort
-  call s:FocusEditor()
+  if &l:buftype !=# 'terminal' | call s:FocusEditor() | endif
   call s:WipeBuffer(bufnr('%'), a:force)
 endfunction
 
@@ -1706,7 +1726,10 @@ function! s:PickerMatches(items, query) abort
 endfunction
 
 function! s:PickerPreview(state, item) abort
-  if get(a:state, 'preview', 0) <= 0 || empty(a:item)
+  if get(a:state, 'preview', 0) <= 0 | return | endif
+  if empty(a:item)
+    call popup_settext(a:state.preview, ['No matches'])
+    call popup_setoptions(a:state.preview, {'firstline': 1, 'title': ' Preview '})
     return
   endif
   if has_key(a:state.opts, 'preview')
@@ -1904,8 +1927,10 @@ function! s:PickerAccept(id) abort
   let item = state.matches[state.index]
   let target = state.target
   call s:PickerClose(a:id, 1)
-  if win_id2win(target) > 0
+  if s:IsEditorWindow(target)
     call win_gotoid(target)
+  else
+    call s:FocusEditor()
   endif
   if has_key(item, 'action')
     call call(item.action, [])
@@ -2452,10 +2477,11 @@ function! s:OutlineJump() abort
   let item = items[index]
   let target = b:nopack_outline.target
   let source = b:nopack_outline.source
-  if !bufexists(source) || !win_gotoid(target)
-    call s:Warn('The original editor window was closed; reopen the outline')
+  if !s:BufferAllows(source) || !s:SourceUnchanged(b:nopack_outline.context) || !s:IsEditorWindow(target)
+    call s:Warn('The source or editor changed; refresh the outline')
     return
   endif
+  call win_gotoid(target)
   normal! m'
   execute 'buffer ' . source
   call cursor(min([item.lnum, line('$')]), 1)
@@ -2468,7 +2494,7 @@ function! s:OutlineShow(source, target, items) abort
   setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile
   setlocal nonumber norelativenumber nowrap winfixwidth nocursorcolumn cursorline
   setlocal nospell nolist signcolumn=no foldcolumn=0
-  let b:nopack_outline = {'source': a:source, 'target': a:target, 'items': a:items}
+  let b:nopack_outline = {'source': a:source, 'target': a:target, 'items': a:items, 'context': s:SourceContext(a:source)}
   let &l:statusline = ' Ctags outline · saved file'
   let labels = map(copy(a:items), 'v:val.label')
   call setline(1, ['Outline: ' . fnamemodify(bufname(a:source), ':t'), 'Enter: jump   q: close', '']
@@ -2489,14 +2515,16 @@ function! s:OutlineRefresh() abort
   endif
 endfunction
 
-function! s:TagsShow(buf, win, root, mode, word) abort
-  if !s:BufferAllows(a:buf) | return | endif
+function! s:TagsShow(context, win, root, mode, word, position) abort
+  let buf = a:context.buf
+  if !s:BufferAllows(buf) || !s:SourceUnchanged(a:context) | return | endif
   " A background build must not redirect a window now editing another file.
-  if win_getid() != a:win || winbufnr(a:win) != a:buf
+  if win_getid() != a:win || winbufnr(a:win) != buf
+        \ || (a:mode ==# 'definition' && getcurpos()[1:2] != a:position)
     call s:Info('Ctags index ready; reopen definition/outline in the desired file')
     return
   endif
-  call s:UseTags(a:buf, s:tag_projects[a:root].path)
+  call s:UseTags(buf, s:tag_projects[a:root].path)
   if a:mode ==# 'definition'
     if empty(taglist('\C^\V' . escape(a:word, '\') . '\m$', expand('%:p')))
       call s:Warn('No definition in saved project files: ' . a:word)
@@ -2527,7 +2555,7 @@ function! s:TagsShow(buf, win, root, mode, word) abort
     endif
   endfor
   call sort(items, {a, b -> a.lnum - b.lnum})
-  call s:OutlineShow(a:buf, a:win, items)
+  call s:OutlineShow(buf, a:win, items)
 endfunction
 
 function! s:TagsBuilt(root, files, After, output, limited) abort
@@ -2550,14 +2578,18 @@ function! s:TagsBuilt(root, files, After, output, limited) abort
     if empty(a:files)
       let project.ready = 1
     endif
-    for info in getbufinfo({'bufloaded': 1})
-      call s:TagsAttach(info.bufnr)
-    endfor
-    let project.busy = 0
-    call s:TagsDrain(a:root)
+  catch
+    call s:TagsFailed(a:root)
+    call s:Warn('Unable to save ctags cache: ' . v:exception)
+    return
   finally
     call delete(temporary)
   endtry
+  for info in getbufinfo({'bufloaded': 1})
+    call s:TagsAttach(info.bufnr)
+  endfor
+  let project.busy = 0
+  call s:TagsDrain(a:root)
 endfunction
 
 function! s:TagsCommand() abort
@@ -2622,6 +2654,11 @@ function! s:TagsFailed(root) abort
   let project.busy = 0
   let project.full = 1
   let project.callbacks = []
+  for info in getbufinfo({'bufloaded': 1})
+    if s:IsSource(info.bufnr) && s:ProjectRoot(info.bufnr).root ==# a:root
+      call setbufvar(info.bufnr, 'nopack_tags_requested', 0)
+    endif
+  endfor
 endfunction
 
 function! s:TagsDrain(root) abort
@@ -2640,8 +2677,8 @@ function! s:TagsDrain(root) abort
   let project.busy = 1
   let project.building_full = full
   if !full
-    call s:TagsRun(a:root, files, 0, s:TagsCommand() + files,
-          \ {'cwd': a:root, 'timeout': 30000, 'max_bytes': 16 * 1024 * 1024})
+    call s:TagsRun(a:root, files, 0, s:TagsCommand() + ['-L', '-'],
+          \ {'cwd': a:root, 'stdin': join(files, "\n") . "\n", 'timeout': 30000, 'max_bytes': 16 * 1024 * 1024})
   elseif getftype(a:root . '/.git') !=# ''
     " Disable Git's non-ASCII quoting. Unrepresentable newline names are skipped.
     call s:RunCommand('ctags:' . a:root,
@@ -2685,7 +2722,7 @@ function! s:CtagsOpen(mode) abort
     call mkdir(s:nopack_data . '/tags', 'p')
     let s:tag_projects[root] = {'path': s:nopack_data . '/tags/' . sha256(root), 'ready': 0, 'timer': -1, 'pending': {}, 'callbacks': [], 'full': 0, 'busy': 0, 'building_full': 0}
   endif
-  let After = function('<SID>TagsShow', [bufnr('%'), win_getid(), root, a:mode, word])
+  let After = function('<SID>TagsShow', [s:SourceContext(bufnr('%')), win_getid(), root, a:mode, word, getcurpos()[1:2]])
   if a:mode ==# 'refresh'
     call s:TagsBuild(root, 0)
   elseif a:mode ==# 'outline' || a:mode ==# 'completion'
@@ -2789,7 +2826,7 @@ function! s:UndoEntries(entries, result) abort
 endfunction
 
 function! s:UndoApply(context, seq) abort
-  if !bufexists(a:context.buf) || getbufvar(a:context.buf, 'changedtick') != a:context.tick
+  if !s:SourceUnchanged(a:context) || !getbufvar(a:context.buf, '&modifiable')
     call s:Warn('Buffer changed while browsing undo history; reopen the list')
     return
   endif
@@ -2835,8 +2872,8 @@ function! s:UndoPicker() abort
     return
   endif
   call sort(entries, {a, b -> b.seq - a.seq})
-  let context = {'buf': bufnr('%'), 'tick': b:changedtick, 'lines': getline(1, '$'),
-        \ 'syntax': &syntax, 'path': tempname()}
+  let context = extend(s:SourceContext(bufnr('%')), {'lines': getline(1, '$'),
+        \ 'syntax': &syntax, 'path': tempname()})
   let items = []
   for entry in entries + [{'seq': 0, 'time': 0}]
     let label = printf('#%-5d %s%s%s', entry.seq,
@@ -3267,13 +3304,14 @@ function! s:RelativePath(file, root) abort
   return stridx(a:file, prefix) == 0 ? strpart(a:file, len(prefix)) : a:file
 endfunction
 
-function! s:GitDiffResult(buf, winid, filetype, output, limited) abort
-  if win_id2win(a:winid) == 0 || winbufnr(a:winid) != a:buf | return | endif
+function! s:GitDiffResult(context, winid, output, limited) abort
+  if !s:BufferAllows(a:context.buf) || !s:SourceUnchanged(a:context)
+        \ || !s:IsEditorWindow(a:winid) || winbufnr(a:winid) != a:context.buf | return | endif
   call win_gotoid(a:winid)
   tab split
   let source = win_getid()
   diffthis
-  call s:ShowOutput(s:OutputLines(a:output, a:limited), a:filetype, 1)
+  call s:ShowOutput(s:OutputLines(a:output, a:limited), a:context.filetype, 1)
   let t:nopack_diff_base = bufnr('%')
   let t:nopack_diff = 1
   diffthis
@@ -3301,7 +3339,7 @@ augroup END
 
 function! s:GitDiff(revision) abort
   let file = expand('%:p')
-  if !s:IsSource(bufnr('%')) || file ==# ''
+  if !s:BufferAllows(bufnr('%')) || file ==# ''
     call s:Warn('Open a tracked file first')
     return
   endif
@@ -3311,7 +3349,7 @@ function! s:GitDiff(revision) abort
     return
   endif
   let relative = s:RelativePath(file, project.root)
-  let Callback = function('<SID>GitDiffResult', [bufnr('%'), win_getid(), &l:filetype])
+  let Callback = function('<SID>GitDiffResult', [s:SourceContext(bufnr('%')), win_getid()])
   call s:Git(['show', a:revision . relative], Callback)
 endfunction
 
@@ -3624,7 +3662,7 @@ augroup NopackGitSigns
   autocmd!
   autocmd User NopackCancel call <SID>CancelGitSigns()
   if exists('*sign_place') && exists('*job_start')
-    autocmd BufEnter,BufWritePost,FocusGained,ShellCmdPost * call setbufvar(str2nr(expand('<abuf>')), 'nopack_git_base', v:null) | call <SID>QueueGitSigns(str2nr(expand('<abuf>')))
+    autocmd BufEnter,BufWritePost,BufFilePost,FileType,FocusGained,ShellCmdPost * call setbufvar(str2nr(expand('<abuf>')), 'nopack_git_base', v:null) | call <SID>QueueGitSigns(str2nr(expand('<abuf>')))
     autocmd TextChanged,TextChangedI * call <SID>GitChanged(str2nr(expand('<abuf>')))
     autocmd BufUnload,BufWipeout * call <SID>ForgetGitSigns(str2nr(expand('<abuf>')))
   endif
@@ -3759,18 +3797,19 @@ function! s:ReplaceBufferLines(buf, content) abort
   endtry
 endfunction
 
-function! s:FormatStep(buf, tick, file, root, commands, index, content, limited) abort
-  if !s:BufferAllows(a:buf) || !getbufvar(a:buf, '&modifiable') || getbufvar(a:buf, 'changedtick', -1) != a:tick || fnamemodify(bufname(a:buf), ':p') !=# a:file
+function! s:FormatStep(context, root, commands, index, content, limited) abort
+  let buf = a:context.buf
+  if !s:BufferAllows(buf) || !getbufvar(buf, '&modifiable') || !s:SourceUnchanged(a:context)
     call s:Warn('Buffer changed during formatting; result discarded')
     return
   endif
   if a:index >= len(a:commands)
-    call s:ReplaceBufferLines(a:buf, a:content)
+    call s:ReplaceBufferLines(buf, a:content)
     return
   endif
-  let arguments = s:FormatterArguments(a:commands[a:index], a:file)
-  call s:RunCommand('format:' . a:buf, arguments, {'stdin': a:content, 'cwd': a:root},
-        \ function('<SID>FormatStep', [a:buf, a:tick, a:file, a:root, a:commands, a:index + 1]))
+  let arguments = s:FormatterArguments(a:commands[a:index], a:context.file)
+  call s:RunCommand('format:' . buf, arguments, {'stdin': a:content, 'cwd': a:root},
+        \ function('<SID>FormatStep', [a:context, a:root, a:commands, a:index + 1]))
 endfunction
 
 function! s:FormatBuffer() abort
@@ -3791,10 +3830,14 @@ function! s:FormatBuffer() abort
   endif
   let commands = [command]
   let input = join(getline(1, '$'), "\n") . (&l:endofline ? "\n" : '')
-  call s:FormatStep(buf, getbufvar(buf, 'changedtick', -1), expand('%:p'), s:ProjectRoot().root, commands, 0, input, 0)
+  call s:FormatStep(s:SourceContext(buf), s:ProjectRoot().root, commands, 0, input, 0)
 endfunction
 
 nnoremap <silent> <leader>lf :call <SID>FormatBuffer()<CR>
+augroup NopackFormat
+  autocmd!
+  autocmd BufUnload,BufFilePost,FileType * call <SID>CancelTask('format:' . expand('<abuf>'))
+augroup END
 
 " Vim has no bundled LSP client. gd uses ctags; native gD/K remain
 " available, while Neovim-only LSP actions and diagnostics are intentionally
@@ -4038,6 +4081,7 @@ function! s:CloseBlame() abort
 endfunction
 function! s:CancelBlame() abort
   call s:CloseBlame()
+  call s:CancelTask('blame')
   let s:blame_key = []
 endfunction
 function! s:BlameResult(key, output, limited) abort
@@ -4063,7 +4107,7 @@ function! s:BlameStart(key, timer) abort
 endfunction
 function! s:QueueBlame() abort
   if !s:blame_enabled | return | endif
-  let key = [win_getid(), bufnr('%'), line('.'), b:changedtick, winsaveview().leftcol, line('w0')]
+  let key = [win_getid(), bufnr('%'), line('.'), b:changedtick, winsaveview().leftcol, line('w0'), expand('%:p'), &filetype]
   if key ==# s:blame_key | return | endif
   call s:CloseBlame()
   call s:CancelTask('blame')
@@ -4073,16 +4117,15 @@ function! s:QueueBlame() abort
 endfunction
 function! s:ToggleBlame() abort
   let s:blame_enabled = !s:blame_enabled
-  let s:blame_key = []
-  call s:CloseBlame()
+  call s:CancelBlame()
   call s:QueueBlame()
   call s:Info('Inline blame: ' . (s:blame_enabled ? 'on' : 'off'))
 endfunction
 augroup NopackBlame
   autocmd!
   autocmd User NopackCancel call <SID>CancelBlame()
-  autocmd CursorMoved,BufEnter,WinEnter,WinScrolled,BufWritePost * call <SID>QueueBlame()
-  autocmd InsertEnter,BufLeave,WinLeave * call <SID>CloseBlame() | let s:blame_key = []
+  autocmd CursorMoved,BufEnter,WinEnter,WinScrolled,BufWritePost,BufFilePost,FileType,TextChanged * call <SID>QueueBlame()
+  autocmd InsertEnter,BufLeave,WinLeave * call <SID>CancelBlame()
 augroup END
 
 " =========================================

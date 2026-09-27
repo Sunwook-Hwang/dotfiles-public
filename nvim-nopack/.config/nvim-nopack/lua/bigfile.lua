@@ -32,9 +32,6 @@ vim.api.nvim_create_autocmd("User", {
 			return
 		end
 		pcall(vim.treesitter.stop, buf)
-		for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
-			vim.lsp.buf_detach_client(buf, client.id)
-		end
 	end,
 })
 local function check_large_file(buf, first, last)

@@ -407,7 +407,7 @@ for key, revision in pairs({ gd = ":", gD = "HEAD:" }) do
 	shared.map("n", "<leader>" .. key, function()
 		local file, buf, win =
 			vim.api.nvim_buf_get_name(0), vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win()
-		if not policy.is_source(0) or file == "" then
+		if not policy.allows(buf) or file == "" then
 			vim.notify("Open a tracked file first")
 			return
 		end
@@ -415,7 +415,9 @@ for key, revision in pairs({ gd = ":", gD = "HEAD:" }) do
 		local relative = file:sub(#root + 2)
 		local ft = vim.bo.filetype
 		git({ "show", revision .. relative }, function(output)
-			open_git_diff(buf, win, shared.records(output, "\n"), ft)
+			if policy.allows(buf) and vim.api.nvim_buf_get_name(buf) == file then
+				open_git_diff(buf, win, shared.records(output, "\n"), ft)
+			end
 		end)
 	end, "Diff against " .. revision .. " (:q to close)")
 end

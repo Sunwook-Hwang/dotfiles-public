@@ -110,6 +110,7 @@ shared.map("n", "<leader>lf", function()
 	local buf = vim.api.nvim_get_current_buf()
 	local tick = vim.api.nvim_buf_get_changedtick(buf)
 	local file = vim.api.nvim_buf_get_name(buf)
+	local filetype = vim.bo[buf].filetype
 	if not policy.allows(buf) then
 		vim.notify("Formatting skipped: large-file protection is active")
 		return
@@ -124,6 +125,7 @@ shared.map("n", "<leader>lf", function()
 		if
 			not vim.bo[buf].modifiable
 			or vim.api.nvim_buf_get_name(buf) ~= file
+			or vim.bo[buf].filetype ~= filetype
 			or vim.api.nvim_buf_get_changedtick(buf) ~= tick
 		then
 			vim.notify("Buffer changed during formatting; result discarded")
@@ -132,7 +134,7 @@ shared.map("n", "<leader>lf", function()
 		return true
 	end
 	local root = shared.project_root()
-	local candidates = formatters[vim.bo.filetype]
+	local candidates = formatters[filetype]
 	local command
 	for _, candidate in ipairs(candidates or {}) do
 		local executable = shared.resolve_tool(candidate[1])

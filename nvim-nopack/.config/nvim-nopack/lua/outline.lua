@@ -30,6 +30,16 @@ vim.api.nvim_create_autocmd("User", {
 		end
 	end,
 })
+vim.api.nvim_create_autocmd("BufUnload", {
+	callback = function(args)
+		local state = shared.outline
+		if state and state.source == args.buf then
+			shared.cancel_outline(state)
+			state.items = {}
+			outline_text(state, { "Source buffer closed" })
+		end
+	end,
+})
 local function ctags_outline(state)
 	local version, buf = state.version, state.source
 	state.items = {}
@@ -115,10 +125,12 @@ local function refresh_outline(state)
 	end)
 	local client = clients[1]
 	local tick = vim.api.nvim_buf_get_changedtick(buf)
+	local completed = false
 	outline_text(state, { "Loading symbols..." })
 	local ok, request = client:request("textDocument/documentSymbol", {
 		textDocument = { uri = vim.uri_from_bufnr(buf) },
 	}, function(err, symbols)
+		completed = true
 		vim.schedule(function()
 			if shared.outline ~= state or state.version ~= version then
 				return
@@ -167,10 +179,12 @@ local function refresh_outline(state)
 		return
 	end
 	state.cancel = function()
-		client:cancel_request(request)
+		if not completed then
+			client:cancel_request(request)
+		end
 	end
 	vim.defer_fn(function()
-		if shared.outline == state and state.version == version and state.cancel then
+		if shared.outline == state and state.version == version and state.cancel and not completed then
 			shared.cancel_outline(state)
 			ctags_outline(state)
 		end
@@ -249,7 +263,7 @@ shared.map("n", "<leader>o", function()
 	})
 	refresh_outline(state)
 end, "Toggle code outline")
-vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "LspAttach", "LspDetach" }, {
+vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "BufFilePost", "FileType", "LspAttach", "LspDetach" }, {
 	callback = function(args)
 		local state = shared.outline
 		-- Reusing the sidebar window ends its outline, even if a split still shows the old buffer.
@@ -257,6 +271,16 @@ vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "LspAttach", "LspDetac
 			shared.cancel_outline(state)
 			shared.outline = nil
 			return
+		end
+		if state and args.buf == state.source and (args.event == "BufFilePost" or args.event == "FileType") then
+			shared.cancel_outline(state)
+			state.items = {}
+			vim.wo[state.win][0].winbar = " Outline: "
+				.. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(args.buf), ":t"):gsub("%%", "%%%%")
+			if not policy.allows(args.buf) then
+				outline_text(state, { "Source buffer unavailable" })
+				return
+			end
 		end
 		if
 			not state

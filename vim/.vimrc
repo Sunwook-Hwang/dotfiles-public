@@ -2399,6 +2399,7 @@ let s:tag_projects = {}
 let s:ctags_checked = ''
 let s:ctags_kind = ''
 let s:ctags_command = ''
+let s:managed_tags = {}
 
 function! s:CtagsCandidates() abort
   let candidates = []
@@ -2446,17 +2447,28 @@ function! s:CtagsAvailable(...) abort
 endfunction
 
 function! s:UseTags(buf, path) abort
-  call setbufvar(a:buf, '&tags', escape(a:path, ' ,\') . ',' . &g:tags)
+  let tags = getbufvar(a:buf, '&tags')
+  let previous = get(s:managed_tags, string(a:buf), '')
+  if previous !=# '' && stridx(tags, previous) == 0
+    let tags = strpart(tags, strlen(previous))
+  endif
+  let prefix = a:path ==# '' ? '' : escape(a:path, ' ,\') . ','
+  call setbufvar(a:buf, '&tags', prefix . tags)
+  if prefix ==# ''
+    if has_key(s:managed_tags, string(a:buf)) | call remove(s:managed_tags, string(a:buf)) | endif
+  else
+    let s:managed_tags[string(a:buf)] = prefix
+  endif
 endfunction
 
 function! s:TagsAttach(buf) abort
-  if !s:IsSource(a:buf) || bufname(a:buf) ==# ''
+  if !bufexists(a:buf) | return | endif
+  if !s:BufferAllows(a:buf) || bufname(a:buf) ==# ''
+    call s:UseTags(a:buf, '')
     return
   endif
   let root = s:ProjectRoot(a:buf).root
-  if has_key(s:tag_projects, root)
-    call s:UseTags(a:buf, s:tag_projects[root].path)
-  endif
+  call s:UseTags(a:buf, get(get(s:tag_projects, root, {}), 'path', ''))
 endfunction
 
 " A tab-local right sidebar; its scratch buffer is wiped when the window closes.
@@ -2795,6 +2807,7 @@ function! s:CtagsClearAll() abort
   call delete(s:nopack_data . '/tags', 'rf')
   for info in getbufinfo()
     call setbufvar(info.bufnr, 'nopack_tags_requested', 0)
+    call s:TagsAttach(info.bufnr)
   endfor
   call s:Info('Cleared all managed ctags caches')
 endfunction
@@ -2810,6 +2823,8 @@ augroup NopackCtags
   autocmd User NopackCancel call <SID>CancelTags()
   autocmd InsertEnter * call <SID>TagsCompletion()
   autocmd BufEnter * call <SID>TagsAttach(str2nr(expand('<abuf>')))
+  autocmd BufFilePost,FileType * call setbufvar(str2nr(expand('<abuf>')), 'nopack_tags_requested', 0) | call <SID>TagsAttach(str2nr(expand('<abuf>')))
+  autocmd BufWipeout * if has_key(s:managed_tags, expand('<abuf>')) | call remove(s:managed_tags, expand('<abuf>')) | endif
   autocmd BufWritePost * call <SID>TagsSaved(str2nr(expand('<abuf>')))
 augroup END
 
@@ -3945,6 +3960,7 @@ function! s:RestrictGit(buf) abort
   endif
 endfunction
 function! s:RestrictTags(buf) abort
+  call s:TagsAttach(a:buf)
   if empty(bufname(a:buf)) | return | endif
   let root = s:ProjectRoot(a:buf).root
   let project = get(s:tag_projects, root, {})

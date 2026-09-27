@@ -17,6 +17,7 @@ local function outline_text(state, lines)
 end
 shared.cancel_outline = function(state)
 	state.version = state.version + 1
+	state.refresh_pending = nil
 	if state.cancel then
 		state.cancel()
 		state.cancel = nil
@@ -299,9 +300,13 @@ vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "BufFilePost", "FileTy
 				.. vim.fn.fnamemodify(vim.api.nvim_buf_get_name(args.buf), ":t"):gsub("%%", "%%%%")
 		end
 		if args.buf == state.source and not state.refresh_pending then
-			state.refresh_pending = true
+			local pending = {}
+			state.refresh_pending = pending
 			vim.schedule(function()
-				state.refresh_pending = false
+				if state.refresh_pending ~= pending then
+					return
+				end
+				state.refresh_pending = nil
 				if shared.outline == state then
 					refresh_outline(state)
 				end

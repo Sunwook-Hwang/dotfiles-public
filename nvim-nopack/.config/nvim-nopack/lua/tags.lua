@@ -172,12 +172,17 @@ local function tag_project(root)
 	end
 	return shared.tag_projects[root]
 end
+local managed_tags = {}
 local function attach_tags(buf)
+	local tags, previous = vim.bo[buf].tags, managed_tags[buf]
+	if previous and tags:sub(1, #previous) == previous then
+		tags = tags:sub(#previous + 1)
+	end
 	local root = shared.tag_context(buf)
 	local project = root and shared.tag_projects[root]
-	if project then
-		vim.bo[buf].tags = vim.fn.escape(project.path, " ,\\") .. "," .. vim.go.tags
-	end
+	local prefix = project and (vim.fn.escape(project.path, " ,\\") .. ",") or nil
+	vim.bo[buf].tags = (prefix or "") .. tags
+	managed_tags[buf] = prefix
 end
 local function tag_command()
 	local command = { ctags_command, "--options=NONE" }
@@ -446,12 +451,21 @@ vim.api.nvim_create_user_command("CtagsClearAll", function()
 	vim.fn.delete(shared.nopack_data .. "/tags", "rf")
 	for _, buf in ipairs(vim.api.nvim_list_bufs()) do
 		vim.b[buf].nopack_tags_requested = nil
+		attach_tags(buf)
 	end
 	vim.notify("Cleared all managed ctags caches")
 end, {})
-vim.api.nvim_create_autocmd("BufEnter", {
+vim.api.nvim_create_autocmd({ "BufEnter", "BufFilePost", "FileType" }, {
 	callback = function(args)
+		if args.event ~= "BufEnter" then
+			vim.b[args.buf].nopack_tags_requested = nil
+		end
 		attach_tags(args.buf)
+	end,
+})
+vim.api.nvim_create_autocmd("BufWipeout", {
+	callback = function(args)
+		managed_tags[args.buf] = nil
 	end,
 })
 local function ensure_tag_completion(buf)
@@ -545,7 +559,7 @@ shared.map("n", "gd", function()
 		ctags_definition()
 		return
 	end
-	local position, tick = vim.api.nvim_win_get_cursor(win), vim.api.nvim_buf_get_changedtick(buf)
+	local position, context = vim.api.nvim_win_get_cursor(win), policy.source_context(buf)
 	local done, cancel = false, nil
 	local function stop()
 		done = true
@@ -566,7 +580,7 @@ shared.map("n", "gd", function()
 			or not vim.api.nvim_win_is_valid(win)
 			or vim.api.nvim_get_current_win() ~= win
 			or vim.api.nvim_win_get_buf(win) ~= buf
-			or vim.api.nvim_buf_get_changedtick(buf) ~= tick
+			or not policy.source_unchanged(context)
 			or not vim.deep_equal(vim.api.nvim_win_get_cursor(win), position)
 		then
 			return
@@ -620,10 +634,19 @@ shared.map("n", "gd", function()
 	end, 5000)
 end, "Go to definition: LSP, then ctags")
 
+vim.api.nvim_create_autocmd({ "BufUnload", "BufFilePost", "FileType" }, {
+	callback = function(args)
+		if shared.definition_requests[args.buf] then
+			shared.definition_requests[args.buf]()
+		end
+	end,
+})
+
 vim.api.nvim_create_autocmd("User", {
 	pattern = "NopackBufferRestricted",
 	callback = function(args)
 		local buf = args.data.buf
+		attach_tags(buf)
 		if shared.definition_requests[buf] then
 			shared.definition_requests[buf]()
 		end

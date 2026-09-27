@@ -9,12 +9,11 @@ do
 		vim.keymap.set(mode, lhs, rhs, { noremap = true, silent = true, desc = desc })
 	end
 	local function focus_editor()
-		if vim.bo.filetype ~= "aerial" and not vim.bo.filetype:match("^snacks_picker") then
+		if policy.is_editor(0) then
 			return
 		end
 		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-			local buf = vim.api.nvim_win_get_buf(win)
-			if policy.is_source(buf) then
+			if policy.is_editor(win) then
 				vim.api.nvim_set_current_win(win)
 				return
 			end

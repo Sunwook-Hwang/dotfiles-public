@@ -166,7 +166,7 @@ function M.get_symbols(buf, win, cursor)
 		refresh(buf)
 	end
 	local state = states[buf]
-	if not state or not state.client then
+	if not state or not state.client or state.tick ~= vim.api.nvim_buf_get_changedtick(buf) then
 		return {}
 	end
 	local encoding = state.client.offset_encoding or "utf-16"
@@ -217,7 +217,7 @@ function M.setup(is_enabled)
 			end
 		end,
 	})
-	vim.api.nvim_create_autocmd({ "BufUnload", "BufFilePost" }, {
+	vim.api.nvim_create_autocmd({ "BufUnload", "BufFilePost", "FileType" }, {
 		group = group,
 		callback = function(args)
 			M.clear(args.buf)

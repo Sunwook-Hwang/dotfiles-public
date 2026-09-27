@@ -8,6 +8,30 @@ Snacks.setup({
 	quickfile = { enabled = true },
 	explorer = { enabled = true },
 	input = { enabled = true, icon = "" },
+	statuscolumn = {
+		enabled = true,
+		left = { "sign", "git", "fold" },
+		right = {},
+	},
+	scope = {
+		enabled = true,
+		treesitter = { enabled = false },
+	},
+	profiler = {
+		on_stop = { highlights = false },
+		icons = {
+			time = "ms ",
+			pct = "% ",
+			count = "x ",
+			require = "require ",
+			modname = "module ",
+			plugin = "plugin ",
+			autocmd = "event ",
+			file = "file ",
+			fn = "fn ",
+			status = "Profile ",
+		},
+	},
 	notifier = {
 		enabled = true,
 		icons = { error = "E", warn = "W", info = "I", debug = "D", trace = "T" },
@@ -194,8 +218,21 @@ Snacks.setup({
 		},
 	},
 })
+-- Keep the original single sign column instead of Snacks' two sign slots.
+vim.b.snacks_statuscolumn_right = false
+vim.api.nvim_create_autocmd("BufWinEnter", {
+	group = vim.api.nvim_create_augroup("PackStatusColumn", { clear = true }),
+	callback = function(ev)
+		vim.b[ev.buf].snacks_statuscolumn_right = false
+	end,
+})
 vim.keymap.set("n", "<leader>A", function()
 	Snacks.dashboard()
 end, { desc = "Open dashboard" })
 Snacks.toggle.indent():map("<leader>Ti")
 Snacks.toggle.scroll():map("<leader>TS")
+Snacks.toggle.profiler():map("<leader>Pp")
+Snacks.toggle.profiler_highlights():map("<leader>Ph")
+vim.keymap.set("n", "<leader>PP", function()
+	Snacks.profiler.pick()
+end, { desc = "Show profiler results" })

@@ -83,6 +83,7 @@ local default_options = {
 
 ---  SETTINGS  ---
 vim.opt.shortmess:append("c")
+vim.opt.fillchars:append({ foldopen = "-", foldclose = ">" })
 
 for k, v in pairs(default_options) do
 	vim.opt[k] = v

@@ -46,6 +46,7 @@ require("which-key").setup({
 		{ "<leader>l", group = "[L]sp & Diagnostic" },
 		{ "<leader>g", group = "[G]it" },
 		{ "<leader>p", group = "[P]roject" },
+		{ "<leader>P", group = "[P]rofiler" },
 		-- { "<leader>d", group = "[D]ebug" },
 	},
 })

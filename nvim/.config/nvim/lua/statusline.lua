@@ -142,7 +142,7 @@ do
 		end
 		return table.concat(parts, " ")
 	end
-	local lsp_status_cache, format_status_cache = {}, {}
+	local lsp_status_cache = {}
 	function _G.PackLspStatus()
 		if not language_status_visible then
 			return ""
@@ -179,73 +179,23 @@ do
 	vim.api.nvim_create_autocmd({ "LspAttach", "LspDetach", "BufWipeout" }, {
 		group = vim.api.nvim_create_augroup("pack-lsp-status", { clear = true }),
 		callback = function(args)
-			lsp_status_cache[args.buf], format_status_cache[args.buf] = nil, nil
+			lsp_status_cache[args.buf] = nil
 			if args.event == "BufWipeout" then
 				return
 			end
 			-- LspDetach fires before the client is removed from the buffer.
 			vim.schedule(function()
-				lsp_status_cache[args.buf], format_status_cache[args.buf] = nil, nil
+				lsp_status_cache[args.buf] = nil
 				vim.cmd("redrawstatus")
 			end)
 		end,
 	})
-	vim.api.nvim_create_autocmd({ "FileType", "BufFilePost", "BufWritePost" }, {
-		group = vim.api.nvim_create_augroup("pack-format-status", { clear = true }),
-		callback = function(args)
-			format_status_cache[args.buf] = nil
-		end,
-	})
-	local function invalidate_format_status()
-		format_status_cache = {}
-	end
-	vim.api.nvim_create_autocmd({ "FocusGained", "ShellCmdPost", "TermLeave", "TermClose" }, {
-		group = "pack-format-status",
-		callback = invalidate_format_status,
-	})
-	vim.api.nvim_create_autocmd("User", {
-		group = "pack-format-status",
-		pattern = "PackRefresh",
-		callback = invalidate_format_status,
-	})
-	for _, event in ipairs({ "package:install:success", "package:uninstall:success" }) do
-		require("mason-registry"):on(event, vim.schedule_wrap(invalidate_format_status))
-	end
 	function _G.PackFormatStatus()
 		if not language_status_visible then
 			return ""
 		end
 		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
-		local buf = vim.api.nvim_win_get_buf(win)
-		if not policy.is_source(buf) then
-			return ""
-		end
-		if not vim.bo[buf].modifiable or not policy.allows(buf) then
-			return "[FORMAT X]"
-		end
-		-- Conform probes executable paths and project roots; do not repeat on every redraw.
-		local cwd = vim.fn.getcwd(vim.fn.win_id2win(win))
-		local by_cwd = format_status_cache[buf] or {}
-		if by_cwd[cwd] then
-			return by_cwd[cwd]
-		end
-		local formatters, lsp = require("conform").list_formatters_to_run(buf)
-		local names = {}
-		for _, formatter in ipairs(formatters) do
-			names[vim.fn.fnamemodify(formatter.command, ":t"):gsub("[%c]", " ")] = true
-		end
-		if lsp then
-			for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf, method = "textDocument/formatting" })) do
-				if not client:is_stopped() then
-					names[client.name:gsub("[%c]", " ")] = true
-				end
-			end
-		end
-		local sorted = vim.fn.sort(vim.tbl_keys(names))
-		local text = #sorted > 0 and ("[FORMAT: " .. table.concat(sorted, ", ") .. "]") or "[FORMAT X]"
-		by_cwd[cwd] = text
-		format_status_cache[buf] = by_cwd
-		return text
+		return require("format").status(vim.api.nvim_win_get_buf(win), win)
 	end
 	function _G.PackStatusline()
 		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()

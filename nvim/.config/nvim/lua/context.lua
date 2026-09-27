@@ -103,7 +103,7 @@ do
 		local buf = vim.api.nvim_win_get_buf(win)
 		if
 			not enabled
-			or vim.api.nvim_win_get_config(win).relative ~= ""
+			or not policy.is_editor(win)
 			or not policy.allows(buf)
 			or vim.bo[buf].filetype == "netrw"
 			or vim.fn.getcmdwintype() ~= ""
@@ -343,6 +343,7 @@ do
 			"shiftwidth",
 			"wrap",
 			"winbar",
+			"previewwindow",
 		},
 		callback = function()
 			if vim.api.nvim_win_get_config(0).relative == "" then

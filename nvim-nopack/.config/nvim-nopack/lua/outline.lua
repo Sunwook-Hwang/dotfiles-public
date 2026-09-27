@@ -238,17 +238,18 @@ shared.map("n", "<leader>o", function()
 		if not item then
 			return
 		end
-		if vim.api.nvim_win_is_valid(state.source_win) then
+		local source = state.source
+		if policy.is_editor(state.source_win) then
 			vim.api.nvim_set_current_win(state.source_win)
 		else
 			shared.focus_editor()
 		end
 		if item.location then
 			vim.lsp.util.show_document(item.location, state.encoding, { focus = true })
-		elseif vim.api.nvim_buf_is_valid(state.source) then
+		elseif vim.api.nvim_buf_is_valid(source) then
 			vim.cmd("normal! m'")
-			vim.api.nvim_win_set_buf(0, state.source)
-			vim.api.nvim_win_set_cursor(0, { math.min(item.lnum, vim.api.nvim_buf_line_count(state.source)), 0 })
+			vim.api.nvim_win_set_buf(0, source)
+			vim.api.nvim_win_set_cursor(0, { math.min(item.lnum, vim.api.nvim_buf_line_count(source)), 0 })
 		end
 		vim.cmd("normal! zvzz")
 	end, { buf = state.buf, desc = "Jump to symbol" })
@@ -291,6 +292,9 @@ vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "BufFilePost", "FileTy
 			return
 		end
 		if args.event == "BufEnter" then
+			if not policy.is_editor(0) then
+				return
+			end
 			local same_source = state.source == args.buf
 			state.source, state.source_win = args.buf, vim.api.nvim_get_current_win()
 			if same_source then

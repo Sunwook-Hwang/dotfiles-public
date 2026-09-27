@@ -99,12 +99,7 @@ do
 	local function update()
 		local win = vim.api.nvim_get_current_win()
 		local buf = vim.api.nvim_win_get_buf(win)
-		if
-			not enabled
-			or vim.api.nvim_win_get_config(win).relative ~= ""
-			or not policy.allows(buf)
-			or vim.fn.getcmdwintype() ~= ""
-		then
+		if not enabled or not policy.is_editor(win) or not policy.allows(buf) or vim.fn.getcmdwintype() ~= "" then
 			close()
 			return
 		end
@@ -339,6 +334,7 @@ do
 			"vartabstop",
 			"shiftwidth",
 			"wrap",
+			"previewwindow",
 		},
 		callback = function()
 			if vim.api.nvim_win_get_config(0).relative == "" then

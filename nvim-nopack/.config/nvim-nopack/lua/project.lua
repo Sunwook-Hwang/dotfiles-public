@@ -85,7 +85,7 @@ shared.project_root = function()
 		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
 			local buf = vim.api.nvim_win_get_buf(win)
 			local name = vim.api.nvim_buf_get_name(buf)
-			if policy.is_source(buf) and name ~= "" then
+			if policy.is_editor(win) and name ~= "" then
 				dir = vim.fn.fnamemodify(name, ":h")
 				break
 			end
@@ -100,12 +100,7 @@ local syncing_project = false
 vim.api.nvim_create_autocmd("BufEnter", {
 	group = vim.api.nvim_create_augroup("nopack-project-context", { clear = true }),
 	callback = function()
-		if
-			syncing_project
-			or not policy.is_source(0)
-			or vim.bo.filetype == "netrw"
-			or vim.api.nvim_buf_get_name(0) == ""
-		then
+		if syncing_project or not policy.is_editor(0) or vim.api.nvim_buf_get_name(0) == "" then
 			return
 		end
 		local root, _, recognized = shared.project_root()

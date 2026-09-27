@@ -125,6 +125,10 @@ function! s:IsSource(buf) abort
   return bufexists(a:buf) && getbufvar(a:buf, '&buftype') ==# ''
         \ && getbufvar(a:buf, '&filetype') !=# 'netrw'
 endfunction
+function! s:IsEditorWindow(winid) abort
+  return win_id2win(a:winid) > 0 && s:IsSource(winbufnr(a:winid))
+        \ && !getwinvar(a:winid, '&previewwindow')
+endfunction
 function! s:BufferAllows(buf) abort
   return bufloaded(a:buf) && s:IsSource(a:buf) && !getbufvar(a:buf, 'nopack_large_file', 0)
 endfunction
@@ -1138,7 +1142,7 @@ function! s:ProjectRoot(...) abort
   if dir ==# '' && !a:0
     for winid in s:TabWindows()
       let candidate = winbufnr(winid)
-      if s:IsSource(candidate) && bufname(candidate) !=# ''
+      if s:IsEditorWindow(winid) && bufname(candidate) !=# ''
         let dir = fnamemodify(bufname(candidate), ':p:h')
         break
       endif
@@ -1228,7 +1232,7 @@ nnoremap <silent><nowait> <leader>e :call <SID>ToggleExplorer()<CR>
 
 let s:syncing_project = 0
 function! s:SyncProjectContext() abort
-  if s:syncing_project || !s:IsSource(bufnr('%')) || expand('%:p') ==# ''
+  if s:syncing_project || !s:IsEditorWindow(win_getid()) || expand('%:p') ==# ''
     return
   endif
   let project = s:ProjectRoot()
@@ -1307,11 +1311,6 @@ function! s:BufferIndex(buf, ...) abort
     let index += 1
   endfor
   return 0
-endfunction
-
-function! s:IsEditorWindow(winid) abort
-  return win_id2win(a:winid) > 0 && s:IsSource(winbufnr(a:winid))
-        \ && !getwinvar(a:winid, '&previewwindow')
 endfunction
 
 function! s:FocusEditor() abort
@@ -4270,7 +4269,8 @@ endfunction
 
 function! s:StickyUpdate(timer) abort
   let s:sticky_timer = -1
-  if !s:sticky_enabled || !s:BufferAllows(bufnr('%')) || getcmdwintype() !=# ''
+  if !s:sticky_enabled || !s:IsEditorWindow(win_getid())
+        \ || !s:BufferAllows(bufnr('%')) || getcmdwintype() !=# ''
     call s:CloseSticky()
     return
   endif
@@ -4375,7 +4375,7 @@ augroup NopackSticky
   autocmd!
   autocmd BufEnter,WinEnter,CursorMoved,CursorMovedI,TextChanged,TextChangedI,WinScrolled,VimResized,FileType * call <SID>QueueSticky()
   autocmd BufLeave,WinLeave,TabLeave * call <SID>CloseSticky()
-  autocmd OptionSet number,relativenumber,numberwidth,signcolumn,foldcolumn,list,listchars,tabstop,vartabstop,shiftwidth,wrap call <SID>QueueSticky()
+  autocmd OptionSet number,relativenumber,numberwidth,signcolumn,foldcolumn,list,listchars,tabstop,vartabstop,shiftwidth,wrap,previewwindow call <SID>QueueSticky()
 augroup END
 
 " =========================================

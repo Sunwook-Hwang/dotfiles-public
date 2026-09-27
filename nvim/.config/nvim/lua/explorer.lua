@@ -10,7 +10,7 @@ do
 		group = vim.api.nvim_create_augroup("pack-project-root", { clear = true }),
 		callback = function(args)
 			local file = vim.api.nvim_buf_get_name(args.buf)
-			if not policy.is_source(args.buf) or file == "" then
+			if not policy.is_editor(0) or file == "" then
 				return
 			end
 			local dir = vim.fs.dirname(file)
@@ -47,7 +47,7 @@ do
 		for _, win in ipairs(wins) do
 			local buf = vim.api.nvim_win_get_buf(win)
 			local name = vim.api.nvim_buf_get_name(buf)
-			if policy.is_source(buf) and name ~= "" then
+			if policy.is_editor(win) and name ~= "" then
 				dir = vim.fs.dirname(name)
 				break
 			end

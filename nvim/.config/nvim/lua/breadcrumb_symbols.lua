@@ -70,7 +70,7 @@ local function normalize(symbols, buf)
 end
 
 local function refresh(buf, force)
-	if not enabled() or not policy.allows(buf) or #vim.fn.win_findbuf(buf) == 0 then
+	if not enabled() or not policy.allows(buf) or not vim.iter(vim.fn.win_findbuf(buf)):any(policy.is_editor) then
 		M.clear(buf)
 		return
 	end
@@ -159,7 +159,7 @@ local function convert(node, buf, win, encoding, siblings, index)
 end
 
 function M.get_symbols(buf, win, cursor)
-	if not enabled() or not policy.allows(buf) then
+	if not enabled() or not policy.allows(buf) or not policy.is_editor(win) then
 		return {}
 	end
 	if not states[buf] then

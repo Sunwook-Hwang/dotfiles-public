@@ -40,7 +40,7 @@ do
 		return enabled
 			and policy.allows(buf)
 			and vim.api.nvim_buf_get_name(buf) ~= ""
-			and vim.api.nvim_win_get_config(win).relative == ""
+			and policy.is_editor(win)
 			and (vim.wo[win].winbar == "" or vim.wo[win].winbar == expression)
 	end
 	require("dropbar").setup({
@@ -70,6 +70,13 @@ do
 	end
 	vim.api.nvim_create_autocmd("BufWinEnter", {
 		group = group,
+		callback = function()
+			refresh_window(vim.api.nvim_get_current_win())
+		end,
+	})
+	vim.api.nvim_create_autocmd("OptionSet", {
+		group = group,
+		pattern = "previewwindow",
 		callback = function()
 			refresh_window(vim.api.nvim_get_current_win())
 		end,

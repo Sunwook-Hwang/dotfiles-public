@@ -1,4 +1,15 @@
--- Native Neovim 0.12+ configuration without third-party packages.
+-- ============================================================================
+--                 _____ _        _    ____  _   _
+--                |  ___| |      / \  / ___|| | | |
+--                | |_  | |     / _ \ \___ \| |_| |
+--                |  _| | |___ / ___ \ ___) |  _  |
+--                |_|   |_____/_/   \_\____/|_| |_|
+--
+--                NO-PACK / SPEED MODE
+--                Native Neovim. Zero third-party neovim plugins.
+--                Dotfiles by Sunwook Hwang
+-- ============================================================================
+-- Neovim 0.12+; language servers and formatters are optional external tools.
 -- Keep this file and the adjacent lua/ directory together when copying the profile.
 if vim.fn.has("nvim-0.12") == 0 then
 	error("This nopack config requires Neovim 0.12 or newer")

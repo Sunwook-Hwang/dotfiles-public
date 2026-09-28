@@ -143,7 +143,8 @@ local function ctags_outline(state)
 			if not line:match("^!_TAG_") and shared.tag_filename(line) == file then
 				local name = line:match("^([^\t]+)")
 				local row = tonumber(line:match("\tline:(%d+)"))
-				local kind = line:match(';"\t([^\t]+)') or ""
+				local kind = line:match(';"\t([^\t]+)') or "symbol"
+				local kind_label = kind:gsub("^%l", string.upper)
 				local scope = ""
 				for _, field in ipairs({ "class", "struct", "namespace", "union", "enum", "function", "scope" }) do
 					scope = line:match("\t" .. field .. ":([^\t]+)") or scope
@@ -153,14 +154,13 @@ local function ctags_outline(state)
 					items[#items + 1] = {
 						lnum = row,
 						label = string.rep("  ", depth)
+							.. kind_label
+							.. " "
 							.. name
-							.. " ["
-							.. kind
-							.. "]"
 							.. (scope == "" and "" or " (" .. scope .. ")"),
 						highlights = {
-							{ depth * 2, depth * 2 + #name, name_highlight(kind) },
-							{ depth * 2 + #name + 1, depth * 2 + #name + #kind + 3, "Comment" },
+							{ depth * 2, depth * 2 + #kind_label, "Comment" },
+							{ depth * 2 + #kind_label + 1, depth * 2 + #kind_label + 1 + #name, name_highlight(kind) },
 						},
 					}
 				end

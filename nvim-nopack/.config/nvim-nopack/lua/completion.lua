@@ -43,7 +43,18 @@ vim.api.nvim_create_autocmd("LspAttach", {
 		end
 		local client = vim.lsp.get_client_by_id(args.data.client_id)
 		if client:supports_method("textDocument/completion") then
-			-- Use server-defined triggers; Ctrl-Space requests completion explicitly.
+			local completion = client.server_capabilities.completionProvider
+			completion.triggerCharacters = completion.triggerCharacters or {}
+			-- Also open completion while typing identifiers, not just after server punctuation.
+			local triggers = {}
+			for _, char in ipairs(completion.triggerCharacters) do
+				triggers[char] = true
+			end
+			for char in ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"):gmatch(".") do
+				if not triggers[char] then
+					table.insert(completion.triggerCharacters, char)
+				end
+			end
 			vim.lsp.completion.enable(true, client.id, args.buf, { autotrigger = true })
 			vim.bo[args.buf].autocomplete = false
 			completion_buffers[args.buf] = true

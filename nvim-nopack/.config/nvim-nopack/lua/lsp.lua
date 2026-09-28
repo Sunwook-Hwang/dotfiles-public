@@ -22,7 +22,16 @@ local servers = {
 	{ cmd = { "texlab" }, ft = { "tex", "plaintex" } },
 	{ cmd = { "rust-analyzer" }, ft = { "rust" } },
 	{ alternatives = { { "ty", "server" }, { "pyright-langserver", "--stdio" } }, ft = { "python" } },
-	{ cmd = { "lua-language-server" }, ft = { "lua" }, settings = { Lua = { diagnostics = { globals = { "vim" } } } } },
+	{
+		cmd = { "lua-language-server" },
+		ft = { "lua" },
+		settings = {
+			Lua = {
+				diagnostics = { globals = { "vim" } },
+				completion = { callSnippet = "Replace" },
+			},
+		},
+	},
 	{
 		cmd = { "typescript-language-server", "--stdio" },
 		init_options = tsserver ~= "" and { tsserver = { fallbackPath = tsserver } } or nil,

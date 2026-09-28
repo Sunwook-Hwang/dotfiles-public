@@ -2520,8 +2520,52 @@ function! s:OutlineClose() abort
   endif
 endfunction
 
+" Both automatic following and Enter require the same saved source snapshot.
+function! s:OutlineValid(outline) abort
+  return s:BufferAllows(a:outline.source) && !getbufvar(a:outline.source, '&modified')
+        \ && s:SourceUnchanged(a:outline.context) && s:IsEditorWindow(a:outline.target)
+        \ && winbufnr(a:outline.target) == a:outline.source
+endfunction
+
+function! s:OutlineFollow() abort
+  let sidebar = get(t:, 'nopack_outline_win', 0)
+  if sidebar == 0 || win_id2win(sidebar) == 0 | return | endif
+  let outline = getbufvar(winbufnr(sidebar), 'nopack_outline', {})
+  if empty(outline) || !s:OutlineValid(outline) | return | endif
+  if win_getid() == sidebar
+    let row = line('.')
+    if row < 1 || row > len(outline.items) || row == outline.selected_row | return | endif
+    let outline.selected_row = row
+    call win_execute(outline.target, ['noautocmd call cursor(' . outline.items[row - 1].lnum . ', 1)',
+          \ 'noautocmd normal! zvzz'])
+  elseif win_getid() == outline.target
+    " Ctags has declaration lines, not enclosing ranges. Find the last preceding tag.
+    let low = 0
+    let high = len(outline.items)
+    while low < high
+      let middle = (low + high) / 2
+      if outline.items[middle].lnum <= line('.')
+        let low = middle + 1
+      else
+        let high = middle
+      endif
+    endwhile
+    if low == 0 | return | endif
+    let row = low
+    if row != outline.selected_row
+      let outline.selected_row = row
+      call win_execute(sidebar, ['noautocmd call cursor(' . row . ', 1)', 'noautocmd normal! zz'])
+    endif
+  endif
+endfunction
+
+augroup NopackOutlineFollow
+  autocmd!
+  autocmd CursorMoved,CursorMovedI,BufEnter * call s:OutlineFollow()
+augroup END
+
 function! s:OutlineJump() abort
-  let index = line('.') - 4
+  let index = line('.') - 1
   let items = b:nopack_outline.items
   if index < 0 || index >= len(items)
     return
@@ -2529,8 +2573,8 @@ function! s:OutlineJump() abort
   let item = items[index]
   let target = b:nopack_outline.target
   let source = b:nopack_outline.source
-  if !s:BufferAllows(source) || !s:SourceUnchanged(b:nopack_outline.context) || !s:IsEditorWindow(target)
-    call s:Warn('The source or editor changed; refresh the outline')
+  if !s:OutlineValid(b:nopack_outline)
+    call s:Warn('The source or editor changed; save the file and press r to refresh the outline')
     return
   endif
   call win_gotoid(target)
@@ -2541,22 +2585,37 @@ function! s:OutlineJump() abort
 endfunction
 
 function! s:OutlineShow(source, target, items) abort
-  botright vertical 36new
+  execute 'rightbelow vertical ' . max([20, min([40, &columns / 4])]) . 'new'
   call s:OwnUtilityWindow()
   setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile
   setlocal nonumber norelativenumber nowrap winfixwidth nocursorcolumn cursorline
   setlocal nospell nolist signcolumn=no foldcolumn=0
-  let b:nopack_outline = {'source': a:source, 'target': a:target, 'items': a:items, 'context': s:SourceContext(a:source)}
-  let &l:statusline = ' Ctags outline · saved file'
+  let b:nopack_outline = {'source': a:source, 'target': a:target, 'items': a:items, 'context': s:SourceContext(a:source), 'selected_row': 1}
+  let t:nopack_outline_win = win_getid()
+  let title = 'Outline: ' . substitute(fnamemodify(bufname(a:source), ':t'), '[\r\n\t]', ' ', 'g')
+  let w:nopack_outline_menu = 'WinBar.' . escape(title, ' .\|')
+  execute 'nnoremenu <silent> ' . w:nopack_outline_menu . ' <Nop>'
+  let &l:statusline = ' ' . substitute(title, '%', '%%', 'g')
   let labels = map(copy(a:items), 'v:val.label')
-  call setline(1, ['Outline: ' . fnamemodify(bufname(a:source), ':t'), 'Enter: jump   q: close', '']
-        \ + (empty(labels) ? ['No symbols in saved file'] : labels))
+  call setline(1, empty(labels) ? ['No symbols in saved file'] : labels)
+  for group in ['Function', 'Type', 'Identifier', 'Comment']
+    call prop_type_add('NopackOutline' . group, {'bufnr': bufnr('%'), 'highlight': group})
+  endfor
+  for index in range(len(a:items))
+    let item = a:items[index]
+    let group = index(['function', 'method', 'constructor'], item.kind) >= 0 ? 'Function'
+          \ : index(['class', 'struct', 'interface', 'enum'], item.kind) >= 0 ? 'Type' : 'Identifier'
+    call prop_add(index + 1, item.name_col, {'type': 'NopackOutline' . group, 'length': item.name_length})
+    call prop_add(index + 1, item.name_col - strlen(item.kind) - 1,
+          \ {'type': 'NopackOutlineComment', 'length': strlen(item.kind)})
+  endfor
   setlocal nomodifiable
   nnoremap <silent><buffer> <CR> :call <SID>OutlineJump()<CR>
   nnoremap <silent><buffer> q :call <SID>OutlineClose()<CR>
   nnoremap <silent><buffer> <Esc> :call <SID>OutlineClose()<CR>
   nnoremap <silent><buffer> r :call <SID>OutlineRefresh()<CR>
-  call cursor(empty(a:items) ? 1 : 4, 1)
+  call cursor(1, 1)
+  call win_execute(a:target, 'call <SID>OutlineFollow()')
 endfunction
 
 function! s:OutlineRefresh() abort
@@ -2602,8 +2661,11 @@ function! s:TagsShow(context, win, root, mode, word, position) abort
     let depth = scope ==# '' ? 0 : len(split(scope, '::\|\.'))
     let number = str2nr(get(tag, 'line', '0'))
     if number > 0
-      call add(items, {'label': repeat('  ', depth) . tag.name . ' [' . get(tag, 'kind', '') . ']'
-            \ . (scope ==# '' ? '' : '  (' . scope . ')'), 'filename': filename, 'lnum': number})
+      let kind = get(tag, 'kind', 'symbol')
+      let kind_label = toupper(strpart(kind, 0, 1)) . strpart(kind, 1)
+      call add(items, {'label': repeat('  ', depth) . kind_label . ' ' . tag.name
+            \ . (scope ==# '' ? '' : ' (' . scope . ')'), 'filename': filename, 'lnum': number,
+            \ 'kind': kind, 'name_col': depth * 2 + strlen(kind_label) + 2, 'name_length': strlen(tag.name)})
     endif
   endfor
   call sort(items, {a, b -> a.lnum - b.lnum})
@@ -4088,6 +4150,10 @@ endfunction
 function! s:ReleaseUtilityWindow() abort
   if exists('w:nopack_utility') && w:nopack_utility.buf != bufnr('%')
     let saved = remove(w:, 'nopack_utility')
+    if exists('w:nopack_outline_menu')
+      execute 'silent! nunmenu ' . w:nopack_outline_menu
+      unlet w:nopack_outline_menu
+    endif
     for [name, value] in items(saved.options)
       call setwinvar(win_getid(), '&' . name, value)
     endfor

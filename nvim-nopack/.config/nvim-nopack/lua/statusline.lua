@@ -193,8 +193,23 @@ function _G.NopackStatusline()
 	if win ~= vim.api.nvim_get_current_win() then
 		return " %f %= %y "
 	end
-	return "%{%v:lua.NopackGitStatus()%} %f %m%r%h %= %{%v:lua.NopackDiagnosticStatus()%} %{%v:lua.NopackLspStatus()%} %{v:lua.NopackFormatStatus()} %y | %4l:%3c | %3p%% "
+	return "%{%v:lua.NopackGitStatus()%} %<%{v:lua.NopackFileContext()}%{%v:lua.NopackBreadcrumbStatus()%} %m%r%h %= %{%v:lua.NopackDiagnosticStatus()%} %{%v:lua.NopackLspStatus()%} %{v:lua.NopackFormatStatus()} %y | %4l:%3c | %3p%% "
 end
 vim.opt.statusline = "%!v:lua.NopackStatusline()"
 -- 내장 renderer로 들여쓰기 가이드 표시: 텍스트/커서 이동마다 extmark를 재생성하지 않습니다.
 -- 선행 공백에만 shiftwidth 간격으로 선을 표시하며, 비어 있는 줄까지 이어주지는 않습니다.
+
+function _G.NopackFileContext()
+	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+	local file = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win))
+	if not policy.is_editor(win) or file == "" then
+		return file == "" and "[No Name]" or vim.fn.fnamemodify(file, ":~:.")
+	end
+	local root, _, recognized = shared.find_project(vim.fs.dirname(file))
+	local prefix = root:gsub("/+$", "") .. "/"
+	return recognized and file:sub(1, #prefix) == prefix and file:sub(#prefix + 1) or vim.fn.fnamemodify(file, ":~:.")
+end
+function _G.NopackBreadcrumbStatus()
+	local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+	return require("breadcrumbs").status(win)
+end

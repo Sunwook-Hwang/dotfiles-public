@@ -58,6 +58,7 @@ fixed-width cursor position.
 - `[FORMAT X]` means no formatter is currently available.
 - `[FORMAT: name]` names the external formatter or LSP used for this buffer.
 - `Space Tl` toggles both the LSP and formatter status sections.
+- `Space Td` toggles native statusline breadcrumbs (`path > class > function`) from cached LSP symbols; click a symbol to jump to its declaration. Without symbol support, only the path is shown. No code-text or indentation guesses are used.
 
 ### Buffers, indent guides, and Sticky Scroll
 
@@ -244,6 +245,8 @@ language is not attached automatically.
 Without LSP, built-in completion uses words from the current and open buffers
 plus ctags symbols. When supported ctags is installed, `gd` and the outline fall
 back to saved C/C++ and Python sources. Use `:checkhealth vim.lsp` to inspect LSP state.
+
+The outline and editor track each other without moving focus or requesting symbols on cursor movement. LSP tracking selects the innermost enclosing symbol; ctags tracking uses the nearest preceding declaration because it has no scope ranges.
 
 ## Formatting
 

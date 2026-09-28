@@ -25,8 +25,8 @@ from these configuration files and must also be available on a network-isolated 
 | `clipboard.lua`     | SSH clipboard copying                                             |
 | `whichkey.lua`      | Keybinding help                                                   |
 | `pickers.lua`       | Search picker mappings                                            |
-| `breadcrumbs.lua`   | Dropbar sources and updates                                       |
-| `breadcrumb_symbols.lua` | Per-buffer LSP symbol requests, cancellation and Dropbar menus |
+| `breadcrumbs.lua`   | Native statusline context, scope navigation and toggle             |
+| `breadcrumb_symbols.lua` | Cached LSP symbol hierarchy and request lifecycle             |
 | `outline.lua`       | Aerial outline and cursor tracking                                |
 | `terminal.lua`      | Bottom terminal and lazygit toggles                               |
 | `format.lua`        | Conform formatter registration and formatting                     |
@@ -45,7 +45,7 @@ filtered bulk buffer deletion. Sticky context, breadcrumbs, and statusline
 rendering keep their existing implementations and default states.
 Modules that use Snacks import the installed
 `snacks` plugin directly. Configuration module names intentionally differ from
-plugin entry points such as `snacks` and `dropbar`.
+plugin entry points such as `snacks`.
 
 Automatic editing and code-analysis features use `buffer_policy.allows(buf)`;
 normal loaded buffers are eligible unless marked as large files. Manual source
@@ -59,12 +59,15 @@ checks in feature modules. `bigfile.lua` detects size and edit growth, then call
 pending requests, overlays and outline data. Check eligibility when an action runs
 and when an asynchronous result arrives. Global defaults and other buffers stay unchanged.
 
-Breadcrumb LSP requests belong to individual buffers. Cursor movement reads cached
-symbols; edits, saves and LSP attachment changes refresh them. Disabling breadcrumbs
-or restricting a buffer cancels pending requests and rejects late results. Empty
-symbol results are valid and do not start a retry loop. Python environment selection
-also cancels superseded requests and drops results after its source is unloaded,
-renamed or restricted.
+Statusline breadcrumbs display the cached LSP document-symbol hierarchy without a
+Dropbar dependency or indentation-based guesses. `Space Td` toggles them; clicking
+a symbol jumps to its declaration line. Cursor movement and statusline redraws
+never request symbols. File changes and LSP attachment changes refresh the cache;
+disabling the feature or restricting/unloading a buffer cancels pending work.
+Files without symbol support show only their path. Control-flow blocks appear only
+when supplied as symbols by the language server; Dropbar's sibling menus are not
+implemented. Python environment selection cancels superseded requests and drops
+results after its source is unloaded, renamed or restricted.
 
 새 기능의 실행 조건은 `buffer_policy`에서 가져옵니다. 큰 파일 판정은
 `bigfile.lua`만 담당하고, 전환 시 공통 이벤트로 이미 켜진 기능도 정리합니다.

@@ -1,12 +1,72 @@
 local policy = require("buffer_policy")
 local shared = require("state")
+local outline_ns = vim.api.nvim_create_namespace("nopack-outline-highlights")
+local function name_highlight(kind)
+	kind = kind:lower()
+	if kind == "function" or kind == "method" or kind == "constructor" then
+		return "Function"
+	end
+	if kind == "class" or kind == "struct" or kind == "interface" or kind == "enum" then
+		return "Type"
+	end
+	return "Identifier"
+end
 
 -- =========================================
 -- ========== CODE OUTLINE / LSP + CTAGS ==========
 -- =========================================
 -- Space o: 현재 파일의 함수·클래스 계층을 오른쪽 사이드바로 토글합니다.
 -- Enter: 해당 위치 이동, r: 새로고침, q/Space o: 닫기, Ctrl-h/j/k/l: 창 이동.
+-- 사이드바 커서 이동은 편집창의 심볼 위치를 미리 보여주며 포커스는 유지합니다.
+-- 편집창 커서 이동도 캐시된 심볼 범위로 사이드바 선택을 갱신합니다.
 -- 열린 동안 파일 전환·저장·LSP 연결 시만 갱신합니다. 매 키 입력마다 요청하지 않습니다.
+local function follow_source(state)
+	if
+		not vim.api.nvim_win_is_valid(state.win)
+		or vim.api.nvim_win_get_buf(state.win) ~= state.buf
+		or not policy.is_editor(state.source_win)
+		or vim.api.nvim_win_get_buf(state.source_win) ~= state.source
+		or not policy.allows(state.source)
+		or not state.source_context
+		or not policy.source_unchanged(state.source_context)
+	then
+		return
+	end
+	local cursor = vim.api.nvim_win_get_cursor(state.source_win)
+	local row, character = cursor[1] - 1, nil
+	local selected, enclosing, nearest
+	local function before(a, b)
+		return a.line < b.line or (a.line == b.line and a.character < b.character)
+	end
+	for i, item in ipairs(state.items) do
+		if item.range then
+			if not character then
+				local line = vim.api.nvim_buf_get_lines(state.source, row, row + 1, false)[1] or ""
+				character = vim.str_utfindex(line, state.encoding or "utf-16", cursor[2], false)
+			end
+			local position, range = { line = row, character = character }, item.range
+			if
+				not before(position, range.start)
+				and before(position, range["end"])
+				and (
+					not enclosing
+					or (not before(range.start, enclosing.start) and not before(enclosing["end"], range["end"]))
+				)
+			then
+				selected, enclosing = i, range
+			end
+		elseif item.lnum and item.lnum <= cursor[1] and (not nearest or item.lnum > nearest) then
+			-- Ctags supplies declaration lines, not enclosing ranges.
+			selected, nearest = i, item.lnum
+		end
+	end
+	if selected then
+		state.selected_row = selected
+		if vim.api.nvim_win_get_cursor(state.win)[1] ~= selected then
+			vim.api.nvim_win_set_cursor(state.win, { selected, 0 })
+		end
+	end
+end
 local function outline_text(state, lines)
 	if not vim.api.nvim_buf_is_valid(state.buf) then
 		return
@@ -14,6 +74,18 @@ local function outline_text(state, lines)
 	vim.bo[state.buf].modifiable = true
 	vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, lines)
 	vim.bo[state.buf].modifiable = false
+	vim.api.nvim_buf_clear_namespace(state.buf, outline_ns, 0, -1)
+	for i, item in ipairs(state.items) do
+		if item.label == lines[i] then
+			for _, span in ipairs(item.highlights or {}) do
+				vim.api.nvim_buf_set_extmark(state.buf, outline_ns, i - 1, span[1], {
+					end_col = span[2],
+					hl_group = span[3],
+				})
+			end
+		end
+	end
+	follow_source(state)
 end
 shared.cancel_outline = function(state)
 	state.version = state.version + 1
@@ -43,6 +115,8 @@ vim.api.nvim_create_autocmd("BufUnload", {
 })
 local function ctags_outline(state)
 	local version, buf = state.version, state.source
+	-- Ctags describes the saved file, so unsaved edits cannot drive cursor tracking.
+	state.source_context = not vim.bo[buf].modified and policy.source_context(buf) or nil
 	state.items = {}
 	local root, file = shared.tag_context(buf)
 	if not root then
@@ -84,6 +158,10 @@ local function ctags_outline(state)
 							.. kind
 							.. "]"
 							.. (scope == "" and "" or " (" .. scope .. ")"),
+						highlights = {
+							{ depth * 2, depth * 2 + #name, name_highlight(kind) },
+							{ depth * 2 + #name + 1, depth * 2 + #name + #kind + 3, "Comment" },
+						},
 					}
 				end
 			end
@@ -111,6 +189,7 @@ local function refresh_outline(state)
 	shared.cancel_outline(state)
 	local version, buf = state.version, state.source
 	state.items = {}
+	state.source_context = nil
 	if not policy.allows(buf) then
 		outline_text(state, { "Source buffer closed" })
 		return
@@ -126,6 +205,7 @@ local function refresh_outline(state)
 	end)
 	local client = clients[1]
 	local tick = vim.api.nvim_buf_get_changedtick(buf)
+	local context = policy.source_context(buf)
 	local completed = false
 	outline_text(state, { "Loading symbols..." })
 	local ok, request = client:request("textDocument/documentSymbol", {
@@ -155,7 +235,15 @@ local function refresh_outline(state)
 						or { uri = vim.uri_from_bufnr(buf), range = symbol.selectionRange or symbol.range }
 					local kind = vim.lsp.protocol.SymbolKind[symbol.kind] or "Symbol"
 					lines[#lines + 1] = string.rep("  ", depth) .. kind .. " " .. symbol.name:gsub("[%c]", " ")
-					items[#items + 1] = { location = location, range = symbol.range or location.range }
+					items[#items + 1] = {
+						location = location,
+						range = symbol.range or location.range,
+						label = lines[#lines],
+						highlights = {
+							{ depth * 2, depth * 2 + #kind, "Comment" },
+							{ depth * 2 + #kind + 1, #lines[#lines], name_highlight(kind) },
+						},
+					}
 					if symbol.children then
 						collect(symbol.children, depth + 1)
 					end
@@ -163,16 +251,8 @@ local function refresh_outline(state)
 			end
 			collect(symbols ~= vim.NIL and symbols or {}, 0)
 			state.items, state.encoding = items, client.offset_encoding
+			state.source_context = context
 			outline_text(state, #lines > 0 and lines or { "No symbols in this file" })
-			if vim.api.nvim_win_is_valid(state.win) and vim.api.nvim_win_is_valid(state.source_win) then
-				local row, selected = vim.api.nvim_win_get_cursor(state.source_win)[1] - 1, 1
-				for i, item in ipairs(items) do
-					if item.range.start.line <= row and item.range["end"].line >= row then
-						selected = i
-					end
-				end
-				vim.api.nvim_win_set_cursor(state.win, { selected, 0 })
-			end
 		end)
 	end, buf)
 	if not ok then
@@ -233,7 +313,53 @@ shared.map("n", "<leader>o", function()
 	vim.keymap.set("n", "r", function()
 		refresh_outline(state)
 	end, { buf = state.buf, desc = "Refresh outline" })
+	vim.api.nvim_create_autocmd("CursorMoved", {
+		buffer = state.buf,
+		callback = function()
+			if
+				shared.outline ~= state
+				or vim.api.nvim_get_current_win() ~= state.win
+				or not policy.allows(state.source)
+				or not policy.is_editor(state.source_win)
+				or vim.api.nvim_win_get_buf(state.source_win) ~= state.source
+				or not state.source_context
+				or not policy.source_unchanged(state.source_context)
+			then
+				return
+			end
+			local row_index = vim.api.nvim_win_get_cursor(state.win)[1]
+			if row_index == state.selected_row then
+				return
+			end
+			state.selected_row = row_index
+			local item = state.items[row_index]
+			if not item then
+				return
+			end
+			local row, col = item.lnum, 0
+			if item.location then
+				if vim.fn.bufnr(vim.uri_to_fname(item.location.uri)) ~= state.source then
+					return
+				end
+				local start = item.location.range.start
+				row = start.line + 1
+				local line = vim.api.nvim_buf_get_lines(state.source, row - 1, row, false)[1] or ""
+				col = vim.str_byteindex(line, state.encoding, start.character, false)
+			end
+			local position = { math.min(row, vim.api.nvim_buf_line_count(state.source)), col }
+			if not vim.deep_equal(vim.api.nvim_win_get_cursor(state.source_win), position) then
+				vim.api.nvim_win_set_cursor(state.source_win, position)
+				vim.api.nvim_win_call(state.source_win, function()
+					vim.cmd("normal! zvzz")
+				end)
+			end
+		end,
+	})
 	vim.keymap.set("n", "<CR>", function()
+		if not state.source_context or not policy.source_unchanged(state.source_context) then
+			vim.notify("Outline is out of date; save the file or press r to refresh")
+			return
+		end
 		local item = state.items[vim.api.nvim_win_get_cursor(state.win)[1]]
 		if not item then
 			return
@@ -265,6 +391,15 @@ shared.map("n", "<leader>o", function()
 	})
 	refresh_outline(state)
 end, "Toggle code outline")
+vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "BufEnter" }, {
+	callback = function(args)
+		local state = shared.outline
+		if state and args.buf == state.source and policy.is_editor(0) then
+			state.source_win = vim.api.nvim_get_current_win()
+			follow_source(state)
+		end
+	end,
+})
 vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "BufFilePost", "FileType", "LspAttach", "LspDetach" }, {
 	callback = function(args)
 		local state = shared.outline

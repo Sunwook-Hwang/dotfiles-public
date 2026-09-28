@@ -202,7 +202,24 @@ do
 		if win ~= vim.api.nvim_get_current_win() then
 			return " %f %= %y "
 		end
-		return "%{%v:lua.PackGitStatus()%} %f %m%r%h %= %{%v:lua.PackDiagnosticStatus()%} %{%v:lua.PackLspStatus()%} %{v:lua.PackFormatStatus()} %y | %4l:%3c | %3p%% "
+		return "%{%v:lua.PackGitStatus()%} %<%{v:lua.PackFileContext()}%{%v:lua.PackBreadcrumbStatus()%} %m%r%h %= %{%v:lua.PackDiagnosticStatus()%} %{%v:lua.PackLspStatus()%} %{v:lua.PackFormatStatus()} %y | %4l:%3c | %3p%% "
+	end
+	function _G.PackFileContext()
+		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+		local buf = vim.api.nvim_win_get_buf(win)
+		local file = vim.api.nvim_buf_get_name(buf)
+		if not policy.is_editor(win) or file == "" then
+			return file == "" and "[No Name]" or vim.fn.fnamemodify(file, ":~:.")
+		end
+		local project = require("project").for_dir(vim.fs.dirname(file))
+		local prefix = project.root:gsub("/+$", "") .. "/"
+		local path = project.recognized and file:sub(1, #prefix) == prefix and file:sub(#prefix + 1)
+			or vim.fn.fnamemodify(file, ":~:.")
+		return path
+	end
+	function _G.PackBreadcrumbStatus()
+		local win = tonumber(vim.g.statusline_winid) or vim.api.nvim_get_current_win()
+		return require("breadcrumbs").status(win)
 	end
 	vim.opt.statusline = "%!v:lua.PackStatusline()"
 	Snacks.toggle({

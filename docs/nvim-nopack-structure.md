@@ -39,6 +39,8 @@ its runtime path; external package paths are still excluded.
 | `bigfile.lua`       | Large-file detection and safeguards                                       |
 | `buffer_policy.lua` | Source buffers, analysis eligibility and editor-window targets            |
 | `syntax.lua`        | Bundled Treesitter parser or native syntax                                |
+| `breadcrumb_symbols.lua` | Cached LSP symbols and request lifecycle                             |
+| `breadcrumbs.lua`   | Native statusline context and scope navigation                            |
 | `context.lua`       | Native sticky scroll                                                      |
 | `whichkey.lua`      | Native Space-key guide                                                    |
 | `state.lua`         | Shared functions and mutable state used by multiple feature modules       |

@@ -2953,24 +2953,49 @@ function! s:UndoApply(context, seq) abort
   execute 'undo ' . a:seq
 endfunction
 
+function! s:UndoCleanup(context) abort
+  if has_key(a:context, 'replay')
+    call popup_close(a:context.replay)
+  endif
+endfunction
+
+function! s:UndoDiff(before, after) abort
+  if exists('*diff')
+    return split(diff(a:before, a:after, {'output': 'unified', 'context': 4, 'iwhiteeol': 1, 'indent-heuristic': 1}), "\n")
+  endif
+  " Vim 9.0 predates diff(); use the system diff without changing editor windows.
+  let old = tempname()
+  let new = tempname()
+  try
+    " Match Snacks' end-of-line whitespace handling on older Vim too.
+    call writefile(map(copy(a:before), {_, line -> substitute(line, '\s\+$', '', '')}), old)
+    call writefile(map(copy(a:after), {_, line -> substitute(line, '\s\+$', '', '')}), new)
+    let command = executable('diff') ? 'diff -U4' : 'git --no-pager diff --no-index --no-ext-diff --no-color --unified=4 --'
+    let result = systemlist(command . ' ' . shellescape(old) . ' ' . shellescape(new))
+    if v:shell_error > 1
+      throw 'Cannot generate undo diff: ' . join(result, ' ')
+    endif
+    let first = match(result, '^@@')
+    return first < 0 ? [] : result[first:]
+  finally
+    call delete(old)
+    call delete(new)
+  endtry
+endfunction
+
 function! s:UndoPreview(context, state, item) abort
-  let preview = a:state.preview
-  if !get(a:context, 'ready', 0)
-    " Replay a copy of the undo tree in the popup, never in the source buffer.
-    call popup_settext(preview, a:context.lines)
-    call win_execute(preview, 'setlocal modifiable noundofile undolevels=1000 number norelativenumber')
-    call win_execute(preview, 'silent rundo ' . fnameescape(a:context.path))
-    call setbufvar(winbufnr(preview), '&syntax', a:context.syntax)
-    let a:context.ready = 1
+  let replay = a:context.replay
+  call win_execute(replay, 'noautocmd silent undo ' . a:item.seq)
+  let after = getbufline(winbufnr(replay), 1, '$')
+  if a:item.seq > 0
+    call win_execute(replay, 'noautocmd silent undo')
   endif
-  if get(a:context, 'shown', -1) != a:item.seq
-    call win_execute(preview, 'silent undo ' . a:item.seq)
-    " Read the preview cursor without changing editor focus.
-    let line = str2nr(win_execute(preview, 'echo line(".")'))
-    call popup_setoptions(preview, {'firstline': max([1, line - a:state.height / 2])})
-    call popup_setoptions(preview, {'title': ' State #' . a:item.seq . ' · Ctrl-f/b: scroll '})
-    let a:context.shown = a:item.seq
-  endif
+  let before = getbufline(winbufnr(replay), 1, '$')
+  let changes = s:UndoDiff(before, after)
+  call popup_settext(a:state.preview, empty(changes) ? ['No changes'] : changes)
+  call setbufvar(winbufnr(a:state.preview), '&syntax', 'diff')
+  call popup_setoptions(a:state.preview, {'firstline': 1,
+        \ 'title': ' Change #' . a:item.seq . ' · Ctrl-f/b: scroll '})
 endfunction
 
 function! s:UndoPicker() abort
@@ -2992,7 +3017,7 @@ function! s:UndoPicker() abort
   endif
   call sort(entries, {a, b -> b.seq - a.seq})
   let context = extend(s:SourceContext(bufnr('%')), {'lines': getline(1, '$'),
-        \ 'syntax': &syntax, 'path': tempname()})
+        \ 'path': tempname()})
   let items = []
   for entry in entries + [{'seq': 0, 'time': 0}]
     let label = printf('#%-5d %s%s%s', entry.seq,
@@ -3005,10 +3030,15 @@ function! s:UndoPicker() abort
   try
     " The temporary undo file is removed as soon as the preview has loaded it.
     execute 'silent wundo! ' . fnameescape(context.path)
+    let context.replay = popup_create(context.lines, {'hidden': 1})
+    call win_execute(context.replay, 'setlocal modifiable noundofile undolevels=1000')
+    call win_execute(context.replay, 'silent rundo ' . fnameescape(context.path))
     call s:OpenPicker('Undo · Enter: apply · Esc: cancel', {
-          \ 'items': items, 'preview': function('<SID>UndoPreview', [context])})
+          \ 'items': items, 'preview': function('<SID>UndoPreview', [context]),
+          \ 'cancel': function('<SID>UndoCleanup', [context])})
   catch
     call s:CloseActivePicker()
+    call s:UndoCleanup(context)
     call s:Warn('Unable to preview undo history: ' . v:exception)
   finally
     call delete(context.path)

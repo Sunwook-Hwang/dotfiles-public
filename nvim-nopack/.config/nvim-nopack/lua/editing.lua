@@ -4,7 +4,7 @@ local shared = require("state")
 -- =========================================
 -- ========== UNDO / WHITESPACE ==========
 -- =========================================
--- Replay a copy of the undo history in the preview; only Enter changes the source.
+-- Diff each undo entry against its parent in a scratch buffer; only Enter changes the source.
 local function undo_picker()
 	shared.focus_editor()
 	local source = vim.api.nvim_get_current_buf()
@@ -36,8 +36,14 @@ local function undo_picker()
 	entries[#entries + 1] = { seq = 0 }
 	local tick = vim.api.nvim_buf_get_changedtick(source)
 	local lines = vim.api.nvim_buf_get_lines(source, 0, -1, false)
-	local syntax, path = vim.bo[source].syntax, vim.fn.tempname()
-	local items, ready, shown = {}, false, nil
+	local path = vim.fn.tempname()
+	local items = {}
+	local replay = vim.api.nvim_create_buf(false, true)
+	local function cleanup()
+		if vim.api.nvim_buf_is_valid(replay) then
+			vim.api.nvim_buf_delete(replay, { force = true })
+		end
+	end
 	for _, entry in ipairs(entries) do
 		local seq = entry.seq
 		items[#items + 1] = {
@@ -61,35 +67,50 @@ local function undo_picker()
 	end
 	local ok, err = pcall(function()
 		vim.cmd("silent wundo! " .. vim.fn.fnameescape(path))
+		vim.bo[replay].undolevels = 1000
+		vim.api.nvim_buf_set_lines(replay, 0, -1, false, lines)
+		vim.api.nvim_buf_call(replay, function()
+			vim.cmd("silent rundo " .. vim.fn.fnameescape(path))
+		end)
 		shared.open_picker("Undo · Enter: apply · Esc: cancel", {
 			items = items,
+			cancel = cleanup,
 			preview = function(item, buf, win)
-				vim.api.nvim_win_call(win, function()
-					if not ready then
-						vim.bo[buf].modifiable = true
-						vim.bo[buf].undofile = false
-						vim.bo[buf].undolevels = 1000
-						vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-						vim.cmd("silent rundo " .. vim.fn.fnameescape(path))
-						vim.bo[buf].syntax = syntax
-						vim.wo[win][0].number = true
-						ready = true
+				local before, after
+				vim.api.nvim_buf_call(replay, function()
+					vim.cmd("noautocmd silent undo " .. item.seq)
+					after = vim.api.nvim_buf_get_lines(replay, 0, -1, false)
+					if item.seq > 0 then
+						vim.cmd("noautocmd silent undo")
 					end
-					if shown ~= item.seq then
-						vim.bo[buf].modifiable = true
-						vim.cmd("silent undo " .. item.seq)
-						vim.bo[buf].modifiable = false
-						vim.cmd("normal! zz")
-						vim.api.nvim_win_set_config(win, { title = "State #" .. item.seq .. " · Ctrl-f/b: scroll" })
-						shown = item.seq
-					end
+					before = vim.api.nvim_buf_get_lines(replay, 0, -1, false)
 				end)
+				local diff = vim.text.diff(table.concat(before, "\n") .. "\n", table.concat(after, "\n") .. "\n", {
+					result_type = "unified",
+					ctxlen = 4,
+					ignore_cr_at_eol = true,
+					ignore_whitespace_change_at_eol = true,
+					indent_heuristic = true,
+				})
+				vim.bo[buf].modifiable = true
+				vim.api.nvim_buf_set_lines(
+					buf,
+					0,
+					-1,
+					false,
+					diff == "" and { "No changes" } or vim.split(diff, "\n", { trimempty = true })
+				)
+				vim.bo[buf].syntax = "diff"
+				vim.bo[buf].modifiable = false
+				vim.api.nvim_win_set_cursor(win, { 1, 0 })
+				vim.api.nvim_win_set_config(win, { title = "Change #" .. item.seq .. " · Ctrl-f/b: scroll" })
 			end,
 		})
 	end)
-	-- The preview has its own in-memory undo tree once rundo has completed.
+	-- The scratch buffer owns the undo tree after rundo completes.
 	vim.fn.delete(path)
 	if not ok then
+		cleanup()
 		if shared.active_picker then
 			shared.active_picker.close()
 		end

@@ -12,7 +12,7 @@ vim.api.nvim_create_autocmd("ColorSchemePre", {
 	end,
 })
 
-vim.cmd([[colorscheme github_dark_default]])
+vim.cmd([[colorscheme rose-pine]])
 
 -- =========================================
 -- ============== OPTIONAL THEME ===========

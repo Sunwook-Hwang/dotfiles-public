@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Copy repository formatting rules into a project without replacing its settings.
-set -euo pipefail
+set -eu
 
 usage() {
   cat <<'EOF'
@@ -18,47 +18,49 @@ Copies .editorconfig too; does not run a formatter or install packages.
 EOF
 }
 
-if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
+if [ "${1:-}" = --help ] || [ "${1:-}" = -h ]; then
   usage
   exit 0
 fi
-if (($# < 1 || $# > 2)); then
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
   usage >&2
   exit 1
 fi
-files=(.editorconfig)
+project="${2:-$PWD}"
 case "$1" in
-lua | stylua) files+=(.stylua.toml) ;;
-python | ruff | black) files+=(pyproject.toml) ;;
-prettier) files+=(.prettierrc.json) ;;
-shell | shfmt) ;;
+lua | stylua) set -- .editorconfig .stylua.toml ;;
+python | ruff | black) set -- .editorconfig pyproject.toml ;;
+prettier) set -- .editorconfig .prettierrc.json ;;
+shell | shfmt) set -- .editorconfig ;;
 *)
   echo "Unknown format: $1 (see dotformat --help)" >&2
   exit 1
   ;;
 esac
 
-project="${2:-$PWD}"
-if [[ ! -d "$project" ]]; then
+if [ ! -d "$project" ]; then
   echo "Project directory does not exist: $project" >&2
   exit 1
 fi
 project="$(cd -- "$project" && pwd -P)"
 
 # Follow Stow links to the checkout, regardless of its installation directory.
-script="${BASH_SOURCE[0]}"
-while [[ -L "$script" ]]; do
+script="$0"
+while [ -L "$script" ]; do
   directory="$(cd -P -- "$(dirname -- "$script")" && pwd)"
   script="$(readlink "$script")"
-  [[ "$script" == /* ]] || script="$directory/$script"
+  case "$script" in
+  /*) ;;
+  *) script="$directory/$script" ;;
+  esac
 done
 root="$(cd -P -- "$(dirname -- "$script")/../../.." && pwd)"
 
-for file in "${files[@]}"; do
+for file in "$@"; do
   target="$project/$file"
-  if [[ -e "$target" || -L "$target" ]]; then
+  if [ -e "$target" ] || [ -L "$target" ]; then
     echo "Skipped existing: $target"
-    if [[ "$file" == pyproject.toml ]]; then
+    if [ "$file" = pyproject.toml ]; then
       echo "Merge [tool.ruff] and [tool.black] from $root/pyproject.toml if needed."
     fi
   else

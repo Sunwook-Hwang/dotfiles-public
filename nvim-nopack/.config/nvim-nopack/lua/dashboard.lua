@@ -79,6 +79,7 @@ local function open_dashboard()
 	vim.wo[win][0].cursorline = false
 	vim.wo[win][0].list = false
 	vim.wo[win][0].wrap = false
+	vim.wo[win][0].scrolloff = 0
 	vim.o.guicursor = (chrome.guicursor ~= "" and chrome.guicursor .. "," or "")
 		.. "n-v:block-NopackDashboardCursor-blinkon0"
 	local group = vim.api.nvim_create_augroup("nopack-dashboard-window", { clear = true })
@@ -199,9 +200,16 @@ local function open_dashboard()
 		},
 	}
 	local button_rows = {}
+	local rendered_width, rendered_height
 	local function render()
 		local width = vim.api.nvim_win_get_width(win)
-		local lines = { "", "" }
+		local height = vim.api.nvim_win_get_height(win)
+		rendered_width, rendered_height = width, height
+		local content_height = #dashboard_header + 2 + #entries * 2 + 1
+		local lines = {}
+		for _ = 1, math.max(0, math.floor((height - content_height) / 2)) do
+			lines[#lines + 1] = ""
+		end
 		local header_start = #lines
 		local header_width = 0
 		for _, line in ipairs(dashboard_header) do
@@ -261,6 +269,11 @@ local function open_dashboard()
 			)
 		end
 		vim.api.nvim_buf_add_highlight(buf, dashboard_namespace, "SnacksDashboardHeader", #lines - 1, 0, -1)
+		if content_height <= height then
+			vim.api.nvim_win_call(win, function()
+				vim.fn.winrestview({ topline = 1 })
+			end)
+		end
 	end
 	render()
 	local function activate(entry)
@@ -337,13 +350,15 @@ local function open_dashboard()
 			local selected = selection_index()
 			local width = vim.api.nvim_win_get_width(source)
 			local height = vim.api.nvim_win_get_height(source)
-			if vim.api.nvim_win_get_width(win) == width and vim.api.nvim_win_get_height(win) == height then
+			if width == rendered_width and height == rendered_height then
 				return
 			end
-			vim.api.nvim_win_set_config(win, {
-				width = width,
-				height = height,
-			})
+			if vim.api.nvim_win_get_width(win) ~= width or vim.api.nvim_win_get_height(win) ~= height then
+				vim.api.nvim_win_set_config(win, {
+					width = width,
+					height = height,
+				})
+			end
 			render()
 			select_entry(selected)
 		end,

@@ -4645,8 +4645,12 @@ function! s:DashboardClosed(id, result) abort
   augroup NopackDashboardWindow
     autocmd!
   augroup END
+  call popup_close(s:dashboard_chrome.background)
   let &showtabline = s:dashboard_chrome.showtabline
   let &laststatus = s:dashboard_chrome.laststatus
+  if has_key(s:dashboard_chrome, 't_ve')
+    let &t_ve = s:dashboard_chrome.t_ve
+  endif
 endfunction
 function! s:DashboardCheck() abort
   " Recover after popup_clear() and keep the dashboard with its original editor.
@@ -4664,6 +4668,16 @@ function! s:DashboardHighlights() abort
   highlight! link NopackDashboardKey Number
 endfunction
 call s:DashboardHighlights()
+
+function! s:DashboardPosition() abort
+  if !s:dashboard || empty(popup_getpos(s:dashboard)) | return | endif
+  let height = max([1, &lines - &cmdheight])
+  let content_height = len(getbufline(winbufnr(s:dashboard), 1, '$'))
+  call popup_setoptions(s:dashboard, {'line': max([1, (height - content_height) / 2 + 1]),
+        \ 'maxheight': height})
+  call popup_setoptions(s:dashboard_chrome.background, {'minwidth': &columns, 'maxwidth': &columns,
+        \ 'minheight': height, 'maxheight': height})
+endfunction
 
 function! s:Dashboard() abort
   if s:dashboard | call s:DashboardCheck() | endif
@@ -4685,16 +4699,27 @@ function! s:Dashboard() abort
   endfor
   let footer = 'https://sunwook-hwang.github.io'
   call add(rows, repeat(' ', max([0, (width - strlen(footer)) / 2])) . footer)
-  let s:dashboard = popup_create(rows, {'minwidth': width, 'maxwidth': width, 'maxheight': &lines - 2,
+  let height = max([1, &lines - &cmdheight])
+  let s:dashboard = popup_create(rows, {'minwidth': width, 'maxwidth': width, 'maxheight': height,
+        \ 'pos': 'topleft', 'line': max([1, (height - len(rows)) / 2 + 1]),
         \ 'highlight': 'Normal', 'cursorline': 1, 'mapping': 0, 'wrap': 0, 'zindex': 180,
         \ 'filter': function('<SID>DashboardFilter'), 'callback': function('<SID>DashboardClosed')})
   let s:dashboard_chrome = {'showtabline': &showtabline, 'laststatus': &laststatus,
         \ 'win': win_getid(), 'buf': bufnr('%')}
+  " Cover the editor's text and guides without changing its window-local options.
+  let s:dashboard_chrome.background = popup_create([''], {'line': 1, 'col': 1, 'pos': 'topleft',
+        \ 'minwidth': &columns, 'maxwidth': &columns, 'minheight': height, 'maxheight': height,
+        \ 'highlight': 'Normal', 'zindex': 179, 'mapping': 0, 'scrollbar': 0})
+  if !has('gui_running')
+    let s:dashboard_chrome.t_ve = &t_ve
+    let &t_ve = &t_vi
+  endif
   set showtabline=0 laststatus=0
   augroup NopackDashboardWindow
     autocmd!
     autocmd SafeState,WinEnter,BufEnter * call <SID>DashboardCheck()
     autocmd TabLeave * call popup_close(s:dashboard)
+    autocmd VimResized * call <SID>DashboardPosition()
   augroup END
   let buf = winbufnr(s:dashboard)
   for name in ['Header', 'Desc', 'Key']

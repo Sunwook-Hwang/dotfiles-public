@@ -115,6 +115,9 @@ for key, delta in pairs({ bj = -1, bk = 1 }) do
 	shared.map("n", "<leader>" .. key, function()
 		shared.focus_editor()
 		local index = buffer_index(vim.api.nvim_get_current_buf())
+		if buffer_order[index] ~= vim.api.nvim_get_current_buf() then
+			return
+		end
 		local target = math.max(1, math.min(#buffer_order, index + delta))
 		local buf = table.remove(buffer_order, index)
 		table.insert(buffer_order, target, buf)
@@ -163,11 +166,11 @@ local function delete_buffer(buf, force, replacement)
 	if listed and #remaining == 1 then
 		-- Merge duplicate editor panes only in this tab; preserve auxiliary windows.
 		local keep = vim.api.nvim_get_current_buf() == remaining[1]
-				and vim.api.nvim_win_get_config(0).relative == ""
+				and policy.is_editor(0)
 				and vim.api.nvim_get_current_win()
 			or nil
 		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-			if vim.api.nvim_win_get_buf(win) == remaining[1] and vim.api.nvim_win_get_config(win).relative == "" then
+			if vim.api.nvim_win_get_buf(win) == remaining[1] and policy.is_editor(win) then
 				if not keep then
 					keep = win
 				elseif win ~= keep then

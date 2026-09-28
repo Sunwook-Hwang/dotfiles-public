@@ -71,6 +71,8 @@ Link or unlink dotfiles on either platform:
 ## Included
 
 - `zsh`: oh-my-zsh config and shell aliases
+- `csh`: C shell/tcsh command aliases, PATH, and native tcsh history/completion
+- `tools`: shared editor launcher and `dotformat` command
 - `claude`: global Claude Code guidance
 - `codex`: global Codex guidance
 - `git`: git defaults
@@ -132,13 +134,19 @@ Existing nopack sessions, undo files, and tags are migrated to
 tools remain available to nopack through a link; nopack does not load Mason or
 pack plugins.
 
-With the repository’s `.zshrc` loaded:
+With the repository’s `.zshrc` or `.cshrc` loaded:
 
 ```sh
 pvi
 npvi
 vi
 ```
+
+Both shells call the same launcher at `~/.local/libexec/dotfiles/vi` and share
+the saved profile selection. Install the `tools` package along with the shell
+configuration. C shell also exposes `dotformat` through `~/.local/bin` on PATH.
+Zsh-specific plugins are not loaded in C shell. If you already have a `.tcshrc`,
+tcsh reads it instead of `.cshrc`; add `source ~/.cshrc` there to use these settings.
 
 Neovide uses a separate terminal profile at `~/.config/neovide-terminal/init.lua`:
 
@@ -206,3 +214,16 @@ See the nopack feature overview in [English](docs/nvim-nopack-features.md) or
 Project formatter configuration is stored in the repository and used by pvi,
 npvi, and Vim. See [Formatting rules](docs/formatting.md) for per-language settings
 and reuse in other projects.
+
+After installation, use `dotformat <format> [project-path]` to copy the rules:
+
+```sh
+dotformat lua                 # Current directory
+dotformat python ~/my-project
+dotformat prettier ~/web-project
+dotformat shell
+```
+
+Existing files are preserved. The command copies configuration only; it does not
+format source files. It is installed at `~/.local/bin/dotformat`, already on PATH
+in the provided Zsh configuration.

@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Copy repository formatting rules into a project without replacing its settings.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: dotformat <format> [project-path]
+
+Formats:
+  lua       StyLua (.stylua.toml)
+  python    Ruff and Black (pyproject.toml)
+  prettier  JavaScript, TypeScript, JSON, Markdown, etc. (.prettierrc.json)
+  shell     shfmt (.editorconfig)
+
+Aliases: stylua, ruff, black, shfmt
+The path defaults to the current directory. Existing files are skipped.
+Copies .editorconfig too; does not run a formatter or install packages.
+EOF
+}
+
+if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
+  usage
+  exit 0
+fi
+if (($# < 1 || $# > 2)); then
+  usage >&2
+  exit 1
+fi
+files=(.editorconfig)
+case "$1" in
+lua | stylua) files+=(.stylua.toml) ;;
+python | ruff | black) files+=(pyproject.toml) ;;
+prettier) files+=(.prettierrc.json) ;;
+shell | shfmt) ;;
+*)
+  echo "Unknown format: $1 (see dotformat --help)" >&2
+  exit 1
+  ;;
+esac
+
+project="${2:-$PWD}"
+if [[ ! -d "$project" ]]; then
+  echo "Project directory does not exist: $project" >&2
+  exit 1
+fi
+project="$(cd -- "$project" && pwd -P)"
+
+# Follow Stow links to the checkout, regardless of its installation directory.
+script="${BASH_SOURCE[0]}"
+while [[ -L "$script" ]]; do
+  directory="$(cd -P -- "$(dirname -- "$script")" && pwd)"
+  script="$(readlink "$script")"
+  [[ "$script" == /* ]] || script="$directory/$script"
+done
+root="$(cd -P -- "$(dirname -- "$script")/../../.." && pwd)"
+
+for file in "${files[@]}"; do
+  target="$project/$file"
+  if [[ -e "$target" || -L "$target" ]]; then
+    echo "Skipped existing: $target"
+    if [[ "$file" == pyproject.toml ]]; then
+      echo "Merge [tool.ruff] and [tool.black] from $root/pyproject.toml if needed."
+    fi
+  else
+    cp "$root/$file" "$target"
+    echo "Copied: $target"
+  fi
+done

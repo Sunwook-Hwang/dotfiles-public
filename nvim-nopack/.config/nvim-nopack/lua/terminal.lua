@@ -28,7 +28,10 @@ local function toggle_terminal()
 		local win = vim.fn.bufwinid(terminal)
 		if win ~= -1 then
 			vim.cmd("stopinsert")
-			vim.api.nvim_win_close(win, true)
+			vim.api.nvim_win_call(win, function()
+				-- Hide the shell even when its split is the tab's last window.
+				vim.cmd(vim.fn.winnr("$") > 1 and "hide" or "enew")
+			end)
 			return
 		end
 	end

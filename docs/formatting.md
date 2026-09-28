@@ -32,7 +32,14 @@ diffs before adopting a new version.
 
 ## Reuse in another project
 
-Copy the relevant configuration files into the project root:
+Run `dotformat <format> [project-path]` to copy the relevant configuration files.
+Omit the path to use the current directory. Formats are `lua`, `python`,
+`prettier`, and `shell`; `stylua`, `ruff`, `black`, and `shfmt` are also accepted.
+The command is installed at `~/.local/bin/dotformat`; other shells need that
+directory on PATH. It copies `.editorconfig` along with the selected rules,
+skips existing files (including symbolic links), and does not run any formatter.
+An existing `pyproject.toml` is left intact, with a reminder to merge its tool
+sections manually. The target directory must already exist.
 
 | Project language                                                      | Configuration to reuse                                      |
 | --------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -64,3 +71,9 @@ Black을 사용합니다. 셸은 에디터와 동일하게 `.editorconfig`를 �
 다른 프로젝트에는 위 표의 설정 파일만 복사하면 됩니다. 기존 `pyproject.toml`은
 덮어쓰지 말고 Ruff/Black 설정만 합치세요. 공동 작업 프로젝트에 이미 규칙이 있으면
 그 규칙을 우선합니다.
+
+`dotformat lua`, `dotformat python /path/to/project`처럼 실행하면 설정을 복사합니다.
+형식은 `dotformat <포맷> [프로젝트 경로]`이며, 경로를 생략하면 현재 디렉토리를
+사용합니다. 기존 설정은 덮어쓰지 않고 건너뜁니다. 포매터를 실행하거나 설치하는
+명령은 아닙니다. 설치 위치는 `~/.local/bin/dotformat`이며 다른 셸에서도 이 경로가
+PATH에 있으면 사용할 수 있습니다.

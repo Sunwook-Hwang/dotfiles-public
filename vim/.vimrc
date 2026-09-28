@@ -1405,6 +1405,7 @@ function! s:MoveBuffer(delta) abort
     return
   endif
   let index = s:BufferIndex(bufnr('%'), items)
+  if items[index] != bufnr('%') | return | endif
   let target = max([0, min([len(s:buffer_order) - 1, index + a:delta])])
   let buf = remove(s:buffer_order, index)
   call insert(s:buffer_order, buf, target)

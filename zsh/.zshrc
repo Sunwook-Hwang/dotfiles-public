@@ -17,18 +17,7 @@ unfunction pvi npvi 2>/dev/null || true
 
 # Persist the selected Neovim profile; vi without a selector reuses it.
 function vi {
-  local mode_file="${XDG_STATE_HOME:-$HOME/.local/state}/nvim-mode"
-  local app=nvim-nopack
-  case "${1:-}" in
-  --pack | --nopack)
-    [[ "$1" == --pack ]] && app=nvim
-    shift
-    mkdir -p "${mode_file:h}" && printf '%s\n' "$app" >"$mode_file" || return
-    ;;
-  *) [[ -r "$mode_file" ]] && IFS= read -r app <"$mode_file" ;;
-  esac
-  case "$app" in nvim | nvim-nopack) ;; *) app=nvim-nopack ;; esac
-  NVIM_APPNAME="$app" command nvim "$@"
+  "$HOME/.local/libexec/dotfiles/vi" "$@"
 }
 alias pvi='vi --pack'
 alias npvi='vi --nopack'

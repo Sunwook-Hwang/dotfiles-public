@@ -137,6 +137,9 @@ do
 		map("n", "<leader>" .. key, function()
 			focus_editor()
 			local index = buffer_index(vim.api.nvim_get_current_buf())
+			if buffer_order[index] ~= vim.api.nvim_get_current_buf() then
+				return
+			end
 			local target = math.max(1, math.min(#buffer_order, index + delta))
 			local buf = table.remove(buffer_order, index)
 			table.insert(buffer_order, target, buf)

@@ -59,7 +59,7 @@ if [[ "$(cat "$mode_file")" == nvim-offline ]]; then
   printf 'nvim-nopack\n' >"$mode_file"
 fi
 
-for folder in claude codex ghostty git herdr nvim nvim-nopack neovide-terminal vim zsh tmux; do
+for folder in claude codex ghostty git herdr nvim nvim-nopack neovide-terminal vim zsh csh tmux tools; do
   [[ -d "$folder" ]] || continue
   echo "Linking $folder"
   stow "${STOW_IGNORE_ARGS[@]}" -D -t "$TARGET" "$folder"

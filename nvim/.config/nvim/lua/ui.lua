@@ -12,7 +12,11 @@ Snacks.setup({
 	quickfile = { enabled = true },
 	explorer = { enabled = true },
 	input = { enabled = true, icon = "" },
-	statuscolumn = { enabled = false }, -- native signcolumn=number keeps signs inside line numbers
+	statuscolumn = {
+		enabled = true,
+		left = { "sign", "git", "fold" },
+		right = {},
+	},
 	scope = {
 		-- Register guarded mappings below; resolve scopes only when requested.
 		enabled = false,
@@ -224,6 +228,14 @@ Snacks.setup({
 			{ text = "https://sunwook-hwang.github.io", align = "center" },
 		},
 	},
+})
+-- Keep the original single sign column instead of Snacks' two sign slots.
+vim.b.snacks_statuscolumn_right = false
+vim.api.nvim_create_autocmd("BufWinEnter", {
+	group = vim.api.nvim_create_augroup("PackStatusColumn", { clear = true }),
+	callback = function(ev)
+		vim.b[ev.buf].snacks_statuscolumn_right = false
+	end,
 })
 vim.keymap.set("n", "<leader>A", function()
 	Snacks.dashboard()

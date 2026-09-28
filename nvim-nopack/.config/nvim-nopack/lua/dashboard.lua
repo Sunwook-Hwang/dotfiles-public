@@ -33,11 +33,16 @@ local dashboard_header = {
 	"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣖⠒⠒⠠⡀⠀⠀⡇⢸⠀⠀⡱⠈⠁⣼⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
 }
 local dashboard_namespace = vim.api.nvim_create_namespace("nopack-dashboard")
+local selection_namespace = vim.api.nvim_create_namespace("nopack-dashboard-selection")
 -- Share Pack's theme integration names, without requiring Snacks.
 local function dashboard_highlights()
 	for name, target in pairs({ Header = "Title", Desc = "String", Key = "Number" }) do
 		vim.api.nvim_set_hl(0, "SnacksDashboard" .. name, { link = target })
 	end
+	local selected = vim.api.nvim_get_hl(0, { name = "CursorLine", link = false })
+	local normal = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
+	local background = selected.bg or normal.bg or (vim.o.background == "light" and 0xffffff or 0x000000)
+	vim.api.nvim_set_hl(0, "NopackDashboardCursor", { fg = background, bg = background, blend = 100 })
 end
 dashboard_highlights()
 vim.api.nvim_create_autocmd("ColorScheme", {
@@ -53,6 +58,8 @@ local function open_dashboard()
 	end
 	local source = vim.api.nvim_get_current_win()
 	local source_buf = vim.api.nvim_win_get_buf(source)
+	local chrome = { showtabline = vim.o.showtabline, laststatus = vim.o.laststatus, guicursor = vim.o.guicursor }
+	vim.o.showtabline, vim.o.laststatus = 0, 0
 	local buf = vim.api.nvim_create_buf(false, true)
 	vim.bo[buf].bufhidden = "wipe"
 	vim.bo[buf].filetype = "nopack_dashboard"
@@ -69,10 +76,11 @@ local function open_dashboard()
 	dashboard_win = win
 	vim.wo[win][0].winblend = 0
 	vim.wo[win][0].winhighlight = "Normal:Normal,NormalFloat:Normal,EndOfBuffer:EndOfBuffer"
-	vim.wo[win][0].cursorline = true
-	vim.wo[win][0].cursorlineopt = "line"
+	vim.wo[win][0].cursorline = false
 	vim.wo[win][0].list = false
 	vim.wo[win][0].wrap = false
+	vim.o.guicursor = (chrome.guicursor ~= "" and chrome.guicursor .. "," or "")
+		.. "n-v:block-NopackDashboardCursor-blinkon0"
 	local group = vim.api.nvim_create_augroup("nopack-dashboard-window", { clear = true })
 	local closed = false
 	local function source_is_empty()
@@ -94,6 +102,9 @@ local function open_dashboard()
 		local focused = vim.api.nvim_get_current_win() == win
 		if vim.api.nvim_win_is_valid(win) then
 			vim.api.nvim_win_close(win, true)
+		end
+		for option, value in pairs(chrome) do
+			vim.o[option] = value
 		end
 		if focused and vim.api.nvim_win_is_valid(source) then
 			vim.api.nvim_set_current_win(source)
@@ -122,6 +133,7 @@ local function open_dashboard()
 		group = group,
 		buffer = buf,
 		callback = function()
+			vim.o.guicursor = chrome.guicursor
 			vim.schedule(close)
 		end,
 	})
@@ -283,8 +295,15 @@ local function open_dashboard()
 	local function select_entry(index)
 		index = (index - 1) % #entries + 1
 		local button = button_rows[entries[index][1]]
+		vim.api.nvim_buf_set_extmark(buf, selection_namespace, button.row - 1, button.left, {
+			id = 1,
+			end_col = button.key_col + 1,
+			hl_group = "CursorLine",
+			priority = 90,
+		})
 		moving = true
-		vim.api.nvim_win_set_cursor(win, { button.row, button.left + 3 })
+		-- Keep the hidden cursor on padding so non-blending UIs do not obscure text.
+		vim.api.nvim_win_set_cursor(win, { button.row, button.key_col - 1 })
 		moving = false
 	end
 	for _, spec in ipairs({ { "j", 1 }, { "<Down>", 1 }, { "k", -1 }, { "<Up>", -1 } }) do
@@ -305,10 +324,7 @@ local function open_dashboard()
 		buffer = buf,
 		callback = function()
 			if not moving and vim.api.nvim_get_current_buf() == buf then
-				local index = selection_index()
-				if vim.api.nvim_win_get_cursor(win)[1] ~= button_rows[entries[index][1]].row then
-					select_entry(index)
-				end
+				select_entry(selection_index())
 			end
 		end,
 	})

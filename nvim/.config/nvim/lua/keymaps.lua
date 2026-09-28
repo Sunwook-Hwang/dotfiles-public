@@ -123,8 +123,9 @@ end, { silent = true })
 
 -- Leader mappings (yank/paste behavior tweaks)
 vim.keymap.set("n", "x", [["_x]], { noremap = true, silent = true })
-vim.keymap.set("v", "p", [["_dP]], { noremap = true, silent = true })
-vim.keymap.set("v", "P", [["_dP]], { noremap = true, silent = true })
+-- Native Visual P preserves the yank and the selection boundary, including EOL.
+vim.keymap.set("x", "p", "P", { noremap = true, silent = true })
+vim.keymap.set("x", "P", "P", { noremap = true, silent = true })
 
 -- Search navigation keeps viewport centered
 vim.keymap.set("n", "n", "nzzzv", { noremap = true, silent = true })

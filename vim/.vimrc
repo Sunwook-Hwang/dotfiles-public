@@ -46,9 +46,10 @@ set formatoptions+=j
 set sidescroll=1
 set ttimeout ttimeoutlen=50
 set history=10000
-" Desktop clipboard locally; SSH yanks use OSC52 to reach the client terminal.
+" Keep Vim's registers authoritative; mirror yanks to the desktop or SSH client.
 let s:ssh = !empty($SSH_TTY) || !empty($SSH_CONNECTION)
-let &clipboard = !s:ssh && has('clipboard') && (has('mac') || has('win32') || !empty($DISPLAY)) ? 'unnamedplus' : ''
+let s:desktop_clipboard = !s:ssh && has('clipboard') && (has('mac') || has('win32') || !empty($DISPLAY))
+set clipboard=
 set nolazyredraw
 set cmdheight=1
 set completeopt=menuone,noselect
@@ -283,8 +284,9 @@ nnoremap <expr> q <SID>MacroKey('q')
 nnoremap <expr> Q <SID>MacroKey('Q')
 xnoremap <silent><expr> Q <SID>MacroKey('Q')
 xnoremap <silent><expr> @ mode() ==# 'V' ? ':normal! @' . getcharstr() . '<CR>' : '@'
-xnoremap <silent> p "_dP
-xnoremap <silent> P "_dP
+" Native Visual P preserves the yank and the selection boundary, including EOL.
+xnoremap <silent> p P
+xnoremap <silent> P P
 nnoremap <silent> n nzzzv
 nnoremap <silent> N Nzzzv
 nnoremap <silent> <leader>w :windo diffthis<CR>
@@ -507,11 +509,22 @@ function! s:HighlightYank() abort
   endif
 endfunction
 
-function! s:Osc52Yank() abort
-  if &clipboard !=# '' || get(v:event, 'operator', '') !=# 'y' || index(['', '+', '*'], get(v:event, 'regname', '')) < 0 || !executable('base64')
+function! s:CopyYank() abort
+  if &clipboard !=# '' || get(v:event, 'operator', '') !=# 'y' || index(['', '+', '*'], get(v:event, 'regname', '')) < 0
     return
   endif
   let contents = get(v:event, 'regcontents', [])
+  if s:desktop_clipboard
+    try
+      call setreg('+', contents, get(v:event, 'regtype', 'v'))
+    catch
+      call s:Warn('System clipboard unavailable; text remains in Vim: ' . v:exception)
+    endtry
+    return
+  endif
+  if !executable('base64')
+    return
+  endif
   let payload = join(contents, "\n")
   if get(v:event, 'regtype', '') ==# 'V'
     let payload .= "\n"
@@ -536,7 +549,7 @@ augroup NopackYank
   autocmd!
   if exists('##TextYankPost')
     autocmd TextYankPost * call <SID>HighlightYank()
-    autocmd TextYankPost * call <SID>Osc52Yank()
+    autocmd TextYankPost * call <SID>CopyYank()
   endif
 augroup END
 
@@ -544,12 +557,13 @@ augroup END
 filetype plugin indent on
 syntax enable
 packadd matchit
-" Older Vim runtimes may not ship retrobox yet.
-if !empty(globpath(&runtimepath, 'colors/retrobox.vim'))
-  colorscheme retrobox
+" Use the preferred theme when available, otherwise fall back to a bundled theme.
+if !empty(globpath(&runtimepath, 'colors/catppuccin.vim'))
+  colorscheme catppuccin
 else
   colorscheme desert
 endif
+
 " Space Th: idle-only word highlighting; disabled until explicitly toggled.
 let s:cursor_word_enabled = 0
 highlight default link CursorWord Visual
@@ -4626,7 +4640,23 @@ function! s:DashboardFilter(id, key) abort
   return 1
 endfunction
 function! s:DashboardClosed(id, result) abort
+  if s:dashboard != a:id | return | endif
   let s:dashboard = 0
+  augroup NopackDashboardWindow
+    autocmd!
+  augroup END
+  let &showtabline = s:dashboard_chrome.showtabline
+  let &laststatus = s:dashboard_chrome.laststatus
+endfunction
+function! s:DashboardCheck() abort
+  " Recover after popup_clear() and keep the dashboard with its original editor.
+  let position = popup_getpos(s:dashboard)
+  if empty(position)
+    call s:DashboardClosed(s:dashboard, -1)
+  elseif !get(position, 'visible', 0) || win_getid() != s:dashboard_chrome.win
+        \ || bufnr('%') != s:dashboard_chrome.buf
+    call popup_close(s:dashboard)
+  endif
 endfunction
 function! s:DashboardHighlights() abort
   highlight! link NopackDashboardHeader Title
@@ -4636,7 +4666,8 @@ endfunction
 call s:DashboardHighlights()
 
 function! s:Dashboard() abort
-  if s:dashboard && !empty(popup_getpos(s:dashboard)) | return | endif
+  if s:dashboard | call s:DashboardCheck() | endif
+  if s:dashboard | return | endif
   let width = max([20, min([100, &columns - 4])])
   let header = &lines >= 45 && width >= 100 ? copy(s:dashboard_header) : ['VIM · NOPACK', 'Native Vim 9.0+ · ctags · no plugins']
   let rows = []
@@ -4657,6 +4688,14 @@ function! s:Dashboard() abort
   let s:dashboard = popup_create(rows, {'minwidth': width, 'maxwidth': width, 'maxheight': &lines - 2,
         \ 'highlight': 'Normal', 'cursorline': 1, 'mapping': 0, 'wrap': 0, 'zindex': 180,
         \ 'filter': function('<SID>DashboardFilter'), 'callback': function('<SID>DashboardClosed')})
+  let s:dashboard_chrome = {'showtabline': &showtabline, 'laststatus': &laststatus,
+        \ 'win': win_getid(), 'buf': bufnr('%')}
+  set showtabline=0 laststatus=0
+  augroup NopackDashboardWindow
+    autocmd!
+    autocmd SafeState,WinEnter,BufEnter * call <SID>DashboardCheck()
+    autocmd TabLeave * call popup_close(s:dashboard)
+  augroup END
   let buf = winbufnr(s:dashboard)
   for name in ['Header', 'Desc', 'Key']
     call prop_type_add('NopackDashboard' . name, {'bufnr': buf, 'highlight': 'NopackDashboard' . name})

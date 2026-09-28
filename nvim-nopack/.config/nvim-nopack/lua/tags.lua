@@ -611,19 +611,16 @@ shared.map("n", "gd", function()
 		elseif #locations == 1 then
 			vim.lsp.util.show_document(locations[1].location, locations[1].encoding, { focus = true })
 		else
-			vim.ui.select(locations, {
-				prompt = "Definitions:",
-				format_item = function(item)
-					local loc = item.location
-					return vim.uri_to_fname(loc.uri or loc.targetUri)
-						.. ":"
-						.. ((loc.range or loc.targetSelectionRange).start.line + 1)
-				end,
-			}, function(item)
-				if item then
+			local items = {}
+			for _, item in ipairs(locations) do
+				local choice = vim.lsp.util.locations_to_items({ item.location }, item.encoding)[1]
+				choice.label = choice.filename .. ":" .. choice.lnum
+				choice.action = function()
 					vim.lsp.util.show_document(item.location, item.encoding, { focus = true })
 				end
-			end)
+				items[#items + 1] = choice
+			end
+			shared.open_picker("Definitions:", { items = items })
 		end
 	end
 	cancel = vim.lsp.buf_request_all(buf, "textDocument/definition", function(client)

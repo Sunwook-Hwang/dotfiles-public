@@ -154,10 +154,11 @@ Neovide uses a separate terminal profile at `~/.config/neovide-terminal/init.lua
 NVIM_APPNAME=neovide-terminal neovide
 ```
 
-On macOS, `./mac_setup.sh` and `./mac_setup.sh base` install Neovide and configures its app icon to open
+On macOS, `./mac_setup.sh` and `./mac_setup.sh base` install Neovide and configure its app icon to open
 this terminal profile automatically. You can also set up just this integration
 with `./mac_setup.sh neovide`. The app is available at
-`~/Applications/Neovide.app` and can be dragged to the Dock.
+`~/Applications/Neovide.app` and is automatically added to the Dock using `dockutil`.
+Running setup again restores a removed Dock icon or replaces the existing Neovide entry.
 
 The `neovide` shell alias selects this profile. The shell inside Neovide does not
 inherit that profile, so nested Neovim can use pack or nopack independently.

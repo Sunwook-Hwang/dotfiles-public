@@ -166,6 +166,7 @@ function zsh_setup {
 
 function neovide_setup {
   brew list --versions neovide >/dev/null 2>&1 || brew install neovide
+  brew list --versions dockutil >/dev/null 2>&1 || brew install dockutil
   brew list --cask font-roboto-mono-nerd-font >/dev/null 2>&1 ||
     brew install --cask font-roboto-mono-nerd-font
   bash "$CURDIR/install_dotfiles.sh"
@@ -193,6 +194,7 @@ function neovide_setup {
   if [[ ! -e "$HOME/Applications/Neovide.app" || -L "$HOME/Applications/Neovide.app" ]]; then
     ln -sfn "$app" "$HOME/Applications/Neovide.app"
   fi
+  dockutil --add "$HOME/Applications/Neovide.app" --replacing Neovide
   echo "Neovide is ready as a terminal: $HOME/Applications/Neovide.app"
 }
 

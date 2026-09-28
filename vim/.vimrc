@@ -4628,6 +4628,13 @@ endfunction
 function! s:DashboardClosed(id, result) abort
   let s:dashboard = 0
 endfunction
+function! s:DashboardHighlights() abort
+  highlight! link NopackDashboardHeader Title
+  highlight! link NopackDashboardDesc String
+  highlight! link NopackDashboardKey Number
+endfunction
+call s:DashboardHighlights()
+
 function! s:Dashboard() abort
   if s:dashboard && !empty(popup_getpos(s:dashboard)) | return | endif
   let width = max([20, min([100, &columns - 4])])
@@ -4638,8 +4645,11 @@ function! s:Dashboard() abort
   endfor
   call add(rows, '')
   let first = len(rows) + 1
+  let menu_width = min([60, width])
+  let menu_left = max([0, (width - menu_width) / 2])
   for item in s:dashboard_items
-    call add(rows, '  ' . item[1] . repeat(' ', max([1, width - strlen(item[1]) - 5])) . item[0])
+    let gap = max([1, menu_width - strdisplaywidth(item[1]) - strdisplaywidth(item[0])])
+    call add(rows, repeat(' ', menu_left) . item[1] . repeat(' ', gap) . item[0])
     call add(rows, '')
   endfor
   let footer = 'https://sunwook-hwang.github.io'
@@ -4647,6 +4657,21 @@ function! s:Dashboard() abort
   let s:dashboard = popup_create(rows, {'minwidth': width, 'maxwidth': width, 'maxheight': &lines - 2,
         \ 'highlight': 'Normal', 'cursorline': 1, 'mapping': 0, 'wrap': 0, 'zindex': 180,
         \ 'filter': function('<SID>DashboardFilter'), 'callback': function('<SID>DashboardClosed')})
+  let buf = winbufnr(s:dashboard)
+  for name in ['Header', 'Desc', 'Key']
+    call prop_type_add('NopackDashboard' . name, {'bufnr': buf, 'highlight': 'NopackDashboard' . name})
+  endfor
+  for row in range(1, len(header)) + [len(rows)]
+    if !empty(rows[row - 1])
+      call prop_add(row, 1, {'bufnr': buf, 'type': 'NopackDashboardHeader', 'length': strlen(rows[row - 1])})
+    endif
+  endfor
+  for index in range(len(s:dashboard_items))
+    let row = first + index * 2
+    let item = s:dashboard_items[index]
+    call prop_add(row, menu_left + 1, {'bufnr': buf, 'type': 'NopackDashboardDesc', 'length': strlen(item[1])})
+    call prop_add(row, strlen(rows[row - 1]), {'bufnr': buf, 'type': 'NopackDashboardKey', 'length': 1})
+  endfor
   call setwinvar(s:dashboard, 'nopack_menu_start', first)
   call setwinvar(s:dashboard, 'nopack_selection', 0)
   call win_execute(s:dashboard, 'call cursor(' . first . ', 1)')
@@ -4660,6 +4685,7 @@ endfunction
 nnoremap <silent> <leader>A :call <SID>Dashboard()<CR>
 augroup NopackDashboard
   autocmd!
+  autocmd ColorScheme * call <SID>DashboardHighlights()
   autocmd VimEnter * call <SID>StartupDashboard()
 augroup END
 

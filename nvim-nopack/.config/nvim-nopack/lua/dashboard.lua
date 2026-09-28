@@ -33,6 +33,17 @@ local dashboard_header = {
 	"⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣖⠒⠒⠠⡀⠀⠀⡇⢸⠀⠀⡱⠈⠁⣼⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
 }
 local dashboard_namespace = vim.api.nvim_create_namespace("nopack-dashboard")
+-- Share Pack's theme integration names, without requiring Snacks.
+local function dashboard_highlights()
+	for name, target in pairs({ Header = "Title", Desc = "String", Key = "Number" }) do
+		vim.api.nvim_set_hl(0, "SnacksDashboard" .. name, { link = target })
+	end
+end
+dashboard_highlights()
+vim.api.nvim_create_autocmd("ColorScheme", {
+	group = vim.api.nvim_create_augroup("nopack-dashboard-colors", { clear = true }),
+	callback = dashboard_highlights,
+})
 
 local dashboard_win
 local function open_dashboard()
@@ -193,12 +204,12 @@ local function open_dashboard()
 
 		button_rows = {}
 		for _, entry in ipairs(entries) do
-			local button_width = math.min(50, width)
+			local button_width = math.min(60, width)
 			local gap = math.max(1, button_width - vim.fn.strdisplaywidth(entry[2]) - vim.fn.strdisplaywidth(entry[1]))
 			local text = entry[2] .. string.rep(" ", gap) .. entry[1]
 			local left = math.max(0, math.floor((width - vim.fn.strdisplaywidth(text)) / 2))
 			lines[#lines + 1] = string.rep(" ", left) .. text
-			button_rows[entry[1]] = { row = #lines, left = left }
+			button_rows[entry[1]] = { row = #lines, left = left, key_col = left + #text - #entry[1] }
 			lines[#lines + 1] = ""
 		end
 		local footer = "https://sunwook-hwang.github.io"
@@ -210,12 +221,34 @@ local function open_dashboard()
 		vim.bo[buf].modifiable = false
 
 		for index = 1, #dashboard_header do
-			vim.api.nvim_buf_add_highlight(buf, dashboard_namespace, "Include", header_start + index - 1, 0, -1)
+			vim.api.nvim_buf_add_highlight(
+				buf,
+				dashboard_namespace,
+				"SnacksDashboardHeader",
+				header_start + index - 1,
+				0,
+				-1
+			)
 		end
 		for _, button in pairs(button_rows) do
-			vim.api.nvim_buf_add_highlight(buf, dashboard_namespace, "Keyword", button.row - 1, button.left, -1)
+			vim.api.nvim_buf_add_highlight(
+				buf,
+				dashboard_namespace,
+				"SnacksDashboardDesc",
+				button.row - 1,
+				button.left,
+				button.key_col
+			)
+			vim.api.nvim_buf_add_highlight(
+				buf,
+				dashboard_namespace,
+				"SnacksDashboardKey",
+				button.row - 1,
+				button.key_col,
+				-1
+			)
 		end
-		vim.api.nvim_buf_add_highlight(buf, dashboard_namespace, "Type", #lines - 1, 0, -1)
+		vim.api.nvim_buf_add_highlight(buf, dashboard_namespace, "SnacksDashboardHeader", #lines - 1, 0, -1)
 	end
 	render()
 	local function activate(entry)

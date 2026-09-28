@@ -7,6 +7,17 @@ end
 local function dim_filter(buf)
 	return policy.allows(buf) and vim.g.snacks_dim ~= false and vim.b[buf].snacks_dim ~= false
 end
+-- Keep the dashboard's three roles distinct across themes and profiles.
+local function dashboard_highlights()
+	for name, target in pairs({ Header = "Title", Desc = "String", Key = "Number" }) do
+		vim.api.nvim_set_hl(0, "SnacksDashboard" .. name, { link = target })
+	end
+end
+dashboard_highlights()
+vim.api.nvim_create_autocmd("ColorScheme", {
+	group = vim.api.nvim_create_augroup("PackDashboardColors", { clear = true }),
+	callback = dashboard_highlights,
+})
 Snacks.setup({
 	bigfile = require("bigfile"),
 	quickfile = { enabled = true },
@@ -225,7 +236,7 @@ Snacks.setup({
 		sections = {
 			{ section = "header" },
 			{ section = "keys", gap = 1, padding = 1 },
-			{ text = "https://sunwook-hwang.github.io", align = "center" },
+			{ text = { "https://sunwook-hwang.github.io", hl = "header" }, align = "center" },
 		},
 	},
 })

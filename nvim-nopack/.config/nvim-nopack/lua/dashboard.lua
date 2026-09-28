@@ -294,6 +294,7 @@ local function open_dashboard()
 		end, { buf = buf, nowait = true, silent = true, desc = selected[2] })
 	end
 	local moving = false
+	local selected_button
 	local function selection_index()
 		local row = vim.api.nvim_win_get_cursor(win)[1]
 		local nearest, distance = 1, math.huge
@@ -308,16 +309,22 @@ local function open_dashboard()
 	local function select_entry(index)
 		index = (index - 1) % #entries + 1
 		local button = button_rows[entries[index][1]]
-		vim.api.nvim_buf_set_extmark(buf, selection_namespace, button.row - 1, button.left, {
-			id = 1,
-			end_col = button.key_col + 1,
-			hl_group = "CursorLine",
-			priority = 90,
-		})
-		moving = true
-		-- Keep the hidden cursor on padding so non-blending UIs do not obscure text.
-		vim.api.nvim_win_set_cursor(win, { button.row, button.key_col - 1 })
-		moving = false
+		if selected_button ~= button then
+			vim.api.nvim_buf_set_extmark(buf, selection_namespace, button.row - 1, button.left, {
+				id = 1,
+				end_col = button.key_col + 1,
+				hl_group = "CursorLine",
+				priority = 90,
+			})
+			selected_button = button
+		end
+		local cursor = vim.api.nvim_win_get_cursor(win)
+		if cursor[1] ~= button.row or cursor[2] ~= button.key_col - 1 then
+			moving = true
+			-- Keep the hidden cursor on padding so non-blending UIs do not obscure text.
+			vim.api.nvim_win_set_cursor(win, { button.row, button.key_col - 1 })
+			moving = false
+		end
 	end
 	for _, spec in ipairs({ { "j", 1 }, { "<Down>", 1 }, { "k", -1 }, { "<Up>", -1 } }) do
 		local key, delta = spec[1], spec[2]

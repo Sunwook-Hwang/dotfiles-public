@@ -4672,11 +4672,16 @@ call s:DashboardHighlights()
 function! s:DashboardPosition() abort
   if !s:dashboard || empty(popup_getpos(s:dashboard)) | return | endif
   let height = max([1, &lines - &cmdheight])
-  let content_height = len(getbufline(winbufnr(s:dashboard), 1, '$'))
-  call popup_setoptions(s:dashboard, {'line': max([1, (height - content_height) / 2 + 1]),
-        \ 'maxheight': height})
-  call popup_setoptions(s:dashboard_chrome.background, {'minwidth': &columns, 'maxwidth': &columns,
-        \ 'minheight': height, 'maxheight': height})
+  if popup_getoptions(s:dashboard).maxheight != height
+    let content_height = len(getbufline(winbufnr(s:dashboard), 1, '$'))
+    call popup_setoptions(s:dashboard, {'line': max([1, (height - content_height) / 2 + 1]),
+          \ 'maxheight': height})
+  endif
+  let background = popup_getoptions(s:dashboard_chrome.background)
+  if background.maxwidth != &columns || background.maxheight != height
+    call popup_setoptions(s:dashboard_chrome.background, {'minwidth': &columns, 'maxwidth': &columns,
+          \ 'minheight': height, 'maxheight': height})
+  endif
 endfunction
 
 function! s:Dashboard() abort

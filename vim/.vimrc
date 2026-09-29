@@ -4613,7 +4613,7 @@ let s:dashboard_header = [
       \ '⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣖⠒⠒⠠⡀⠀⠀⡇⢸⠀⠀⡱⠈⠁⣼⢸⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀',
       \ ]
 let s:dashboard = 0
-let s:dashboard_items = [['f', 'Find file', ' f'], ['r', 'Recent files', ' sr'], ['p', 'Select session', ' pS'],
+let s:dashboard_items = [['f', 'Find file', ' f'], ['r', 'Recent files', ' sr'], ['l', 'Restore last session', ' pl'], ['p', 'Select session', ' pS'],
       \ ['n', 'New file', ':enew'], ['c', 'Config', ':edit ' . fnameescape(s:vimrc_path)], ['q', 'Quit', ':qa!']]
 function! s:DashboardFilter(id, key) abort
   let index = getwinvar(a:id, 'nopack_selection', 0)

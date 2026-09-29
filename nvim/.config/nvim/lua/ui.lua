@@ -204,6 +204,9 @@ Snacks.setup({
 					end,
 				},
 				{
+					key = "l", desc = "Restore last session", action = ':lua require("persistence").load({ last = true })',
+				},
+				{
 					key = "p",
 					desc = "Select session",
 					action = function()

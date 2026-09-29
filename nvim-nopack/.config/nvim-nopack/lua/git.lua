@@ -1,5 +1,6 @@
 local policy = require("buffer_policy")
 local shared = require("state")
+local actions = require("git_actions")
 
 -- =========================================
 -- ====== GIT: FILES / STATUS / DIFF =====
@@ -424,7 +425,7 @@ end
 -- =========================================
 -- ======== GIT: LINE CHANGE SIGNS =======
 -- =========================================
--- 현재 버퍼(미저장 내용 포함)를 index와 비교하여 + / ~ / - 표시. stage/reset은 하지 않습니다.
+-- 현재 버퍼(미저장 내용 포함)를 index와 비교하여 + / ~ / - 표시.
 -- 버퍼별 단일 200ms 타이머. diff/행 정렬은 worker에서 실행하고 최신 결과만 표시합니다.
 -- 미추적·바이너리·256 KiB 초과 파일은 제외합니다. 창 이동만으로 index를 다시 읽지 않습니다.
 shared.git_signs = vim.api.nvim_create_namespace("nopack-git-signs")
@@ -750,7 +751,7 @@ local function compute_git_marks(base, current, count)
 				}
 			end
 		end
-		return marks
+		return { marks = marks, hunks = hunks }
 	end)
 	return ok, ok and vim.mpack.encode(result) or tostring(result)
 end
@@ -806,6 +807,7 @@ local function queue_git_signs(buf)
 	local function clear_signs()
 		if shared.git_sign_versions[buf] == version and vim.api.nvim_buf_is_loaded(buf) then
 			vim.api.nvim_buf_clear_namespace(buf, shared.git_signs, 0, -1)
+			actions.clear(buf)
 		end
 	end
 	local timer
@@ -861,12 +863,12 @@ local function queue_git_signs(buf)
 				clear_signs()
 				return
 			end
-			request_git_marks(buf, base, current, vim.api.nvim_buf_line_count(buf), function(marks)
+			request_git_marks(buf, base, current, vim.api.nvim_buf_line_count(buf), function(result)
 				if not is_current() then
 					return
 				end
 				clear_signs()
-				for _, mark in ipairs(marks) do
+				for _, mark in ipairs(result.marks or {}) do
 					vim.api.nvim_buf_set_extmark(buf, shared.git_signs, mark[1], 0, {
 						sign_text = mark[2],
 						sign_hl_group = mark[3],
@@ -874,6 +876,7 @@ local function queue_git_signs(buf)
 					})
 				end
 				shared.git_sign_rendered[buf] = { tick = tick, file = file, index = stamp }
+				actions.render_deleted(buf, base, result.hunks or {})
 			end)
 		end
 		local cached = git_base_cache[buf]
@@ -904,6 +907,12 @@ local function queue_git_signs(buf)
 	end, 200)
 	git_sign_timers[buf] = timer
 end
+actions.setup(function(buf)
+	shared.git_sign_rendered[buf] = nil
+	queue_git_signs(buf)
+	refresh_git_status(buf, true)
+	queue_netrw_git()
+end)
 vim.api.nvim_create_autocmd({
 	"BufEnter",
 	"BufWritePost",

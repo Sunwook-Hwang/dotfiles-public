@@ -18,6 +18,10 @@ local function stop_command_timer(task)
 end
 function shared.cancel_command(key)
 	local task = shared.running[key]
+	-- Let an index transaction release its lock normally once writing has begun.
+	if task and task.atomic then
+		return
+	end
 	if task then
 		task.cancelled = true
 		stop_command_timer(task)
@@ -45,7 +49,10 @@ end, {})
 vim.api.nvim_create_autocmd("VimLeavePre", { callback = cancel_commands })
 function shared.run_command(key, argv, opts, callback)
 	shared.cancel_command(key)
-	local task = { chunks = {}, bytes = 0, errors = "", limited = false }
+	if shared.running[key] then
+		return
+	end
+	local task = { chunks = {}, bytes = 0, errors = "", limited = false, atomic = opts.atomic }
 	shared.running[key] = task
 	local limit = opts.max_bytes or 2 * 1024 * 1024
 	local ok, process = pcall(vim.system, argv, {
@@ -121,6 +128,9 @@ function shared.run_command(key, argv, opts, callback)
 		return
 	end
 	task.process = process
+	if task.atomic then
+		return
+	end
 	task.timer = vim.defer_fn(function()
 		task.timer = nil
 		if shared.running[key] == task and not task.cancelled then

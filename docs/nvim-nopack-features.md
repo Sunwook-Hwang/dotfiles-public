@@ -189,9 +189,23 @@ Inline blame shows the author, date, and commit subject at the end of the curren
 line after 150 ms of inactivity. It hides during unsaved edits to avoid incorrect
 line attribution and returns after saving. It is disabled for large files.
 
-Mutating Git operations are deliberately absent: hunk stage/reset/undo, buffer
-stage/reset, deleted-line restoration, and hunk text objects. Nopack Git support
-focuses on inspection and navigation without changing the worktree or index.
+Additional editing actions use the same keys as pack:
+
+| Key | Action |
+| --- | --- |
+| `Space gs/gr` | Stage/reset the cursor hunk or selected Visual lines |
+| `Space gS/gR` | Stage/reset the whole buffer |
+| `Space gU` | Undo the last staging action in this buffer |
+| `Space gv` | Inline hunk preview; clear on cursor movement or editing |
+| `Space gt` | Toggle deleted lines |
+| `Space gB` | Full blame with commit details |
+| `ih` | Hunk text object, including `vih` and `dih` |
+
+Staging includes unsaved edits; reset changes the buffer against the index without
+writing the file. Staging undo refuses to overwrite intervening changes to the
+same index file entry. Hunk actions support regular UTF-8 text files up to 256 KiB;
+conflicted index entries and binary files are rejected. Once an index write begins,
+`:NopackCancel` lets it finish so Git can release its lock normally.
 
 ## LSP, completion, and diagnostics
 
@@ -337,7 +351,6 @@ running search, Git, and ctags jobs plus scheduled refreshes.
 ## Deliberately unsupported
 
 - Automatic plugin, LSP, or formatter download and updates
-- Git hunk/buffer stage and reset
 - `todo-comments.nvim`-style TODO/FIXME highlighting
 - External colorscheme collections
 - Neovide-specific font and zoom controls

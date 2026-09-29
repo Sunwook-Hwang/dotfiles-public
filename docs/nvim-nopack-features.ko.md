@@ -182,9 +182,23 @@ Inline blame은 저장된 파일의 작성자, 날짜와 커밋 메시지를 현
 커서 이동 후 150ms 동안 입력이 없을 때 갱신하고, 미저장 편집 중에는 잘못된 줄 attribution을
 피하기 위해 숨겼다가 저장 후 다시 표시합니다. 큰 파일에서는 실행하지 않습니다.
 
-다음 Git 변경 기능은 제공하지 않습니다: hunk stage/reset/undo, buffer stage/reset,
-삭제 줄 복원 표시, hunk text object. 작업 파일이나 index를 실수로 변경하지 않도록
-현재 nopack Git 기능은 조회와 탐색 중심입니다.
+추가 편집 기능은 pack과 같은 키를 사용합니다.
+
+| 키 | 동작 |
+| --- | --- |
+| `Space gs/gr` | 현재 hunk 또는 Visual 선택 줄 스테이징/되돌리기 |
+| `Space gS/gR` | 버퍼 전체 스테이징/되돌리기 |
+| `Space gU` | 이 버퍼에서 마지막으로 수행한 스테이징 취소 |
+| `Space gv` | hunk 인라인 미리보기; 커서 이동·편집 시 닫기 |
+| `Space gt` | 삭제된 줄 표시 토글 |
+| `Space gB` | 커밋 정보를 포함한 상세 blame |
+| `ih` | hunk 텍스트 객체; `vih`, `dih` 등에서 사용 |
+
+스테이징은 미저장 편집도 포함합니다. 되돌리기는 index를 기준으로 버퍼를 수정하며
+파일을 저장하지 않습니다. 스테이징 취소 전에 같은 파일의 index 내용이 달라졌다면
+다른 변경을 덮어쓰지 않고 중단합니다. hunk 작업은 256 KiB 이하의 일반 UTF-8 텍스트
+파일을 지원하며 충돌 중인 index와 바이너리는 제외합니다. index 쓰기가 시작되면
+`:NopackCancel`도 완료를 기다려 Git 잠금 파일이 정상 해제되도록 합니다.
 
 ## LSP·완성·진단
 
@@ -326,7 +340,6 @@ wrap과 커서 십자 강조도 끕니다. `:NopackCancel`은 실행 중인 검�
 ## 의도적으로 제공하지 않는 기능
 
 - 플러그인·LSP·포매터 자동 다운로드 및 업데이트
-- Git hunk/buffer stage와 reset
 - `todo-comments.nvim` 방식의 TODO/FIXME 강조
 - 외부 colorscheme 묶음
 - Neovide 전용 글꼴·확대/축소 설정

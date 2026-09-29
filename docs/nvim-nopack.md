@@ -146,6 +146,10 @@ ty에는 `ty.configuration.environment.python`으로 전달하며, 환경을 바
 | `Space gd/gD`                     | 원본 창과 분리된 현재 파일/index·HEAD 좌우 비교; `q`/`Esc`로 닫기                              |
 | `Space gn/gp`                     | 다음/이전 Git 변경 hunk로 이동                                                                 |
 | `Space gb`                        | 현재 줄 inline blame 토글                                                                      |
+| `Space gs/gr` | hunk·Visual 선택 줄 스테이징/되돌리기 |
+| `Space gS/gR/gU` | 버퍼 전체 스테이징/되돌리기, 마지막 스테이징 취소 |
+| `Space gv/gt/gB` | 인라인 hunk 미리보기, 삭제 줄 토글, 상세 blame |
+| `ih` | hunk 텍스트 객체 (`vih`, `dih`) |
 | `Space u`                         | undo 상태 목록과 코드 미리보기. `↑/↓`·`Ctrl-p/n` 선택, `Ctrl-f/b` 스크롤, Enter 적용, Esc 취소 |
 | `Space Ti/Ts`                     | 들여쓰기 가이드·공백 / Sticky Scroll 토글                                                      |
 | `Space Tl`                        | 상태줄의 LSP·포매터 정보 토글                                                                  |

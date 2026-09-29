@@ -98,6 +98,7 @@ local function ctags_available(quiet, callback)
 	local probe = { key = checked, waiters = { answer } }
 	ctags_probe = probe
 	ctags_checked, ctags_kind, ctags_command = checked, nil, nil
+	shared.ctags_kind = nil
 	local index, fallback = 0, nil
 	local function finish()
 		if ctags_probe ~= probe then
@@ -107,6 +108,10 @@ local function ctags_available(quiet, callback)
 		if not ctags_kind and fallback then
 			ctags_kind, ctags_command = "exuberant", fallback
 		end
+		shared.ctags_kind = ctags_kind == "universal" and "Universal"
+			or ctags_kind == "exuberant" and "Exuberant"
+			or nil
+		vim.cmd("redrawstatus")
 		for _, waiter in ipairs(probe.waiters) do
 			waiter(ctags_kind ~= nil)
 		end
@@ -460,6 +465,13 @@ vim.api.nvim_create_autocmd({ "BufEnter", "BufFilePost", "FileType" }, {
 			vim.b[args.buf].nopack_tags_requested = nil
 		end
 		attach_tags(args.buf)
+		if
+			policy.allows(args.buf)
+			and vim.bo[args.buf].filetype ~= ""
+			and #vim.lsp.get_clients({ bufnr = args.buf }) == 0
+		then
+			ctags_available(true, function() end)
+		end
 	end,
 })
 vim.api.nvim_create_autocmd("BufWipeout", {

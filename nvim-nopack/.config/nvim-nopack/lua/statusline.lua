@@ -170,6 +170,9 @@ function _G.NopackLspStatus()
 		local sorted = vim.fn.sort(vim.tbl_keys(names))
 		state.text = #sorted > 0 and ("[LSP: " .. table.concat(sorted, ", "):gsub("%%", "%%%%") .. "]") or ""
 	end
+	if state.text == "" and shared.ctags_kind and policy.allows(buf) and vim.api.nvim_buf_get_name(buf) ~= "" then
+		return "[CTAGS: " .. shared.ctags_kind .. "]"
+	end
 	local active = tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
 	local missing_group = win == active and "NopackLspMissing" or "NopackLspMissingNC"
 	return state.text ~= "" and state.text or ("%#" .. missing_group .. "#[LSP X]%*")

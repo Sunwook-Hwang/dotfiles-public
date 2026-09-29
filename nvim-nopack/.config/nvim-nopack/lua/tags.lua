@@ -195,8 +195,7 @@ local function tag_command()
 		"--fields=+nK",
 		"--sort=yes",
 		"--links=no",
-		"--langmap=C++:+.ipp,Python:+.pyi",
-		"--languages=C,C++,Python",
+		"--langmap=C++:+.ipp.cu.cuh,Python:+.pyi",
 		"-f",
 		"-",
 	})
@@ -472,7 +471,7 @@ local function ensure_tag_completion(buf)
 	if
 		vim.b[buf].nopack_tags_requested
 		or not policy.allows(buf)
-		or not vim.tbl_contains({ "c", "cpp", "python" }, vim.bo[buf].filetype)
+		or vim.bo[buf].filetype == ""
 		or #vim.lsp.get_clients({ bufnr = buf, method = "textDocument/completion" }) > 0
 	then
 		return

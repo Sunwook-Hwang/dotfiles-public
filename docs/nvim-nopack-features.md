@@ -258,7 +258,7 @@ language is not attached automatically.
 
 Without LSP, built-in completion uses words from the current and open buffers
 plus ctags symbols. When supported ctags is installed, `gd` and the outline fall
-back to saved C/C++ and Python sources. Use `:checkhealth vim.lsp` to inspect LSP state.
+back to saved sources in languages supported by the installed ctags. Use `:checkhealth vim.lsp` to inspect LSP state.
 
 The outline and editor track each other without moving focus or requesting symbols on cursor movement. LSP tracking selects the innermost enclosing symbol; ctags tracking uses the nearest preceding declaration because it has no scope ranges.
 

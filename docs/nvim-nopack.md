@@ -186,7 +186,7 @@ netrw 트리의 왼쪽 여백에는 저장된 Git 상태를 두 글자로 표시
 
 ## Ctags fallback
 
-C/C++·Python의 정의 이동·완성·아웃라인은 **Universal Ctags 또는 Exuberant Ctags**를
+LSP가 없을 때 정의 이동·완성·아웃라인은 **Universal Ctags 또는 Exuberant Ctags**를
 사용할 수 있습니다. BSD/Emacs ctags는 지원하지 않습니다. 버전 확인은 비동기로 실행하며,
 실행 파일 후보 중 Universal Ctags를 우선합니다. 도구는 자동으로 설치하지 않습니다.
 

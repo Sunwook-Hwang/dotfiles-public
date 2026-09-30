@@ -1,6 +1,6 @@
 # Nopack Vim 9.0+
 
-[한국어](vim-nopack-features.ko.md) · [Configuration](../vim/.vimrc) · [Neovim counterpart](nvim-nopack-features.md)
+[한국어](vim-nopack-features.ko.md) · [Configuration](../vim/.vimrc) · [Neovim counterpart](flash.md)
 
 One `.vimrc`, native Vimscript, **no third-party plugins, no plugin manager, no
 Lua, no startup downloads**. Vim's bundled runtime supplies syntax highlighting,

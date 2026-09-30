@@ -1,18 +1,32 @@
-# Nopack Neovim 기능 안내
+# FLASH — 네이티브 Neovim 가이드
 
-[English](nvim-nopack-features.md) | [한국어](nvim-nopack-features.ko.md)
+[English](flash.md) | [한국어](flash.ko.md)
 
-`nvim/init.lua`는 **패키지가 전혀 필요 없는 순수 Native Neovim 설정**입니다.
+`nvim/.config/nvim/init.lua`는 **패키지가 전혀 필요 없는 순수 Native Neovim 설정**입니다.
 Neovim 0.12 내장 API와 시스템 명령만 사용하는 기능별 Lua 모듈로 구성되어 있습니다.
 플러그인 매니저, 외부 Lua 플러그인, Treesitter 파서 다운로드 없이 실행할 수 있습니다.
 LSP·포매터·Git·검색 도구는 설치되어 있을 때만 사용하며 자동으로 내려받지 않습니다.
 
 - 설정 파일: `nvim/.config/nvim/init.lua`와 같은 위치의 `lua/` 폴더
-- 모듈 구조: [Nopack configuration structure](nvim-nopack-structure.md)
 - 요구 버전: Neovim 0.12 이상
-- English documentation: [Native Nopack Neovim Features](nvim-nopack-features.md)
-- 상세 구현과 제한: [Nopack Neovim 0.12](nvim-nopack.md)
-- 외부 도구 준비: [LSP·포맷터 설치 가이드](nvim-nopack-tools.md)
+
+목차:
+
+- [실행과 시작 화면](#실행과-시작-화면)
+- [화면 구성](#화면-구성)
+- [단축키 찾기](#단축키-찾기)
+- [파일과 버퍼](#파일과-버퍼)
+- [검색과 선택 UI](#검색과-선택-ui)
+- [Git](#git)
+- [LSP·완성·진단](#lsp완성진단)
+- [포맷팅](#포맷팅)
+- [Undo·세션·터미널](#undo세션터미널)
+- [편집 편의 기능](#편집-편의-기능)
+- [성능과 안전 제한](#성능과-안전-제한)
+- [의도적으로 제공하지 않는 기능](#의도적으로-제공하지-않는-기능)
+- [도구 설치와 서버 이동](#도구-설치와-서버-이동)
+- [Ctags fallback](#ctags-fallback)
+- [설정 구조](#설정-구조)
 
 ## 실행과 시작 화면
 
@@ -27,6 +41,7 @@ NVIM_APPNAME=nvim nvim
 | --------- | --------------------------- |
 | `f`       | 프로젝트 파일 찾기          |
 | `r`       | 최근 파일                   |
+| `l`       | 마지막 세션 복원            |
 | `p`       | 저장된 세션 선택            |
 | `n`       | 새 파일                     |
 | `c`       | 현재 Neovim 설정 열기       |
@@ -47,11 +62,11 @@ Dashboard는 전용 floating window를 사용합니다. `Esc`로 닫으면 기�
 LSP·포매터 상태, 파일타입과 고정 폭 위치 정보를 표시합니다.
 
 ```text
-[git:master .M] file.lua [+]    Warn 2 Error 1 [LSP: lua_ls] [FORMAT: stylua] lua |  123:  8 |  42%
+[master .M] file.lua [+]    E: 1 W: 2 [LSP: lua_ls] [FORMAT: stylua] lua |  123:  8 |  42%
 ```
 
 - 진단 개수가 0이면 해당 항목을 숨깁니다.
-- 연결된 LSP가 없으면 빨간 배경의 `[LSP X]`를 표시합니다.
+- LSP가 없으면 사용 가능한 ctags를 `[CTAGS: Universal]` 또는 `[CTAGS: Exuberant]`로 표시하고, 둘 다 없으면 강조 배경의 `[LSP X]`를 표시합니다.
 - 사용할 포매터가 없으면 `[FORMAT X]`를 표시합니다.
 - `[FORMAT: 이름]`은 현재 버퍼에서 실제 사용할 외부 도구 또는 LSP 이름입니다.
 - `Space Tl`로 LSP와 포매터 상태 영역을 함께 숨기거나 다시 표시합니다.
@@ -62,12 +77,12 @@ LSP·포매터 상태, 파일타입과 고정 폭 위치 정보를 표시합니�
 - 상단 tabline에 열린 버퍼와 수정 상태를 표시합니다.
 - `Alt-1..8`은 해당 번호 버퍼, `Alt-9`는 마지막 버퍼로 이동합니다.
 - 들여쓰기 선은 파일의 `shiftwidth`에 맞춰 `┊`로 표시합니다.
-- Sticky Scroll은 함수·조건·반복문의 상위 문맥을 최대 8줄까지 고정합니다.
+- Sticky Scroll은 기본 꺼짐이며, 켜면 함수·조건·반복문의 상위 문맥을 최대 8줄까지 고정합니다.
 - Sticky 영역은 실제 줄 번호, 들여쓰기 위치, syntax highlight와 구분선을 유지합니다.
 - `Space Ti`로 들여쓰기/공백 표시, `Space Ts`로 Sticky Scroll을 토글합니다.
 
 `Ctrl-d` / `Ctrl-u`는 줄바꿈·접기를 포함해 반 페이지를 약 120ms 동안 부드럽게
-이동합니다. 기본값은 켜짐이며 `Space TS`(대문자 `S`)로 토글합니다.
+이동합니다. 기본값은 꺼짐이며 `Space TS`(대문자 `S`)로 토글합니다.
 Diff·floating/특수 버퍼·큰 파일·스크롤/커서 연동 창·매크로 기록/실행 중에는
 기본 스크롤을 즉시 실행합니다.
 
@@ -171,7 +186,7 @@ Git 기능은 네트워크 명령을 실행하지 않습니다. 현재 버퍼의
 
 | 키            | 동작                                                               |
 | ------------- | ------------------------------------------------------------------ |
-| `Space gg`    | Git 상태를 아래 읽기 전용 창에 표시                                |
+| `Space gg`    | 90% × 90% 플로팅 lazygit; 없으면 네이티브 Git 상태 창                                |
 | `Space sg`    | 최근 커밋 목록                                                     |
 | `Space gd`    | 편집 가능한 현재 파일과 index 좌우 diff; 어느 창에서든 `:q`로 닫기 |
 | `Space gD`    | 편집 가능한 현재 파일과 HEAD 좌우 diff; 어느 창에서든 `:q`로 닫기  |
@@ -348,3 +363,164 @@ wrap과 커서 십자 강조도 끕니다. `:NopackCancel`은 실행 중인 검�
 
 이 기능들은 네트워크 의존성, 플랫폼 차이, 작업 내용 변경 위험 또는 유지 비용 때문에
 nopack 설정의 기본 범위에서 제외합니다.
+
+## 도구 설치와 서버 이동
+
+위 언어별 표에서 필요한 도구만 설치합니다. FLASH는 도구를 설치하지 않습니다.
+셸 alias가 아니라 실행 파일·심볼릭 링크·launcher를 PATH에 둬야 합니다.
+각 후보마다 PATH → 기존 Mason bin 순서로 찾으므로, PATH의 Pyright보다 Mason의 ty가
+우선합니다. 설치 스크립트는 pack의 Mason 도구를 FLASH와 공유하지만 Mason을 로드하지 않습니다.
+
+`~/.local/opt/nvim-tools/` 아래 `node-tools/`, `python/`, `llvm/`,
+`lua-language-server/`를 두고, 단독 실행 파일이나 launcher는 `~/.local/bin`에
+배치할 수 있습니다. 실행 파일 디렉터리를 PATH에 추가합니다.
+
+```sh
+# Bash / Zsh
+export PATH="$HOME/.local/bin:$HOME/.local/opt/nvim-tools/node-tools/node_modules/.bin:$HOME/.local/opt/nvim-tools/python/bin:$PATH"
+```
+
+```csh
+# Csh / Tcsh
+setenv PATH "$HOME/.local/bin:$HOME/.local/opt/nvim-tools/node-tools/node_modules/.bin:$HOME/.local/opt/nvim-tools/python/bin:$PATH"
+```
+
+필요하면 LLVM·StyLua·별도로 푼 Node.js의 `bin`도 추가한 다음 그 셸에서 Neovim을
+새로 실행합니다. 이미 실행 중인 편집기에는 셸의 PATH 변경이 전달되지 않습니다.
+
+### 도구 준비
+
+Python 기본 조합은 ty와 Ruff입니다. 호환되는 `ty`, `ruff` 실행 파일을 PATH에 둡니다.
+대안인 Pyright·Black 설치 예시는 아래와 같습니다. Pyright는 Node.js가 필요합니다.
+
+```sh
+npm install --prefix "$HOME/.local/opt/nvim-tools/node-tools" --save-exact pyright
+python3 -m venv "$HOME/.local/opt/nvim-tools/python"
+"$HOME/.local/opt/nvim-tools/python/bin/python" -m pip install black
+```
+
+웹 개발에는 위 Node 도구 디렉터리에 `typescript-language-server`, 그 서버와 호환되는
+`typescript`, `vscode-langservers-extracted`, `prettier`를 설치합니다. 서버의 Node.js
+버전과 호환되는 버전을 선택하고 생성된 lock 파일을 보관하세요.
+PATH나 Mason에서 찾은 `tsserver`는 `tsserver.fallbackPath`로 전달하며, 프로젝트·동봉
+TypeScript 탐색은 언어 서버가 담당합니다. 언어 서버 실행 파일만 복사해서는 부족합니다.
+프로젝트의 `node_modules/.bin`은 자동 검색하지 않습니다.
+
+추가 웹 서버의 패키지명은 다음과 같습니다.
+
+| 실행 파일 | npm 패키지 |
+| --- | --- |
+| `tailwindcss-language-server` | `@tailwindcss/language-server` |
+| `svelteserver` | `svelte-language-server` |
+| `graphql-lsp` | `graphql-language-service-cli` |
+| `emmet-ls` | `emmet-ls` |
+| `prisma-language-server` | `@prisma/language-server` |
+| `vscode-eslint-language-server` | `vscode-langservers-extracted` |
+
+C/C++/CUDA는 clangd와 clang-format을 각각 준비하고, LLVM 배포본의 라이브러리와
+디렉터리 구조를 보존합니다. 정확한 분석에는 프로젝트의 컴파일 옵션이 필요하며,
+CMake에서는 `cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`으로 생성합니다.
+LuaLS도 `main.lua`와 리소스를 포함한 배포본 전체를 보존하고 launcher를 PATH에 연결합니다.
+StyLua는 별도로 설치하는 포매터입니다.
+
+### 인터넷 없는 서버로 이동
+
+**`init.lua`와 같은 위치의 `lua/`를 함께** `~/.config/nvim/`에 복사하거나
+`nvim -u /path/to/init.lua`로 실행합니다. FLASH에는 플러그인 폴더나 pack lock 파일이
+필요 없습니다. 도구는 서버의 OS·CPU·libc·런타임 요구 사항에 맞아야 합니다.
+macOS 실행 파일이나 macOS에서 만든 venv는 Linux 서버에 그대로 사용할 수 없습니다.
+
+Node 도구는 `.bin`만이 아니라 의존성과 심볼릭 링크를 포함한 전체 폴더를 옮깁니다.
+
+```sh
+# 호환되는 환경의 인터넷 연결 머신
+tar -czf nvim-node-tools.tar.gz -C "$HOME/.local/opt/nvim-tools" node-tools
+# 압축파일을 서버로 옮긴 후
+mkdir -p "$HOME/.local/opt/nvim-tools"
+tar -xzf nvim-node-tools.tar.gz -C "$HOME/.local/opt/nvim-tools"
+```
+
+서버에도 Node.js가 있어야 합니다. 인터넷 없는 서버에서 `npm install`을 다시 실행하지
+않습니다. LuaLS·LLVM도 전체 배포본을 유지합니다. Python 도구는 호환 환경에서 의존성까지
+wheel로 준비하고, 서버의 최종 경로에서 venv를 새로 만듭니다.
+
+```sh
+# 인터넷 연결 머신: 실행 후 wheelhouse/를 서버로 이동
+python3 -m pip download --only-binary=:all: --dest wheelhouse black
+# 서버
+python3 -m venv "$HOME/.local/opt/nvim-tools/python"
+"$HOME/.local/opt/nvim-tools/python/bin/python" -m pip install --no-index --find-links=wheelhouse black
+```
+
+### Python 환경 선택과 문제 해결
+
+`Space lv`에서 `.venv`, `venv`, 활성 virtualenv/Conda, PATH Python, 검색된 Conda 환경
+또는 직접 입력한 환경 폴더·Python 실행 파일을 선택합니다. `Automatic`은 선택을 해제합니다.
+선택은 현재 실행 동안 프로젝트 분석에 적용되며 셸이나 포매터 PATH를 바꾸지 않습니다.
+환경이 바뀌면 ty는 해당 프로젝트 클라이언트를 재시작하고, Pyright에는 Python 경로 설정을
+전달합니다. 프로젝트의 Pyright venv 설정이 우선할 수 있습니다.
+
+도구 설치 후 Neovim을 재실행하고 다음으로 확인합니다.
+
+```vim
+:messages
+:set filetype?
+:checkhealth vim.lsp
+:lua vim.print(vim.lsp.get_clients({bufnr=0}))
+:lua print(vim.fn.exepath('ty'))
+:lua print(vim.fn.stdpath('data') .. '/mason/bin')
+```
+
+`exepath()`는 PATH만 확인하며 FLASH의 Mason fallback은 포함하지 않습니다.
+LSP가 연결되어도 선택한 Python 환경에 패키지가 없으면 import 오류가 날 수 있습니다.
+큰 파일 보호 상태에서도 LSP·포맷팅은 의도적으로 중지됩니다.
+
+## Ctags fallback
+
+Universal Ctags를 우선하고 Exuberant Ctags도 지원합니다. BSD/Emacs ctags는 지원하지
+않습니다. `ctags --version`으로 확인하고 특정 실행 파일을 지정하려면 다음처럼 실행합니다.
+
+```sh
+nvim --cmd "let g:nopack_ctags='/path/to/ctags'"
+```
+
+| 키 / 명령 | 동작 |
+| --- | --- |
+| `gd` | LSP 이후 ctags 시도; 첫 fallback에서 프로젝트 인덱스 생성 |
+| `g Ctrl-t` | 태그 스택에서 이전 위치로 복귀 |
+| `:CtagsUpdate` | 현재 프로젝트 인덱스 재생성 |
+| `:CtagsClearAll` | 관리하는 모든 프로젝트 태그 캐시 삭제 |
+| `:NopackCancel` | 실행 작업과 예약 갱신 취소 |
+
+LSP 없는 완성과 ctags 아웃라인은 필요할 때 현재 파일을 인덱싱합니다. 사용 중인 프로젝트
+인덱스는 저장 후 750ms 동안 변경을 모아 갱신하며, 외부 파일 변경은 `:CtagsUpdate`로
+반영합니다. Git 프로젝트에서는 추적 파일과 무시되지 않은 미추적 파일을 사용합니다.
+캐시는 `stdpath('data')/nopack/tags/`에 저장하며 `:setlocal tags?`로 연결 상태를 봅니다.
+전체 생성은 120초/64 MiB, 파일 갱신은 10초/16 MiB로 제한합니다. ctags는 저장된 이름과
+위치 정보이므로 타입 분석이나 미저장 변경을 정확하게 추적하는 LSP를 대신하지는 않습니다.
+
+## 설정 구조
+
+[진입점](../nvim/.config/nvim/init.lua)이 인접한 [기능 모듈](../nvim/.config/nvim/lua/)을
+명시된 의존 순서로 불러옵니다. 심볼릭 링크의 실제 경로를 해석하며 pack 모듈·플러그인과
+runtime을 분리합니다.
+
+| 담당 모듈 | 역할 |
+| --- | --- |
+| `options`, `keymaps`, `theme` | Runtime, 기본 설정, 편집 키, 테마 |
+| `buffer_policy`, `bigfile` | 소스·편집창 구분과 분석 가능 여부 |
+| `project`, `jobs`, `state` | 루트, 취소 가능한 작업, 공유 인터페이스·상태 |
+| `explorer`, `navigation`, `buffers` | 트리, 편집창 선택, 버퍼 수명 관리 |
+| `pickers`, `search`, `editing` | 검색 UI, 결과, undo 미리보기 |
+| `git`, `git_actions` | 상태, sign, diff, blame, 스테이징과 hunk 작업 |
+| `lsp`, `tags`, `completion`, `format`, `diagnostics` | 언어 도구와 편집 지원 |
+| `outline`, `breadcrumb_symbols`, `breadcrumbs`, `context` | 심볼 캐시, 아웃라인, 문맥 탐색 |
+| `dashboard`, `terminal`, `session` | 보조 UI와 세션 수명 관리 |
+| `statusline`, `indent`, `syntax`, `whichkey` | 네이티브 표시와 키 안내 |
+
+기능 내부 상태는 local에 두고 공유 인터페이스는 `state.lua`를 거치며 구현은 담당 모듈이
+소유합니다. `buffer_policy.lua`는 편집 가능한 소스, 분석 가능한 버퍼, 보조 창을 구분합니다.
+비동기 작업은 시작 전과 결과 반영 전에 정책을 확인합니다. `NopackBufferRestricted`를
+받은 각 기능이 요청 취소·UI 정리를 담당하고, LSP 해제는 큰 파일 감지기가 아닌 `lsp.lua`가
+소유합니다. 루트 무효화와 프로세스 취소는 각각 `project.lua`, `jobs.lua`가 담당합니다.
+성능 조사 시 파일 크기보다는 담당 기능의 이벤트와 콜백을 확인하세요.

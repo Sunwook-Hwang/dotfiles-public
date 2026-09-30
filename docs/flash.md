@@ -1,8 +1,8 @@
-# Native Nopack Neovim Features
+# FLASH — Native Neovim Guide
 
-[English](nvim-nopack-features.md) | [한국어](nvim-nopack-features.ko.md)
+[English](flash.md) | [한국어](flash.ko.md)
 
-`nvim/init.lua` is a **package-free, native Neovim configuration** organized
+`nvim/.config/nvim/init.lua` is a **package-free, native Neovim configuration** organized
 into feature modules for Neovim 0.12+. It has no plugin manager, no external Lua
 plugins, and no parser download step. It uses only Neovim's built-in APIs,
 bundled runtime, and system commands that are already installed.
@@ -11,10 +11,25 @@ LSP servers and formatters are optional executables. The configuration detects
 the tools it knows about but never downloads, installs, or updates them.
 
 - Configuration: `nvim/.config/nvim/init.lua` and its adjacent `lua/` directory
-- Module structure: [Nopack configuration structure](nvim-nopack-structure.md)
 - Required version: Neovim 0.12 or newer
-- Implementation details and limits: [Nopack Neovim 0.12](nvim-nopack.md)
-- Preparing optional tools: [LSP and formatter setup](nvim-nopack-tools.md)
+
+Contents:
+
+- [Starting Neovim and the dashboard](#starting-neovim-and-the-dashboard)
+- [Interface](#interface)
+- [Native Space-key guide](#native-space-key-guide)
+- [Files and buffers](#files-and-buffers)
+- [Search and picker UI](#search-and-picker-ui)
+- [Git](#git)
+- [LSP, completion, and diagnostics](#lsp-completion-and-diagnostics)
+- [Formatting](#formatting)
+- [Undo, sessions, and terminal](#undo-sessions-and-terminal)
+- [Editing conveniences](#editing-conveniences)
+- [Performance and safety limits](#performance-and-safety-limits)
+- [Deliberately unsupported](#deliberately-unsupported)
+- [Tool setup and server transfer](#tool-setup-and-server-transfer)
+- [Ctags fallback](#ctags-fallback)
+- [Configuration structure](#configuration-structure)
 
 ## Starting Neovim and the dashboard
 
@@ -29,6 +44,7 @@ keys and press `Enter`. The cursor stays on selectable rows.
 | --------- | ------------------------------------ |
 | `f`       | Find project files                   |
 | `r`       | Open recent files                    |
+| `l`       | Restore the last session             |
 | `p`       | Select a saved session               |
 | `n`       | Create a new file                    |
 | `c`       | Open the active Neovim configuration |
@@ -50,11 +66,11 @@ right side shows diagnostics, LSP and formatter availability, filetype, and a
 fixed-width cursor position.
 
 ```text
-[git:master .M] file.lua [+]    Warn 2 Error 1 [LSP: lua_ls] [FORMAT: stylua] lua |  123:  8 |  42%
+[master .M] file.lua [+]    E: 1 W: 2 [LSP: lua_ls] [FORMAT: stylua] lua |  123:  8 |  42%
 ```
 
 - Diagnostic groups with a count of zero are hidden.
-- `[LSP X]` has a highlighted background when no LSP is attached.
+- Without LSP, supported ctags is shown as `[CTAGS: Universal]` or `[CTAGS: Exuberant]`; otherwise `[LSP X]` has a highlighted background.
 - `[FORMAT X]` means no formatter is currently available.
 - `[FORMAT: name]` names the external formatter or LSP used for this buffer.
 - `Space Tl` toggles both the LSP and formatter status sections.
@@ -65,13 +81,13 @@ fixed-width cursor position.
 - The native tabline displays open buffers and modified state.
 - `Alt-1..8` selects that numbered buffer; `Alt-9` selects the last buffer.
 - Indent guides use `┊` and follow the file's `shiftwidth`.
-- Sticky Scroll keeps up to eight enclosing function, conditional, and loop lines.
+- Sticky Scroll is off by default and keeps up to eight enclosing function, conditional, and loop lines when enabled.
 - Sticky rows preserve real line numbers, indentation, syntax highlighting, and a separator.
 - `Space Ti` toggles indent/whitespace markers; `Space Ts` toggles Sticky Scroll.
 
 `Ctrl-d` / `Ctrl-u` animate half-page scrolling in roughly 120 ms, including
 wrapped lines and folds. `Space TS` (uppercase `S`) toggles the animation; it is
-enabled by default. Diff, floating/special buffers, large files, bound windows,
+disabled by default. Diff, floating/special buffers, large files, bound windows,
 and macro recording/playback use native scrolling immediately.
 
 Sticky Scroll is a syntax-and-indentation heuristic. It scans at most 1,000
@@ -178,7 +194,7 @@ index and shown as `+`, `~`, and `-` signs in the margin.
 
 | Key           | Action                                                                      |
 | ------------- | --------------------------------------------------------------------------- |
-| `Space gg`    | Show Git status in a read-only bottom window                                |
+| `Space gg`    | Open lazygit in a 90% × 90% float; otherwise show native Git status                                |
 | `Space sg`    | Browse recent commits                                                       |
 | `Space gd`    | Editable current file beside the index; `:q` in either pane closes the diff |
 | `Space gD`    | Editable current file beside HEAD; `:q` in either pane closes the diff      |
@@ -359,3 +375,173 @@ running search, Git, and ctags jobs plus scheduled refreshes.
 
 These are outside the nopack configuration's scope because they add network
 dependencies, platform-specific behavior, worktree mutation, or maintenance cost.
+
+## Tool setup and server transfer
+
+Install only the executables needed for the languages listed above. FLASH never
+installs tools. Shell aliases do not count as executables; use real files,
+symlinks, or launchers. Each configured candidate is searched in PATH, then the
+existing Mason bin directory: for example, ty in Mason still wins over Pyright
+in PATH. The installer shares pack's Mason tools with FLASH without loading Mason.
+
+A portable layout is `~/.local/opt/nvim-tools/`, with `node-tools/`, `python/`,
+`llvm/`, and `lua-language-server/` below it. Put standalone binaries or launchers
+in `~/.local/bin`. Add the required executable directories to PATH:
+
+```sh
+# Bash / Zsh
+export PATH="$HOME/.local/bin:$HOME/.local/opt/nvim-tools/node-tools/node_modules/.bin:$HOME/.local/opt/nvim-tools/python/bin:$PATH"
+```
+
+```csh
+# Csh / Tcsh
+setenv PATH "$HOME/.local/bin:$HOME/.local/opt/nvim-tools/node-tools/node_modules/.bin:$HOME/.local/opt/nvim-tools/python/bin:$PATH"
+```
+
+Add LLVM, StyLua, or a separately unpacked Node runtime's `bin` directory when
+needed, then start Neovim from that shell. A running editor does not inherit
+later changes to its parent shell's PATH.
+
+### Preparing tools
+
+Python defaults to ty and Ruff. Put compatible `ty` and `ruff` executables in
+PATH. Pyright and Black are alternatives; Node.js is required for Pyright:
+
+```sh
+npm install --prefix "$HOME/.local/opt/nvim-tools/node-tools" --save-exact pyright
+python3 -m venv "$HOME/.local/opt/nvim-tools/python"
+"$HOME/.local/opt/nvim-tools/python/bin/python" -m pip install black
+```
+
+For web development, install `typescript-language-server` together with a
+compatible `typescript` version, `vscode-langservers-extracted`, and `prettier`
+in that Node tools directory. Preserve the generated lock file and choose
+versions compatible with the target Node runtime. `tsserver` found in PATH or
+Mason is supplied as `tsserver.fallbackPath`; the language server also handles
+project/bundled TypeScript discovery. Copying only the language-server executable
+is insufficient. Project `node_modules/.bin` is not searched automatically.
+
+Other web server package names:
+
+| Executable | npm package |
+| --- | --- |
+| `tailwindcss-language-server` | `@tailwindcss/language-server` |
+| `svelteserver` | `svelte-language-server` |
+| `graphql-lsp` | `graphql-language-service-cli` |
+| `emmet-ls` | `emmet-ls` |
+| `prisma-language-server` | `@prisma/language-server` |
+| `vscode-eslint-language-server` | `vscode-langservers-extracted` |
+
+For C/C++/CUDA, install both clangd and clang-format. Preserve LLVM's distribution
+layout, including libraries. Accurate analysis needs project compilation flags;
+CMake can produce them with `cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`.
+LuaLS also needs its complete distribution, including `main.lua` and resources;
+keep it intact and expose its launcher through PATH. StyLua is a separate tool.
+
+### Network-isolated servers
+
+Copy **`init.lua` and its adjacent `lua/` directory together** into
+`~/.config/nvim/`, or run `nvim -u /path/to/init.lua`. No plugin directory or pack
+lock file is needed for FLASH. Tool binaries must match the server's OS, CPU,
+libc, and runtime requirements; macOS binaries and virtual environments cannot
+be reused on Linux.
+
+Transfer Node tools as a complete directory, preserving symlinks and dependencies:
+
+```sh
+# Connected preparation machine with a compatible platform/runtime
+tar -czf nvim-node-tools.tar.gz -C "$HOME/.local/opt/nvim-tools" node-tools
+# After transferring the archive to the server
+mkdir -p "$HOME/.local/opt/nvim-tools"
+tar -xzf nvim-node-tools.tar.gz -C "$HOME/.local/opt/nvim-tools"
+```
+
+Node.js must also be available on the server. Do not copy only `.bin` or run
+`npm install` on a server without access to the registry. Keep LuaLS and LLVM
+bundles intact too. For Python tools, download wheels and their dependencies
+in a compatible environment, then create a fresh venv on the server:
+
+```sh
+# Connected machine; transfer wheelhouse/ to the server afterwards
+python3 -m pip download --only-binary=:all: --dest wheelhouse black
+# Server
+python3 -m venv "$HOME/.local/opt/nvim-tools/python"
+"$HOME/.local/opt/nvim-tools/python/bin/python" -m pip install --no-index --find-links=wheelhouse black
+```
+
+### Python environments and troubleshooting
+
+`Space lv` selects the project's analysis environment: `.venv`, `venv`, active
+virtualenv/Conda, PATH Python, discovered Conda environments, or a manually entered
+environment directory/Python executable. `Automatic` resets the choice. Selection
+lasts for this Neovim run and affects analysis, not the shell or formatter PATH.
+Ty restarts affected project clients when the environment changes; Pyright receives
+its Python path setting. Project Pyright venv configuration can override it.
+
+If tools are missing, restart Neovim after installing them and check:
+
+```vim
+:messages
+:set filetype?
+:checkhealth vim.lsp
+:lua vim.print(vim.lsp.get_clients({bufnr=0}))
+:lua print(vim.fn.exepath('ty'))
+:lua print(vim.fn.stdpath('data') .. '/mason/bin')
+```
+
+`exepath()` checks PATH only, not FLASH's Mason fallback. A connected server can
+still report import errors if the selected Python environment lacks dependencies.
+Large-file protection also deliberately disables LSP and formatting.
+
+## Ctags fallback
+
+Universal Ctags is preferred; Exuberant Ctags is supported. BSD/Emacs ctags is not.
+Check `ctags --version`. To select a binary explicitly:
+
+```sh
+nvim --cmd "let g:nopack_ctags='/path/to/ctags'"
+```
+
+| Key / command | Action |
+| --- | --- |
+| `gd` | Try LSP, then ctags; build the project index on first fallback |
+| `g Ctrl-t` | Return through the tag stack |
+| `:CtagsUpdate` | Rebuild the current project's index |
+| `:CtagsClearAll` | Delete all managed project tag caches |
+| `:NopackCancel` | Cancel jobs and pending refreshes |
+
+Completion without an LSP and the ctags outline index the current file on demand.
+Used project indexes update saved files after a 750 ms debounce; external file
+changes require `:CtagsUpdate`. Git projects include tracked and non-ignored
+untracked files. Caches live in `stdpath('data')/nopack/tags/`; `:setlocal tags?`
+shows attached tag files. Full indexing is limited to 120 seconds/64 MiB and
+file updates to 10 seconds/16 MiB. Ctags indexes saved names and positions;
+it cannot replace semantic type analysis or track unsaved changes accurately.
+
+## Configuration structure
+
+The [entry point](../nvim/.config/nvim/init.lua) loads adjacent
+[feature modules](../nvim/.config/nvim/lua/) in explicit dependency order.
+It resolves symlinks and keeps the runtime isolated from pack modules/plugins.
+
+| Owner | Responsibility |
+| --- | --- |
+| `options`, `keymaps`, `theme` | Runtime, settings, editing keys, appearance |
+| `buffer_policy`, `bigfile` | Source/editor classification and analysis eligibility |
+| `project`, `jobs`, `state` | Roots, cancellable work, shared interfaces/state |
+| `explorer`, `navigation`, `buffers` | Tree, editor targets, buffer lifecycle |
+| `pickers`, `search`, `editing` | Search UI, results, undo preview |
+| `git`, `git_actions` | Status, signs, diff, blame, staging and hunk actions |
+| `lsp`, `tags`, `completion`, `format`, `diagnostics` | Language tools and editing assistance |
+| `outline`, `breadcrumb_symbols`, `breadcrumbs`, `context` | Cached symbols, outline, context navigation |
+| `dashboard`, `terminal`, `session` | Auxiliary UI and session lifecycle |
+| `statusline`, `indent`, `syntax`, `whichkey` | Native display and key guide |
+
+Feature-private state stays local; shared interfaces live in `state.lua`, with
+implementations owned by their feature. `buffer_policy.lua` distinguishes editable
+source buffers from analysis-eligible buffers and auxiliary windows. Async work
+checks eligibility before starting and applying results. `NopackBufferRestricted`
+notifies features to cancel requests and clean up their UI; LSP detachment belongs
+to `lsp.lua`, not the large-file detector. Project invalidation and process
+cancellation belong to `project.lua` and `jobs.lua`. To investigate performance,
+inspect the owning feature's events and callbacks, not just its file size.

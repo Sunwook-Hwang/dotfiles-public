@@ -13,8 +13,8 @@ completion, formatting, sessions, an undo browser, and a reusable terminal.
 
 Optional language servers, formatters, and command-line search tools are used
 only when already installed. See the feature guide in
-[English](docs/nvim-nopack-features.md) or
-[한국어](docs/nvim-nopack-features.ko.md).
+[English](docs/flash.md) or
+[한국어](docs/flash.ko.md).
 
 For **Vim 9.0+**, [`vim/.vimrc`](vim/.vimrc) provides a standalone, plugin-free
 Vimscript counterpart with the same core shortcuts. It uses **ctags instead of
@@ -117,7 +117,7 @@ nvim -u /path/to/init.lua
 Pack configuration is installed at `~/.config/nvim-pack/init.lua`, with feature
 modules in its adjacent `lua/` directory. FLASH is the default configuration at
 `~/.config/nvim/`, with its own `init.lua` and `lua/` directory.
-See [Nopack configuration structure](docs/nvim-nopack-structure.md) for module responsibilities.
+See [FLASH configuration structure](docs/flash.md#configuration-structure) for module responsibilities.
 
 `vi` always starts FLASH in `~/.config/nvim/`. `pvi` explicitly starts the
 package profile in `~/.config/nvim-pack/` with `NVIM_APPNAME=nvim-pack`.
@@ -192,10 +192,8 @@ worker thread, and Git/tree/tabline caches avoid repeated work during editing.
 The built-in picker and outline provide a smaller feature set than Telescope
 and Aerial; a native Space-key guide replaces Which-key, while DAP is not included.
 
-See the nopack feature overview in [English](docs/nvim-nopack-features.md) or
-[한국어](docs/nvim-nopack-features.ko.md),
-[implementation details, ctags setup, and limits](docs/nvim-nopack.md), and
-[LSP/formatter installation and transfer to network-isolated servers](docs/nvim-nopack-tools.md).
+See the FLASH guide in [English](docs/flash.md) or [한국어](docs/flash.ko.md)
+for features, keymaps, tool setup, server transfer, ctags, and configuration structure.
 
 ## Formatting
 

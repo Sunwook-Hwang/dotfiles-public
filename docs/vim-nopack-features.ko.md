@@ -1,6 +1,6 @@
 # nopack Vim 9.0+
 
-[English](vim-nopack-features.md) · [설정 파일](../vim/.vimrc) · [Neovim 기능](nvim-nopack-features.ko.md)
+[English](vim-nopack-features.md) · [설정 파일](../vim/.vimrc) · [Neovim 기능](flash.ko.md)
 
 **`.vimrc` 한 파일, 외부 플러그인 없음, Lua 불필요, 시작 시 다운로드 없음.**
 vi의 기본 조작을 Vimscript로 옮겼으며, LSP 대신 ctags를 사용합니다.

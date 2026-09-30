@@ -1,0 +1,57 @@
+local policy = require("buffer_policy")
+local Snacks = require("snacks")
+local project = require("project")
+
+-- -------------------------------------
+-- File explorer: use the same package / standard-library / project boundaries as nopack.
+-- -------------------------------------
+do
+	vim.api.nvim_create_autocmd("BufEnter", {
+		group = vim.api.nvim_create_augroup("pack-project-root", { clear = true }),
+		callback = function(args)
+			local file = vim.api.nvim_buf_get_name(args.buf)
+			if not policy.is_editor(0) or file == "" then
+				return
+			end
+			local dir = vim.fs.dirname(file)
+			local cached = project.for_dir(dir)
+			if not cached.recognized then
+				return
+			end
+			local root = cached.root
+			if vim.fn.getcwd() ~= root then
+				vim.cmd.lcd(vim.fn.fnameescape(root))
+			end
+			for _, explorer in ipairs(Snacks.picker.get({ source = "explorer", tab = true })) do
+				if explorer:cwd() ~= root then
+					explorer:set_cwd(root)
+					explorer:find()
+				end
+			end
+		end,
+	})
+	vim.api.nvim_create_user_command("PackRefresh", function()
+		vim.api.nvim_exec_autocmds("User", { pattern = "PackRefresh", modeline = false })
+		vim.api.nvim_exec_autocmds("BufEnter", { group = "pack-project-root", buffer = 0, modeline = false })
+		vim.cmd("redrawstatus")
+	end, { desc = "Refresh project root and formatter availability" })
+	vim.keymap.set("n", "<leader>e", function()
+		local explorer = Snacks.picker.get({ source = "explorer", tab = true })[1]
+		if explorer then
+			explorer:close()
+			return
+		end
+		local dir
+		local wins = { vim.api.nvim_get_current_win() }
+		vim.list_extend(wins, vim.api.nvim_tabpage_list_wins(0))
+		for _, win in ipairs(wins) do
+			local buf = vim.api.nvim_win_get_buf(win)
+			local name = vim.api.nvim_buf_get_name(buf)
+			if policy.is_editor(win) and name ~= "" then
+				dir = vim.fs.dirname(name)
+				break
+			end
+		end
+		Snacks.explorer({ cwd = project.for_dir(dir or vim.fn.getcwd()).root })
+	end, { desc = "Toggle file explorer" })
+end

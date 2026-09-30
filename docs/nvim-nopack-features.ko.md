@@ -2,12 +2,12 @@
 
 [English](nvim-nopack-features.md) | [한국어](nvim-nopack-features.ko.md)
 
-`nvim-nopack/init.lua`는 **패키지가 전혀 필요 없는 순수 Native Neovim 설정**입니다.
+`nvim/init.lua`는 **패키지가 전혀 필요 없는 순수 Native Neovim 설정**입니다.
 Neovim 0.12 내장 API와 시스템 명령만 사용하는 기능별 Lua 모듈로 구성되어 있습니다.
 플러그인 매니저, 외부 Lua 플러그인, Treesitter 파서 다운로드 없이 실행할 수 있습니다.
 LSP·포매터·Git·검색 도구는 설치되어 있을 때만 사용하며 자동으로 내려받지 않습니다.
 
-- 설정 파일: `nvim-nopack/.config/nvim-nopack/init.lua`와 같은 위치의 `lua/` 폴더
+- 설정 파일: `nvim/.config/nvim/init.lua`와 같은 위치의 `lua/` 폴더
 - 모듈 구조: [Nopack configuration structure](nvim-nopack-structure.md)
 - 요구 버전: Neovim 0.12 이상
 - English documentation: [Native Nopack Neovim Features](nvim-nopack-features.md)
@@ -17,7 +17,7 @@ LSP·포매터·Git·검색 도구는 설치되어 있을 때만 사용하며 �
 ## 실행과 시작 화면
 
 ```sh
-NVIM_APPNAME=nvim-nopack nvim
+NVIM_APPNAME=nvim nvim
 ```
 
 파일 인자 없이 실행하면 네이티브 dashboard가 열립니다. `j/k` 또는 방향키로 선택하고

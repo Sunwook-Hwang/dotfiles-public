@@ -12,10 +12,8 @@ set path = ( "$HOME/.local/bin" $path:q )
 alias tmux 'env TERM=xterm-256color tmux'
 alias tad 'tmux at -d'
 alias lg 'lazygit'
-unalias vi pvi npvi onvi offvi
-alias vi '"$HOME/.local/libexec/dotfiles/vi"'
-alias pvi 'vi --pack'
-alias npvi 'vi --nopack'
+unalias vi 'env NVIM_APPNAME=nvim nvim'
+alias pvi 'env NVIM_APPNAME=nvim-pack nvim'
 alias neovide 'env NVIM_APPNAME=neovide-terminal neovide'
 
 # tcsh supplies native history, completion and a prompt; Zsh plugins do not load here.

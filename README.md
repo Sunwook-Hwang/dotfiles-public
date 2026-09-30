@@ -4,7 +4,7 @@ macOS-focused dotfiles for zsh, git, Herdr, tmux, Neovim, and Vim.
 
 ## Package-free Native Neovim
 
-This repository includes [`nvim-nopack/init.lua`](nvim-nopack/.config/nvim-nopack/init.lua),
+This repository includes [`nvim/init.lua`](nvim/.config/nvim/init.lua),
 a **package-free Native Neovim configuration** for Neovim 0.12+.
 It uses no plugin manager and no external Lua plugins, and it performs no plugin
 or parser downloads. Built-in replacements provide a dashboard, fuzzy pickers,
@@ -78,8 +78,8 @@ Link or unlink dotfiles on either platform:
 - `git`: git defaults
 - `herdr`: terminal multiplexer keybindings
 - `tmux`: tmux keybindings and theme
-- `nvim`: pack Neovim config
-- `nvim-nopack`: modular, package-free Neovim config
+- `nvim-pack`: pack Neovim config
+- `nvim`: FLASH, the default modular, package-free Neovim config
 - `neovide-terminal`: standalone Neovide terminal config
 - `vim`: single-file nopack Vim 9.0+ config (`~/.vimrc`)
 
@@ -97,7 +97,7 @@ settings instead of adding them to the shared configuration.
 
 ## Nopack Neovim
 
-For restricted servers, use [`nvim-nopack/init.lua`](nvim-nopack/.config/nvim-nopack/init.lua).
+For restricted servers, use [`nvim/init.lua`](nvim/.config/nvim/init.lua).
 It requires **Neovim 0.12+** and uses feature modules under its own `lua/` directory with
 Neovim's bundled runtime and existing system tools. It does not download
 plugins, parsers, language servers, or formatters.
@@ -105,7 +105,7 @@ plugins, parsers, language servers, or formatters.
 With the Stow setup:
 
 ```sh
-NVIM_APPNAME=nvim-nopack nvim
+NVIM_APPNAME=nvim nvim
 ```
 
 On a server, copy `init.lua` and its adjacent `lua/` directory together, then run:
@@ -114,39 +114,26 @@ On a server, copy `init.lua` and its adjacent `lua/` directory together, then ru
 nvim -u /path/to/init.lua
 ```
 
-Pack configuration is installed at `~/.config/nvim/init.lua`, with feature
-modules in its adjacent `lua/` directory. Nopack is installed separately at
-`~/.config/nvim-nopack/`, with its own `init.lua` and `lua/` directory.
+Pack configuration is installed at `~/.config/nvim-pack/init.lua`, with feature
+modules in its adjacent `lua/` directory. FLASH is the default configuration at
+`~/.config/nvim/`, with its own `init.lua` and `lua/` directory.
 See [Nopack configuration structure](docs/nvim-nopack-structure.md) for module responsibilities.
 
-`pvi` selects pack mode; `npvi` selects nopack mode. Both start Neovim and
-save the choice. After that, `vi` uses the last selection, including in a new
-terminal. A fresh installation defaults to nopack mode. The launcher sets
-`NVIM_APPNAME=nvim` or `nvim-nopack`, keeping configuration, cache, and state
-paths separate. Persistent undo is shared at
-`${XDG_STATE_HOME:-$HOME/.local/state}/nvim/undo` so saved history follows a file
-between modes. File sessions are also shared in the adjacent `nvim/sessions`
-directory, one per working directory. Plain `nvim` uses pack mode unless `NVIM_APPNAME` is set.
-
-The selector is stored locally in `${XDG_STATE_HOME:-$HOME/.local/state}/nvim-mode`.
-Existing nopack sessions, undo files, and tags are migrated to
-`~/.local/share/nvim-nopack/nopack` during installation. Existing pack Mason
-tools remain available to nopack through a link; nopack does not load Mason or
-pack plugins.
-
-With the repository’s `.zshrc` or `.cshrc` loaded:
+`vi` always starts FLASH in `~/.config/nvim/`. `pvi` explicitly starts the
+package profile in `~/.config/nvim-pack/` with `NVIM_APPNAME=nvim-pack`.
+There is no remembered mode, selector file, or launcher script.
 
 ```sh
-pvi
-npvi
-vi
+vi                       # FLASH / no packages
+pvi                      # package profile
+nvim                     # FLASH (default Neovim configuration)
 ```
 
-Both shells call the same launcher at `~/.local/libexec/dotfiles/vi` and share
-the saved profile selection. Install the `tools` package along with the shell
-configuration. C shell also exposes `dotformat` through `~/.local/bin` on PATH.
-Zsh-specific plugins are not loaded in C shell. If you already have a `.tcshrc`,
-tcsh reads it instead of `.cshrc`; add `source ~/.cshrc` there to use these settings.
+Zsh and C shell use the same two aliases. Reload the relevant shell configuration
+after installing: `source ~/.zshrc` or `source ~/.cshrc`.
+The installer preserves existing package downloads and Mason tools under
+`~/.local/share/nvim-pack/`. FLASH can reuse those Mason tools without loading
+plugins. Undo and sessions stay shared under `~/.local/state/nvim/`.
 
 Neovide uses a separate terminal profile at `~/.config/neovide-terminal/init.lua`:
 
@@ -213,7 +200,7 @@ See the nopack feature overview in [English](docs/nvim-nopack-features.md) or
 ## Formatting
 
 Project formatter configuration is stored in the repository and used by pvi,
-npvi, and Vim. See [Formatting rules](docs/formatting.md) for per-language settings
+vi, and Vim. See [Formatting rules](docs/formatting.md) for per-language settings
 and reuse in other projects.
 
 After installation, use `dotformat <format> [project-path]` to copy the rules:

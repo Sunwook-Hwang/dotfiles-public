@@ -1,170 +1,125 @@
 local policy = require("buffer_policy")
-local project = require("project")
-local Snacks = require("snacks")
-local python_selection
-local function cancel_python_selection(buf)
-	if python_selection and (not buf or python_selection.buf == buf) then
-		local previous = python_selection
-		python_selection = nil
-		if previous.job then
-			previous.job:kill(15)
-		end
-	end
-end
+local shared = require("state")
 
--- -------------------------------------
--- LSP: native client and buffer mappings
--- -------------------------------------
-do
-	vim.api.nvim_create_autocmd("User", {
-		group = vim.api.nvim_create_augroup("PackLspPolicy", { clear = true }),
-		pattern = "PackBufferRestricted",
-		callback = function(args)
-			cancel_python_selection(args.data.buf)
-			for _, client in ipairs(vim.lsp.get_clients({ bufnr = args.data.buf })) do
-				vim.lsp.buf_detach_client(args.data.buf, client.id)
-			end
-		end,
-	})
-	vim.api.nvim_create_autocmd({ "BufUnload", "BufFilePost", "FileType" }, {
-		group = "PackLspPolicy",
-		callback = function(args)
-			cancel_python_selection(args.buf)
-		end,
-	})
-	vim.api.nvim_create_autocmd("VimLeavePre", {
-		group = "PackLspPolicy",
-		callback = function()
-			cancel_python_selection()
-		end,
-	})
-	vim.api.nvim_create_autocmd("LspAttach", {
-		group = vim.api.nvim_create_augroup("UserLspConfig", {}),
-		callback = function(ev)
-			if not policy.allows(ev.buf) then
-				local client = vim.lsp.get_client_by_id(ev.data.client_id)
-				-- Neovim completes attachment after LspAttach callbacks return.
-				vim.schedule(function()
-					if vim.lsp.buf_is_attached(ev.buf, client.id) then
-						vim.lsp.buf_detach_client(ev.buf, client.id)
-					end
-				end)
-				return
-			end
-		end,
-	})
-
-	-- Register once; Snacks applies each mapping to clients supporting its method.
-	for _, mapping in ipairs({
-		{ "gd", "definition", "lsp_definitions", "Go to definition" },
-		{ "gr", "references", "lsp_references", "References" },
-		{ "gR", "references", "lsp_references", "Show LSP references" },
-		{ "gD", "declaration", "lsp_declarations", "Go to declaration" },
-		{ "gi", "implementation", "lsp_implementations", "Show LSP implementations" },
-		{ "gt", "typeDefinition", "lsp_type_definitions", "Show LSP type definitions" },
-	}) do
-		Snacks.keymap.set(
-			"n",
-			mapping[1],
-			policy.guard(function()
-				Snacks.picker[mapping[3]]()
-			end),
-			{
-				lsp = { method = "textDocument/" .. mapping[2] },
-				enabled = policy.allows,
-				desc = mapping[4],
-			}
-		)
-	end
-	for _, mapping in ipairs({
-		{ { "n", "v" }, "<leader>la", "codeAction", vim.lsp.buf.code_action, "See available code actions" },
-		{ "n", "K", "hover", vim.lsp.buf.hover, "Show documentation for what is under cursor" },
-		{ "n", "<leader>lr", "rename", vim.lsp.buf.rename, "Smart rename" },
-		{
-			"n",
-			"<leader>ls",
-			false,
-			function()
-				vim.cmd("lsp restart")
-			end,
-			"Restart LSP",
-		},
-		{
-			"n",
-			"[d",
-			false,
-			function()
-				vim.diagnostic.jump({ count = -1, float = false })
-			end,
-			"Go to previous diagnostic",
-		},
-		{
-			"n",
-			"]d",
-			false,
-			function()
-				vim.diagnostic.jump({ count = 1, float = false })
-			end,
-			"Go to next diagnostic",
-		},
-		{
-			"n",
-			"<leader>lD",
-			false,
-			function()
-				Snacks.picker.diagnostics_buffer()
-			end,
-			"Show buffer diagnostics",
-		},
-		{ "n", "<leader>ld", false, vim.diagnostic.open_float, "Show line diagnostics" },
-	}) do
-		Snacks.keymap.set(mapping[1], mapping[2], policy.guard(mapping[4]), {
-			lsp = mapping[3] and { method = "textDocument/" .. mapping[3] } or {},
-			enabled = policy.allows,
-			desc = mapping[5],
-		})
-	end
-
-	-- Diagnostic config (default)
-	vim.diagnostic.config({})
-
-	-- Generic default for all servers configured below
-	vim.lsp.config("*", {
-		capabilities = vim.tbl_deep_extend("force", vim.lsp.protocol.make_client_capabilities(), {
-			workspace = {
-				fileOperations = {
-					didCreate = true,
-					willCreate = true,
-					didRename = true,
-					willRename = true,
-					didDelete = true,
-					willDelete = true,
-				},
+-- =========================================
+-- ======= LSP: SERVER DEFINITIONS =======
+-- =========================================
+-- Neovim 0.12 내장 클라이언트. 아래 목록의 실행 파일이 이미 설치되어 있어야 합니다.
+-- PATH → 기존 stdpath(data)/mason/bin 순서.
+-- Mason 로드·자동 설치는 하지 않습니다.
+local tsserver = shared.resolve_tool("tsserver")
+local servers = {
+	{ cmd = { "clangd" }, ft = { "c", "cpp", "objc", "objcpp", "cuda" } },
+	{ cmd = { "mlir-lsp-server" }, ft = { "mlir" } },
+	{ cmd = { "starpls", "server" }, ft = { "bzl" } },
+	{ cmd = { "buf", "lsp", "serve" }, ft = { "proto" } },
+	{ cmd = { "bash-language-server", "start" }, ft = { "sh" } },
+	{
+		alternatives = { { "neocmakelsp", "stdio" }, { "cmake-language-server" } },
+		ft = { "cmake" },
+	},
+	{ cmd = { "yaml-language-server", "--stdio" }, ft = { "yaml" } },
+	{ cmd = { "texlab" }, ft = { "tex", "plaintex" } },
+	{ cmd = { "rust-analyzer" }, ft = { "rust" } },
+	{ alternatives = { { "ty", "server" }, { "pyright-langserver", "--stdio" } }, ft = { "python" } },
+	{
+		cmd = { "lua-language-server" },
+		ft = { "lua" },
+		settings = {
+			Lua = {
+				diagnostics = { globals = { "vim" } },
+				completion = { callSnippet = "Replace" },
 			},
-		}),
-	})
-
-	-- Diagnostics toggle (global)
-	vim.diagnostic.enable(true, {})
-	local diagnostics = Snacks.toggle.diagnostics()
-	vim.api.nvim_create_user_command("ToggleDiagnostics", function()
-		diagnostics:toggle()
-	end, {})
-	diagnostics:map("<leader>lt")
-end
--- -------------------------------------
--- LSP server definitions and Mason installation
--- -------------------------------------
--- Python projects use the same Git-first root discovery as nvim-nopack/init.lua.
-local function python_project_root(buf)
-	local file = vim.api.nvim_buf_get_name(buf)
-	local dir = file ~= "" and vim.fs.dirname(file) or vim.fn.getcwd()
-	return project.for_dir(dir).root
-end
-
+		},
+	},
+	{
+		cmd = { "typescript-language-server", "--stdio" },
+		init_options = tsserver ~= "" and { tsserver = { fallbackPath = tsserver } } or nil,
+		ft = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
+	},
+	{ cmd = { "vscode-html-language-server", "--stdio" }, ft = { "html" } },
+	{ cmd = { "vscode-css-language-server", "--stdio" }, ft = { "css", "scss", "less" } },
+	{
+		cmd = { "tailwindcss-language-server", "--stdio" },
+		markers = { "tailwind.config.js", "tailwind.config.cjs", "tailwind.config.mjs", "tailwind.config.ts" },
+		dependency = "tailwindcss",
+		ft = { "html", "css", "javascriptreact", "typescriptreact", "svelte" },
+	},
+	{ cmd = { "svelteserver", "--stdio" }, ft = { "svelte" } },
+	{ cmd = { "graphql-lsp", "server", "-m", "stream" }, ft = { "graphql" } },
+	{
+		cmd = { "emmet-ls", "--stdio" },
+		ft = { "html", "css", "javascriptreact", "typescriptreact" },
+		markers = { ".emmet.json", "emmet.json" },
+	},
+	{ cmd = { "prisma-language-server", "--stdio" }, ft = { "prisma" } },
+	{
+		cmd = { "vscode-eslint-language-server", "--stdio" },
+		markers = {
+			"eslint.config.js",
+			"eslint.config.mjs",
+			"eslint.config.cjs",
+			"eslint.config.ts",
+			".eslintrc",
+			".eslintrc.json",
+			".eslintrc.js",
+			".eslintrc.cjs",
+			".eslintrc.yml",
+			".eslintrc.yaml",
+		},
+		dependency = "eslint",
+		ft = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
+	},
+}
+-- =========================================
+-- ====== PYTHON: INTERPRETER PICKER ======
+-- =========================================
 -- Space lv: 현재 프로젝트의 Python LSP 분석 환경 선택. 재실행 전까지 프로젝트별로 기억합니다.
 -- 가상환경을 생성하거나 셸/포맷터 PATH를 바꾸지 않습니다. symlink 경로는 그대로 보존합니다.
 local python_paths = {}
+local python_selection
+local function cancel_python_selection(buf)
+	local selection = python_selection
+	if not selection or (buf and selection.buf ~= buf) then
+		return
+	end
+	python_selection = nil
+	shared.cancel_command("conda-envs")
+	if selection.picker and shared.active_picker == selection.picker then
+		selection.picker.close()
+	end
+end
+local lsp_policy_group = vim.api.nvim_create_augroup("nopack-lsp-policy", { clear = true })
+vim.api.nvim_create_autocmd("User", {
+	group = lsp_policy_group,
+	pattern = "NopackBufferRestricted",
+	callback = function(args)
+		local buf = args.data.buf
+		cancel_python_selection(buf)
+		for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
+			vim.lsp.buf_detach_client(buf, client.id)
+		end
+	end,
+})
+vim.api.nvim_create_autocmd({ "BufUnload", "BufFilePost", "FileType" }, {
+	group = lsp_policy_group,
+	callback = function(args)
+		cancel_python_selection(args.buf)
+	end,
+})
+vim.api.nvim_create_autocmd("User", {
+	group = lsp_policy_group,
+	pattern = "NopackCancel",
+	callback = function()
+		cancel_python_selection()
+	end,
+})
+vim.api.nvim_create_autocmd("VimLeavePre", {
+	group = lsp_policy_group,
+	callback = function()
+		cancel_python_selection()
+	end,
+})
 local function apply_python_path(client, path)
 	client.settings = vim.deepcopy(client.settings)
 	if client.name == "ty" then
@@ -182,7 +137,7 @@ local function apply_python_path(client, path)
 	end
 	client.config.settings = client.settings
 end
-vim.keymap.set("n", "<leader>lv", function()
+shared.map("n", "<leader>lv", function()
 	if not policy.allows(0) then
 		return
 	end
@@ -190,13 +145,13 @@ vim.keymap.set("n", "<leader>lv", function()
 		vim.notify("Open a Python file to select its environment")
 		return
 	end
-	local root = python_project_root(0)
 	cancel_python_selection()
-	local selection = { buf = vim.api.nvim_get_current_buf(), win = vim.api.nvim_get_current_win() }
+	local selection = { buf = vim.api.nvim_get_current_buf() }
 	python_selection = selection
 	local function active()
 		return python_selection == selection and policy.allows(selection.buf)
 	end
+	local root = shared.project_root()
 	local choices, seen = {}, {}
 	local function add(label, path)
 		if path and path ~= "" and not seen[path] and vim.fn.executable(path) == 1 then
@@ -222,7 +177,7 @@ vim.keymap.set("n", "<leader>lv", function()
 		python_paths[root] = path
 		local attached, restarting = false, false
 		for _, client in ipairs(vim.lsp.get_clients()) do
-			if (client.name == "ty" or client.name == "pyright") and client.config.root_dir == root then
+			if (client.name == "ty" or client.name == "pyright-langserver") and client.config.root_dir == root then
 				attached = true
 				if changed then
 					if client.name == "ty" then
@@ -253,11 +208,7 @@ vim.keymap.set("n", "<leader>lv", function()
 		)
 	end
 	local function choose(item)
-		if not active() then
-			return
-		end
-		if not item then
-			cancel_python_selection()
+		if not item or not active() then
 			return
 		end
 		if not item.manual then
@@ -265,11 +216,7 @@ vim.keymap.set("n", "<leader>lv", function()
 			return
 		end
 		vim.ui.input({ prompt = "Python executable or venv directory: ", completion = "file" }, function(path)
-			if not active() then
-				return
-			end
-			if not path or path == "" then
-				cancel_python_selection()
+			if not active() or not path or path == "" then
 				return
 			end
 			path = vim.fs.normalize(path)
@@ -286,374 +233,264 @@ vim.keymap.set("n", "<leader>lv", function()
 			select_path(path)
 		end)
 	end
-	local function show_picker()
-		if
-			not active()
-			or vim.api.nvim_get_current_win() ~= selection.win
-			or vim.api.nvim_get_current_buf() ~= selection.buf
-		then
-			if python_selection == selection then
-				cancel_python_selection()
-			end
-			return
-		end
-		vim.ui.select(choices, {
-			prompt = "Python environment: " .. vim.fn.fnamemodify(root, ":t"),
-			format_item = function(item)
-				return item.label
-			end,
-		}, choose)
+	local function items()
+		return vim.tbl_map(function(choice)
+			return {
+				label = choice.label,
+				action = function()
+					choose(choice)
+				end,
+			}
+		end, choices)
 	end
+	local picker = shared.open_picker("Python environment: " .. vim.fn.fnamemodify(root, ":t"), {
+		items = items(),
+		cancel = function()
+			shared.cancel_command("conda-envs")
+		end,
+		on_cancel = function()
+			if python_selection == selection then
+				python_selection = nil
+			end
+		end,
+	})
+	selection.picker = picker
 	local conda = vim.fn.exepath("conda")
 	if conda == "" and vim.env.CONDA_EXE and vim.fn.executable(vim.env.CONDA_EXE) == 1 then
 		conda = vim.env.CONDA_EXE
 	end
-	if conda == "" then
-		show_picker()
-		return
-	end
-	selection.job = vim.system(
-		{ conda, "env", "list", "--json" },
-		{ cwd = root, text = true, timeout = 5000 },
-		function(result)
-			selection.job = nil
-			vim.schedule(function()
-				if not active() then
+	if conda ~= "" then
+		shared.run_command(
+			"conda-envs",
+			{ conda, "env", "list", "--json" },
+			{ cwd = root, quiet = true },
+			function(output)
+				if picker.closed or not active() then
 					return
 				end
-				local ok, data = pcall(vim.json.decode, result.stdout or "")
-				if result.code == 0 and ok and type(data) == "table" and type(data.envs) == "table" then
-					for _, env in ipairs(data.envs) do
-						if type(env) == "string" then
-							local path = vim.fs.normalize(env)
-							add("Conda " .. vim.fs.basename(path), path .. "/bin/python")
+				local ok, result = pcall(vim.json.decode, output)
+				if not ok or type(result) ~= "table" or type(result.envs) ~= "table" then
+					return
+				end
+				for _, env in ipairs(result.envs) do
+					if type(env) == "string" then
+						local path = vim.fs.normalize(env)
+						add("Conda " .. vim.fs.basename(path), path .. "/bin/python")
+					end
+				end
+				picker.set_items(items())
+			end
+		)
+	end
+end, "Select Python environment for this project")
+-- =========================================
+-- ========== LSP: BUFFER KEYS ==========
+-- =========================================
+-- 서버 연결 시 파일 버퍼 전용 키를 설정합니다. 자동완성은 completion 모듈에서 관리합니다.
+-- gd/gr/gD/K: 직접 이동·조회; gR/gi/gt: picker; Space la/lr/Tr: 액션·이름 변경·심볼.
+local function attach(client, buf)
+	if not policy.allows(buf) then
+		vim.schedule(function()
+			if vim.lsp.buf_is_attached(buf, client.id) then
+				vim.lsp.buf_detach_client(buf, client.id)
+			end
+		end)
+		return
+	end
+	-- gd handles provider selection; native tag operations must read the ctags file.
+	vim.bo[buf].tagfunc = ""
+
+	local actions = {
+		gr = "references",
+		gD = "declaration",
+		K = "hover",
+		["<leader>lr"] = "rename",
+	}
+	-- Direct jumps stay direct; the original Telescope mappings remain selectable lists.
+	for key, method in pairs({ gR = "references", gi = "implementation", gt = "type_definition" }) do
+		vim.keymap.set(
+			"n",
+			key,
+			policy.guard(function()
+				local opts = {
+					on_list = function(list)
+						if policy.allows(buf) then
+							shared.location_picker(method, list.items)
+						end
+					end,
+				}
+				if method == "references" then
+					vim.lsp.buf.references(nil, opts)
+				else
+					vim.lsp.buf[method](opts)
+				end
+			end),
+			{ buf = buf, desc = "Select LSP " .. method }
+		)
+	end
+	for key, action in pairs(actions) do
+		vim.keymap.set("n", key, policy.guard(vim.lsp.buf[action]), { buf = buf, desc = "LSP: " .. action })
+	end
+	vim.keymap.set(
+		{ "n", "x" },
+		"<leader>la",
+		policy.guard(vim.lsp.buf.code_action),
+		{ buf = buf, desc = "Code action" }
+	)
+end
+-- =========================================
+-- ======== LSP: RESOLVE / ENABLE ========
+-- =========================================
+-- 실행 파일 탐색 후 vim.lsp.config/enable로 해당 언어 파일에 연결합니다.
+-- 큰 파일은 연결하지 않습니다. Space ls는 현재 버퍼의 클라이언트만 재시작합니다.
+-- Auxiliary servers need project evidence; primary language servers also support standalone files.
+local function project_uses_server(server, dir)
+	if not server.markers or vim.fs.root(dir, server.markers) then
+		return true
+	end
+	if not server.dependency then
+		return false
+	end
+	for _, path in ipairs(vim.fs.find("package.json", { path = dir, upward = true, type = "file", limit = math.huge })) do
+		local file = io.open(path, "r")
+		if file then
+			local content = file:read(65536)
+			file:close()
+			local ok, package = pcall(vim.json.decode, content or "")
+			if ok and type(package) == "table" then
+				for _, field in ipairs({ "dependencies", "devDependencies", "peerDependencies" }) do
+					if type(package[field]) == "table" and package[field][server.dependency] then
+						return true
+					end
+				end
+				if server.dependency == "eslint" and package.eslintConfig then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+for _, server in ipairs(servers) do
+	local spec, executable
+	for _, candidate in ipairs(server.alternatives or { server.cmd }) do
+		local path = shared.resolve_tool(candidate[1])
+		if path ~= "" then
+			spec, executable = candidate, path
+			break
+		end
+	end
+	if spec then
+		local name = spec[1]
+		local command = vim.deepcopy(spec)
+		command[1] = executable
+		vim.lsp.config(name, {
+			cmd = command,
+			filetypes = server.ft,
+			settings = server.settings,
+			init_options = server.init_options,
+			on_init = function(client)
+				if client.name == "ty" or client.name == "pyright-langserver" then
+					-- Apply once before workspace/configuration and didOpen, including pending starts.
+					apply_python_path(client, python_paths[client.config.root_dir])
+				end
+			end,
+			on_attach = attach,
+			root_dir = function(buf, on_dir)
+				if not policy.allows(buf) then
+					return
+				end
+				local file = vim.api.nvim_buf_get_name(buf)
+				if file == "" or not project_uses_server(server, vim.fs.dirname(file)) then
+					return
+				end
+				on_dir((shared.find_project(vim.fs.dirname(file))))
+			end,
+		})
+		vim.lsp.enable(name)
+	end
+end
+shared.map(
+	"n",
+	"<leader>ls",
+	policy.guard(function()
+		vim.cmd("lsp restart")
+	end),
+	"Restart current buffer LSP clients"
+)
+
+-- :edit opens a buffer before a file exists. Only its first successful write
+-- needs a directory refresh and recovery of ty's cached missing-module state.
+do
+	local writes, pending_files, pending_clients = {}, {}, {}
+	local scheduled = false
+	local group = vim.api.nvim_create_augroup("nopack-new-file", { clear = true })
+	vim.api.nvim_create_autocmd("BufWritePre", {
+		group = group,
+		callback = function(args)
+			writes[args.buf] = nil
+			if not policy.is_source(args.buf) then
+				return
+			end
+			local stat, _, code = vim.uv.fs_stat(args.match)
+			if not stat and code == "ENOENT" then
+				writes[args.buf] = {
+					file = args.match,
+					clients = vim.bo[args.buf].filetype == "python"
+							and vim.lsp.get_clients({ bufnr = args.buf, name = "ty" })
+						or {},
+				}
+			end
+		end,
+	})
+	vim.api.nvim_create_autocmd("BufWipeout", {
+		group = group,
+		callback = function(args)
+			writes[args.buf] = nil
+		end,
+	})
+	vim.api.nvim_create_autocmd("BufWritePost", {
+		group = group,
+		callback = function(args)
+			local write = writes[args.buf]
+			writes[args.buf] = nil
+			if not write or write.file ~= args.match or not vim.uv.fs_stat(write.file) then
+				return
+			end
+			pending_files[write.file] = true
+			for _, client in ipairs(write.clients) do
+				pending_clients[client.id] = client
+			end
+			if scheduled then
+				return
+			end
+			scheduled = true
+			vim.schedule(function()
+				local files, clients = pending_files, pending_clients
+				pending_files, pending_clients, scheduled = {}, {}, false
+				-- Batch :wall into one restart per affected ty instance. Reattach
+				-- its loaded buffers without reloading files or changing their text.
+				for _, client in pairs(clients) do
+					if not client:is_stopped() then
+						local attached = vim.tbl_keys(client.attached_buffers)
+						local config = vim.deepcopy(client.config)
+						client:stop(true)
+						local id = vim.lsp.start(config, { attach = false })
+						if id then
+							for _, buf in ipairs(attached) do
+								if policy.allows(buf) then
+									vim.lsp.buf_attach_client(buf, id)
+								end
+							end
 						end
 					end
 				end
-				show_picker()
+				vim.api.nvim_exec_autocmds("User", {
+					pattern = "NopackFilesCreated",
+					data = { files = files },
+					modeline = false,
+				})
 			end)
-		end
-	)
-end, { desc = "Select Python environment for this project" })
-
--- Prefer PATH tools; append Mason's installed executables as a fallback.
-require("mason").setup({
-	PATH = "append",
-	ui = { icons = { package_installed = "OK", package_pending = "...", package_uninstalled = "-" } },
-})
-local servers = {
-	clangd = {
-		cmd = { "clangd" },
-		filetypes = { "c", "cpp", "objc", "objcpp", "cuda" },
-		root_markers = { "compile_commands.json", "compile_flags.txt", ".clangd", "CMakeLists.txt", ".git" },
-	},
-	mlir_lsp_server = {
-		cmd = { "mlir-lsp-server" },
-		filetypes = { "mlir" },
-		root_markers = { "CMakeLists.txt", ".git" },
-	},
-	starpls = {
-		cmd = { "starpls", "server" },
-		filetypes = { "bzl" },
-		root_markers = { "MODULE.bazel", "WORKSPACE.bazel", "WORKSPACE", "BUILD.bazel", "BUILD", ".git" },
-	},
-	buf_ls = {
-		cmd = { "buf", "lsp", "serve" },
-		filetypes = { "proto" },
-		root_markers = { "buf.yaml", ".git" },
-	},
-	bashls = {
-		cmd = { "bash-language-server", "start" },
-		filetypes = { "sh" },
-		root_markers = { ".git" },
-	},
-	neocmake = {
-		cmd = { "neocmakelsp", "stdio" },
-		filetypes = { "cmake" },
-		root_markers = { "CMakeLists.txt", ".git" },
-		init_options = { format = { enable = true }, lint = { enable = true } },
-	},
-	yamlls = {
-		cmd = { "yaml-language-server", "--stdio" },
-		filetypes = { "yaml" },
-		root_markers = { ".git" },
-	},
-	texlab = {
-		cmd = { "texlab" },
-		filetypes = { "tex", "plaintex" },
-		root_markers = { ".latexmkrc", "latexmkrc", ".git" },
-	},
-	rust_analyzer = {
-		cmd = { "rust-analyzer" },
-		filetypes = { "rust" },
-		root_markers = { "Cargo.toml", "rust-project.json", ".git" },
-	},
-	ty = { cmd = { "ty", "server" }, filetypes = { "python" }, root_markers = { "pyproject.toml", "ty.toml", ".git" } },
-	pyright = {
-		cmd = { "pyright-langserver", "--stdio" },
-		filetypes = { "python" },
-		root_markers = { "pyrightconfig.json", "pyproject.toml", ".git" },
-	},
-	lua_ls = {
-		cmd = { "lua-language-server" },
-		filetypes = { "lua" },
-		root_markers = { ".luarc.json", ".luarc.jsonc", ".git" },
-		settings = {
-			Lua = {
-				runtime = { version = "LuaJIT" },
-				diagnostics = { globals = { "vim" } },
-				completion = { callSnippet = "Replace" },
-				workspace = {
-					checkThirdParty = false,
-					library = vim.list_extend(vim.api.nvim_get_runtime_file("lua", true), { "${3rd}/luv/library" }),
-				},
-			},
-		},
-	},
-	ts_ls = {
-		cmd = { "typescript-language-server", "--stdio" },
-		filetypes = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
-		root_markers = { "tsconfig.json", "jsconfig.json", "package.json", ".git" },
-		init_options = { hostInfo = "neovim" },
-		before_init = function(_, config)
-			-- Prefer project TypeScript; use PATH/Mason's tsserver as a fallback.
-			local tsserver = vim.fn.exepath("tsserver")
-			if tsserver ~= "" then
-				config.init_options.tsserver = { fallbackPath = tsserver }
-			end
 		end,
-	},
-	html = {
-		cmd = { "vscode-html-language-server", "--stdio" },
-		filetypes = { "html" },
-		root_markers = { "package.json", ".git" },
-		init_options = {
-			provideFormatter = true,
-			embeddedLanguages = { css = true, javascript = true },
-			configurationSection = { "html", "css", "javascript" },
-		},
-	},
-	cssls = {
-		cmd = { "vscode-css-language-server", "--stdio" },
-		filetypes = { "css", "scss", "less" },
-		root_markers = { "package.json", ".git" },
-		init_options = { provideFormatter = true },
-		settings = { css = { validate = true }, scss = { validate = true }, less = { validate = true } },
-	},
-	tailwindcss = {
-		cmd = { "tailwindcss-language-server", "--stdio" },
-		filetypes = {
-			"html",
-			"css",
-			"scss",
-			"javascript",
-			"javascriptreact",
-			"typescript",
-			"typescriptreact",
-			"svelte",
-		},
-		root_markers = {
-			"tailwind.config.js",
-			"tailwind.config.cjs",
-			"tailwind.config.mjs",
-			"tailwind.config.ts",
-			"postcss.config.js",
-			"postcss.config.mjs",
-			"postcss.config.cjs",
-			"package.json",
-		},
-		workspace_required = true,
-	},
-	svelte = {
-		cmd = { "svelteserver", "--stdio" },
-		filetypes = { "svelte" },
-		root_markers = { "svelte.config.js", "svelte.config.ts", "package.json", ".git" },
-		on_attach = function(client, buf)
-			vim.api.nvim_create_autocmd("BufWritePost", {
-				group = vim.api.nvim_create_augroup("svelte-changes-" .. client.id, { clear = true }),
-				pattern = { "*.js", "*.ts" },
-				callback = function(ctx)
-					if client:is_stopped() then
-						return true
-					end
-					client:notify("$/onDidChangeTsOrJsFile", { uri = vim.uri_from_fname(ctx.match) })
-				end,
-			})
-		end,
-	},
-	graphql = {
-		cmd = { "graphql-lsp", "server", "-m", "stream" },
-		filetypes = { "graphql", "gql", "svelte", "typescriptreact", "javascriptreact" },
-		root_markers = {
-			".graphqlrc",
-			".graphqlrc.json",
-			".graphqlrc.yaml",
-			".graphqlrc.yml",
-			".graphqlrc.js",
-			".graphqlrc.ts",
-			"graphql.config.js",
-			"graphql.config.ts",
-			"graphql.config.yml",
-			"graphql.config.yaml",
-			"graphql.config.json",
-		},
-		workspace_required = true,
-	},
-	emmet_ls = {
-		cmd = { "emmet-ls", "--stdio" },
-		filetypes = { "html", "typescriptreact", "javascriptreact", "css", "sass", "scss", "less", "svelte" },
-		root_markers = { ".git" },
-	},
-	prismals = {
-		cmd = { "prisma-language-server", "--stdio" },
-		filetypes = { "prisma" },
-		settings = { prisma = { prismaFmtBinPath = "" } },
-		root_markers = { "schema.prisma", "package.json", ".git" },
-	},
-	eslint = {
-		cmd = { "vscode-eslint-language-server", "--stdio" },
-		filetypes = {
-			"html",
-			"javascript",
-			"typescript",
-			"typescriptreact",
-			"javascriptreact",
-			"css",
-			"sass",
-			"scss",
-			"less",
-			"svelte",
-		},
-		root_markers = {
-			"eslint.config.js",
-			"eslint.config.mjs",
-			"eslint.config.cjs",
-			"eslint.config.ts",
-			"eslint.config.mts",
-			"eslint.config.cts",
-			".eslintrc",
-			".eslintrc.json",
-			".eslintrc.js",
-			".eslintrc.cjs",
-			".eslintrc.yml",
-			".eslintrc.yaml",
-		},
-		workspace_required = true,
-		settings = {
-			validate = "on",
-			useESLintClass = false,
-			experimental = {},
-			format = true,
-			quiet = false,
-			codeActionOnSave = { enable = false, mode = "all" },
-			onIgnoredFiles = "off",
-			rulesCustomizations = {},
-			run = "onType",
-			problems = { shortenToSingleLine = false },
-			nodePath = "",
-			workingDirectory = { mode = "auto" },
-			codeAction = {
-				disableRuleComment = { enable = true, location = "separateLine" },
-				showDocumentation = { enable = true },
-			},
-		},
-		before_init = function(_, config)
-			config.settings.workspaceFolder =
-				{ uri = vim.uri_from_fname(config.root_dir), name = vim.fs.basename(config.root_dir) }
-		end,
-		handlers = {
-			["eslint/openDoc"] = function(_, result)
-				if result then
-					vim.ui.open(result.url)
-				end
-				return {}
-			end,
-			["eslint/confirmESLintExecution"] = function()
-				return 4
-			end,
-			["eslint/probeFailed"] = function()
-				vim.notify("ESLint probe failed", vim.log.levels.WARN)
-				return {}
-			end,
-			["eslint/noLibrary"] = function()
-				vim.notify("ESLint library not found in project", vim.log.levels.WARN)
-				return {}
-			end,
-		},
-	},
-}
-for name, config in pairs(servers) do
-	if name == "ty" or name == "pyright" then
-		config.on_init = function(client)
-			apply_python_path(client, python_paths[client.config.root_dir])
-		end
-	end
-	config.root_dir = function(buf, on_dir)
-		if not policy.allows(buf) or vim.fn.executable(config.cmd[1]) == 0 then
-			return
-		end
-		local file = vim.api.nvim_buf_get_name(buf)
-		if file == "" then
-			return
-		end
-		local root = (name == "ty" or name == "pyright") and python_project_root(buf)
-			or vim.fs.root(buf, config.root_markers)
-		if (name == "ts_ls" or name == "eslint") and vim.fs.root(buf, { "deno.json", "deno.jsonc", "deno.lock" }) then
-			return
-		end
-		if root or not config.workspace_required then
-			on_dir(root or vim.fs.dirname(file))
-		end
-	end
-	vim.lsp.config(name, config)
+	})
 end
-local function enable_servers()
-	for name, config in pairs(servers) do
-		-- Keep pyright installed but disabled, matching the previous configuration.
-		if name ~= "pyright" and not vim.lsp.is_enabled(name) and vim.fn.executable(config.cmd[1]) == 1 then
-			vim.lsp.enable(name)
-		end
-	end
-end
-require("mason-registry"):on("package:install:success", vim.schedule_wrap(enable_servers))
-require("mason-tool-installer").setup({
-	run_on_start = false,
-	integrations = { ["mason-lspconfig"] = false, ["mason-null-ls"] = false, ["mason-nvim-dap"] = false },
-	ensure_installed = {
-		"bash-language-server",
-		"buf",
-		"buildifier",
-		"cmakelang",
-		"latexindent",
-		"neocmakelsp",
-		"rust-analyzer",
-		"shfmt",
-		"starpls",
-		"texlab",
-		"yaml-language-server",
-		"typescript-language-server",
-		"html-lsp",
-		"css-lsp",
-		"clangd",
-		"tailwindcss-language-server",
-		"svelte-language-server",
-		"lua-language-server",
-		"graphql-language-service-cli",
-		"emmet-ls",
-		"prisma-language-server",
-		"pyright",
-		"ty",
-		"ruff",
-		"eslint-lsp",
-		"prettier",
-		"stylua",
-		"clang-format",
-		"isort",
-		"black",
-		"pylint",
-		"eslint_d",
-	},
-})
-enable_servers()
-
--- File renames in the Snacks explorer use Snacks.rename for LSP import updates.

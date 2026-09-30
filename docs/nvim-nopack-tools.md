@@ -1,6 +1,6 @@
 # Nopack Neovim: LSP·포맷터 설치 가이드
 
-`nvim-nopack/init.lua`는 Neovim 0.12 이상에서 동작하며 도구를 설치하지 않습니다.
+`nvim/init.lua`는 Neovim 0.12 이상에서 동작하며 도구를 설치하지 않습니다.
 LSP와 포맷터 실행 파일은 Neovim의 PATH에서 찾을 수 있도록 설정합니다.
 아래는 관리자 권한 없이 Linux 서버의 사용자 홈에 설치하는 예입니다. 필요한 언어만 설치하세요.
 macOS에서 준비해 Linux로 옮길 때는 서버용 Linux 배포 파일을 받아야 합니다.
@@ -15,7 +15,7 @@ macOS에서 준비해 Linux로 옮길 때는 서버용 Linux 배포 파일을 �
 | Ctags fallback | `g:nopack_ctags` 지정값 및 PATH 후보에서 Universal 우선, 없으면 Exuberant |
 
 Mason은 필요 없습니다. 기존 Mason 경로가 있어도 플러그인을 로드하거나 설치하지 않습니다.
-PATH에 실행 파일이 있어도 현재 `nvim-nopack/lua/lsp.lua`의 `servers` 목록에 등록된 서버만 연결합니다.
+PATH에 실행 파일이 있어도 현재 `nvim/lua/lsp.lua`의 `servers` 목록에 등록된 서버만 연결합니다.
 Tailwind·ESLint는 프로젝트 설정/의존성, Emmet은 `.emmet.json` 또는 `emmet.json`이 필요합니다.
 Ctags 준비와 명령은 [ctags fallback 가이드](nvim-nopack.md#ctags-fallback)를 참고하세요.
 명령 별칭(alias)은 실행 파일 검색 대상이 아닙니다. 실제 파일, 정상적인 심볼릭 링크 또는 wrapper를 사용하세요.
@@ -23,8 +23,8 @@ Ctags 준비와 명령은 [ctags fallback 가이드](nvim-nopack.md#ctags-fallba
 권장 배치:
 
 ```text
-~/.config/nvim-nopack/init.lua
-~/.config/nvim-nopack/lua/             # 설정 모듈도 함께 복사
+~/.config/nvim/init.lua
+~/.config/nvim/lua/             # 설정 모듈도 함께 복사
 ~/.local/bin/                         # 필요한 wrapper
 ~/.local/opt/nvim-tools/
 ├── node-tools/node_modules/.bin/     # npm으로 설치한 LSP·Prettier 진입점
@@ -276,7 +276,7 @@ command -v ty
 command -v ruff
 ty --version
 ruff --version
-NVIM_APPNAME=nvim-nopack nvim example.py
+NVIM_APPNAME=nvim nvim example.py
 ```
 
 대체 도구를 사용한다면 `node`, `pyright-langserver`, `black`의 설치를 확인합니다.

@@ -11,12 +11,12 @@ function M.status(win)
 	local parts = {}
 	for _, symbol in ipairs(symbols.get_symbols(buf, win, vim.api.nvim_win_get_cursor(win))) do
 		local name = symbol.name:gsub("[%c]", " "):gsub("%%", "%%%%")
-		parts[#parts + 1] = " > %" .. (symbol.selection.start.line + 1) .. "@v:lua.NopackContextJump@" .. name .. "%X"
+		parts[#parts + 1] = " > %" .. (symbol.selection.start.line + 1) .. "@v:lua.PackContextJump@" .. name .. "%X"
 	end
 	return table.concat(parts)
 end
 
-function _G.NopackContextJump(line, _, button)
+function _G.PackContextJump(line, _, button)
 	if button ~= "l" then
 		return
 	end

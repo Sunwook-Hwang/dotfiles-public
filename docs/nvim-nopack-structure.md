@@ -1,6 +1,6 @@
 # Nopack configuration structure
 
-`nvim-nopack/.config/nvim-nopack/init.lua` loads feature modules directly from its
+`nvim/.config/nvim/init.lua` loads feature modules directly from its
 adjacent `lua/` directory. Initialization follows the previous single-file order.
 These modules belong to the Nopack profile and never import Pack configuration
 modules or third-party plugins.

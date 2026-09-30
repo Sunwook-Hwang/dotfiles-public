@@ -1,4 +1,6 @@
 local policy = require("buffer_policy")
+local Snacks = require("snacks")
+
 -- =========================================
 -- =========== STICKY SCROLL =============
 -- =========================================
@@ -8,7 +10,7 @@ do
 	local enabled, queued = false, false
 	local popup, cache, rendered_config
 	local numbers, numbers_config
-	local number_hl = vim.api.nvim_create_namespace("nopack-sticky-numbers")
+	local number_hl = vim.api.nvim_create_namespace("pack-sticky-numbers")
 	local function close()
 		local windows = { popup, numbers }
 		popup = nil
@@ -99,13 +101,19 @@ do
 	local function update()
 		local win = vim.api.nvim_get_current_win()
 		local buf = vim.api.nvim_win_get_buf(win)
-		if not enabled or not policy.is_editor(win) or not policy.allows(buf) or vim.fn.getcmdwintype() ~= "" then
+		if
+			not enabled
+			or not policy.is_editor(win)
+			or not policy.allows(buf)
+			or vim.bo[buf].filetype == "netrw"
+			or vim.fn.getcmdwintype() ~= ""
+		then
 			close()
 			return
 		end
 		local view = vim.fn.winsaveview()
 		local cursor = vim.api.nvim_win_get_cursor(win)
-		local screen_top = vim.fn.win_screenpos(win)[1]
+		local screen_top = vim.fn.win_screenpos(win)[1] + vim.fn.getwininfo(win)[1].winbar
 		local row = vim.fn.screenpos(win, cursor[1], cursor[2] + 1).row - screen_top
 		local limit = math.min(8, math.floor(vim.api.nvim_win_get_height(win) / 3), row - 1)
 		if limit < 1 then
@@ -292,10 +300,10 @@ do
 			update()
 		end)
 	end
-	local group = vim.api.nvim_create_augroup("nopack-sticky-scroll", { clear = true })
+	local group = vim.api.nvim_create_augroup("pack-sticky-scroll", { clear = true })
 	vim.api.nvim_create_autocmd("User", {
 		group = group,
-		pattern = "NopackBufferRestricted",
+		pattern = "PackBufferRestricted",
 		callback = function(args)
 			if cache and cache.key[2] == args.data.buf then
 				close()
@@ -334,6 +342,7 @@ do
 			"vartabstop",
 			"shiftwidth",
 			"wrap",
+			"winbar",
 			"previewwindow",
 		},
 		callback = function()
@@ -352,12 +361,18 @@ do
 			end
 		end,
 	})
-	vim.keymap.set("n", "<leader>Ts", function()
-		enabled = not enabled
-		if enabled then
-			queue()
-		else
-			close()
-		end
-	end, { desc = "Toggle sticky scroll" })
+	Snacks.toggle({
+		name = "Sticky scroll",
+		get = function()
+			return enabled
+		end,
+		set = function(state)
+			enabled = state
+			if enabled then
+				queue()
+			else
+				close()
+			end
+		end,
+	}):map("<leader>Ts")
 end

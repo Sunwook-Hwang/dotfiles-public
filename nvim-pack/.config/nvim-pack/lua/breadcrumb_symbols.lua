@@ -161,7 +161,7 @@ M.refresh = refresh
 
 function M.setup(is_enabled)
 	enabled = is_enabled
-	local group = vim.api.nvim_create_augroup("NopackBreadcrumbSymbols", { clear = true })
+	local group = vim.api.nvim_create_augroup("PackBreadcrumbSymbols", { clear = true })
 	vim.api.nvim_create_autocmd({
 		"BufEnter",
 		"BufWinEnter",
@@ -205,7 +205,7 @@ function M.setup(is_enabled)
 	})
 	vim.api.nvim_create_autocmd("User", {
 		group = group,
-		pattern = "NopackBufferRestricted",
+		pattern = "PackBufferRestricted",
 		callback = function(args)
 			M.clear(args.data.buf)
 		end,

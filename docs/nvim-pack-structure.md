@@ -1,14 +1,13 @@
 # Pack configuration structure
 
-`nvim/.config/nvim/init.lua` loads the feature modules directly from
-`nvim/.config/nvim/lua/`. Snacks is configured before modules register its toggles.
+`nvim-pack/.config/nvim-pack/init.lua` loads the feature modules directly from
+`nvim-pack/.config/nvim-pack/lua/`. Snacks is configured before modules register its toggles.
 It resolves its own file location, including symlinks, so `nvim -u /path/to/init.lua`
 also works when the adjacent `lua/` directory is present.
 
-`nvim-nopack/init.lua` stays independent: it loads feature modules from its own
+`nvim/init.lua` stays independent: it loads feature modules from its own
 `lua/` directory and does not import any Pack modules. Copy its whole profile directory
-when moving it to a server. The installed `pvi`/`npvi` aliases select named
-configurations through shell functions in `.zshrc`; `vi` retains the last selection. Pack plugin packages and Mason tools are separate
+when moving it to a server. `vi` always starts FLASH; `pvi` selects `NVIM_APPNAME=nvim-pack`. Pack plugin packages and Mason tools are separate
 from these configuration files and must also be available on a network-isolated server.
 
 | Module              | Responsibility                                                    |
@@ -84,7 +83,7 @@ same limits; features may retain stricter workload budgets, such as native Git
 sign diff limits. Protection lasts until the buffer is discarded. Buffer lists,
 project browsing, and sessions still recognize protected or unloaded source buffers.
 
-npvi도 독립적인 `buffer_policy.lua`를 사용하고, vimrc는 같은 정책을 파일 내부
+vi도 독립적인 `buffer_policy.lua`를 사용하고, vimrc는 같은 정책을 파일 내부
 함수로 구현합니다. 큰 파일 제한 전환은 한 번만 알리고, 각 기능이 자신의 요청·타이머·
 표시를 정리합니다. 파일 열기와 편집 중 증가를 모두 검사하며, 커서 이동마다 파일
 전체를 다시 검사하지 않습니다. 큰 파일의 기본 편집·탐색·버퍼 목록·세션은 유지합니다.
@@ -119,6 +118,6 @@ pvi는 `lua/` 바로 아래 기능 이름으로 파일을 분리했습니다. �
 다른 컴퓨터로 옮길 때는 `nvim/init.lua`와 옆의 `lua/` 디렉터리를 함께 복사해야 합니다.
 플러그인과 Mason 도구는 별도로 준비해야 합니다.
 
-npvi는 Pack 모듈들을 불러오지 않습니다. `nvim-nopack/init.lua`와 옆의 `lua/` 디렉터리를 함께 가져가야 합니다.
+vi는 Pack 모듈들을 불러오지 않습니다. `nvim/init.lua`와 옆의 `lua/` 디렉터리를 함께 가져가야 합니다.
 커서 지연을 조사할 때는 해당 기능 파일의 이벤트 등록과 갱신 콜백을 확인하면 됩니다.
 이번 분리는 동작과 갱신 주기를 바꾸지 않습니다. 설정 변경 후에는 Neovim을 재시작하세요.

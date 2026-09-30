@@ -1,6 +1,6 @@
 # Nopack Neovim 0.12
 
-서버에는 `nvim-nopack/.config/nvim-nopack/`의 `init.lua`와 `lua/` 폴더를 함께 복사합니다.
+서버에는 `nvim/.config/nvim/`의 `init.lua`와 `lua/` 폴더를 함께 복사합니다.
 Neovim **0.12 이상**을 요구하며, 이전 버전에서는 명확한 오류를 표시합니다.
 플러그인 매니저, 외부 플러그인 파일, 패키지/파서 다운로드는 사용하지 않습니다.
 
@@ -11,12 +11,12 @@ Neovim **0.12 이상**을 요구하며, 이전 버전에서는 명확한 오류�
 Stow 환경:
 
 ```sh
-NVIM_APPNAME=nvim-nopack nvim
+NVIM_APPNAME=nvim nvim
 ```
 
 서버에서는 이 폴더를 전송한 경로로 `nvim -u /path/to/init.lua`를 실행하거나,
-기존 설정을 백업하고 `~/.config/nvim-nopack/`에 `init.lua`와 `lua/`를 배치한 뒤
-`NVIM_APPNAME=nvim-nopack nvim`으로 실행합니다. 단독 서버에서 기본 `nvim`으로
+기존 설정을 백업하고 `~/.config/nvim/`에 `init.lua`와 `lua/`를 배치한 뒤
+`NVIM_APPNAME=nvim nvim`으로 실행합니다. 단독 서버에서 기본 `nvim`으로
 사용하려면 `~/.config/nvim/`에 동일한 두 항목을 배치해도 됩니다.
 Pack 설정의 모듈과는 별개이며, [모듈 구조 안내](nvim-nopack-structure.md)를 참고하세요.
 LSP가 없거나 정의·심볼 요청이 실패하면 저장된 파일의 ctags 정보를 사용합니다.
@@ -192,7 +192,7 @@ LSP가 없을 때 정의 이동·완성·아웃라인은 **Universal Ctags 또�
 
 ```sh
 ctags --version
-NVIM_APPNAME=nvim-nopack nvim --cmd "let g:nopack_ctags='/path/to/ctags'"
+NVIM_APPNAME=nvim nvim --cmd "let g:nopack_ctags='/path/to/ctags'"
 ```
 
 직접 지정하지 않으면 PATH에서 찾습니다. 서버에 복사하는 실행 파일은 서버의 OS·CPU와

@@ -1,11 +1,25 @@
 local policy = require("buffer_policy")
-local shared = require("state")
-
 -- =========================================
 -- ============== KEYMAPS: BASE ============
 -- =========================================
--- Leave Insert mode with jk
+-- I hate escape
 vim.keymap.set("i", "jk", "<esc>", { noremap = true, silent = true })
+
+-- nohl
+vim.keymap.set("n", "<ESC>", ":nohl<CR>", { noremap = true, silent = true })
+
+-- Increment/decrement
+vim.keymap.set("n", "+", "<C-a>", { noremap = true, silent = true })
+vim.keymap.set("n", "-", "<C-x>", { noremap = true, silent = true })
+
+-- Terminal mode exit (double ESC)
+vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode" })
+
+-- Add undo break-points
+vim.keymap.set("i", ",", ",<c-g>u", { noremap = true, silent = true })
+vim.keymap.set("i", ".", ".<c-g>u", { noremap = true, silent = true })
+vim.keymap.set("i", ";", ";<c-g>u", { noremap = true, silent = true })
+vim.keymap.set("i", "<", "<<C-g>u", { noremap = true, silent = true })
 
 -- Native pairs for file buffers; prompt input and large files stay literal.
 local insert_pairs = { ["("] = ")", ["["] = "]", ["{"] = "}", ["'"] = "'", ['"'] = '"', ["`"] = "`" }
@@ -13,7 +27,7 @@ local function pair_escaped(text)
 	return #(text:match("\\+$") or "") % 2 == 1
 end
 local function pair_mapping(key, callback, description)
-	local plug = "<Plug>(nopack-pair-" .. key:byte() .. ")"
+	local plug = "<Plug>(native-pair-" .. key:byte() .. ")"
 	-- Flush preceding typed characters before inspecting the cursor and buffer.
 	vim.keymap.set("i", key, "<Ignore>" .. plug, { desc = description })
 	vim.keymap.set("i", plug, callback, { expr = true })
@@ -61,22 +75,6 @@ pair_mapping("<BS>", function()
 	end
 	return "<BS>"
 end, "Delete an empty pair")
-
--- Clear search highlighting
-vim.keymap.set("n", "<ESC>", ":nohl<CR>", { noremap = true, silent = true })
-
--- Increment/decrement
-vim.keymap.set("n", "+", "<C-a>", { noremap = true, silent = true })
-vim.keymap.set("n", "-", "<C-x>", { noremap = true, silent = true })
-
--- Terminal mode exit (double ESC)
-vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode" })
-
--- Add undo break-points
-vim.keymap.set("i", ",", ",<c-g>u", { noremap = true, silent = true })
-vim.keymap.set("i", ".", ".<c-g>u", { noremap = true, silent = true })
-vim.keymap.set("i", ";", ";<c-g>u", { noremap = true, silent = true })
-vim.keymap.set("i", "<", "<<C-g>u", { noremap = true, silent = true })
 
 -- Window navigation (insert-mode alt-arrows)
 vim.keymap.set("i", "<A-Up>", "<C-\\><C-N><C-w>k", { noremap = true, silent = true })
@@ -133,6 +131,76 @@ vim.keymap.set("x", "P", "P", { noremap = true, silent = true })
 vim.keymap.set("n", "n", "nzzzv", { noremap = true, silent = true })
 vim.keymap.set("n", "N", "Nzzzv", { noremap = true, silent = true })
 
+-- Space Th: highlight the word under the cursor after a short idle pause.
+do
+	local enabled = false
+	local function clear(win)
+		if not vim.api.nvim_win_is_valid(win) then
+			return
+		end
+		local id = vim.w[win].cursor_word_match
+		if id then
+			pcall(vim.fn.matchdelete, id, win)
+			vim.w[win].cursor_word_match = nil
+		end
+	end
+	local function highlight()
+		if not enabled then
+			return
+		end
+		local win, buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
+		if not policy.allows(buf) or vim.fn.mode() ~= "n" then
+			return
+		end
+		local word = vim.fn.expand("<cword>")
+		if word == "" or vim.fn.matchstr(vim.api.nvim_get_current_line(), "\\%" .. vim.fn.col(".") .. "c\\k") == "" then
+			return
+		end
+		clear(win)
+		vim.w[win].cursor_word_match =
+			vim.fn.matchadd("CursorWord", "\\C\\V\\<" .. vim.fn.escape(word, "\\") .. "\\>", -1)
+	end
+	vim.cmd("highlight default link CursorWord Visual")
+	local group = vim.api.nvim_create_augroup("pack-cursor-word", { clear = true })
+	vim.api.nvim_create_autocmd("User", {
+		group = group,
+		pattern = "PackBufferRestricted",
+		callback = function(args)
+			for _, win in ipairs(vim.fn.win_findbuf(args.data.buf)) do
+				clear(win)
+			end
+		end,
+	})
+	vim.api.nvim_create_autocmd("ColorScheme", {
+		group = group,
+		callback = function()
+			vim.cmd("highlight default link CursorWord Visual")
+		end,
+	})
+	vim.api.nvim_create_autocmd("CursorHold", { group = group, callback = highlight })
+	vim.api.nvim_create_autocmd(
+		{ "CursorMoved", "InsertEnter", "ModeChanged", "WinLeave", "BufLeave", "TextChanged" },
+		{
+			group = group,
+			callback = function()
+				if enabled then
+					clear(vim.api.nvim_get_current_win())
+				end
+			end,
+		}
+	)
+	vim.keymap.set("n", "<leader>Th", function()
+		enabled = not enabled
+		if enabled then
+			highlight()
+		else
+			for _, win in ipairs(vim.api.nvim_list_wins()) do
+				clear(win)
+			end
+		end
+	end, { desc = "Toggle cursor word highlight" })
+end
+
 -- Diff all windows
 vim.keymap.set("n", "<leader>w", ":windo diffthis<CR>", {
 	noremap = true,
@@ -165,40 +233,3 @@ end
 -- Keep selection when indenting
 vim.keymap.set("v", "<", "<gv", { noremap = true, silent = true })
 vim.keymap.set("v", ">", ">gv", { noremap = true, silent = true })
-
--- Yank highlight
-vim.api.nvim_create_autocmd("TextYankPost", {
-	desc = "Highlight when yanking (copying) text",
-	group = vim.api.nvim_create_augroup("kickstart-highlight-yank", { clear = true }),
-	callback = function()
-		shared.highlight_yank()
-	end,
-})
-
--- Send SSH yanks to the client clipboard; keep p local without OSC52 read requests.
-if shared.is_ssh then
-	vim.api.nvim_create_autocmd("TextYankPost", {
-		group = vim.api.nvim_create_augroup("nopack-ssh-yank", { clear = true }),
-		callback = function()
-			if vim.v.event.operator == "y" and vim.v.event.regname == "" then
-				local lines = vim.deepcopy(vim.v.event.regcontents)
-				if vim.v.event.regtype == "V" then
-					lines[#lines + 1] = ""
-				end
-				if #table.concat(lines, "\n") > 100000 then
-					vim.notify("OSC52 yank skipped: selection exceeds 100 KB", vim.log.levels.WARN)
-					return
-				end
-				require("vim.ui.clipboard.osc52").copy("+")(lines)
-			end
-		end,
-	})
-end
-
--- =========================================
--- ============ KEYMAP HELPER ============
--- =========================================
--- 이후 공통 키맵에 silent와 설명을 붙이는 작은 헬퍼입니다.
-function shared.map(mode, lhs, rhs, desc)
-	vim.keymap.set(mode, lhs, rhs, { silent = true, desc = desc })
-end

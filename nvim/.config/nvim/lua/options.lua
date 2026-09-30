@@ -1,98 +1,161 @@
--- =========================================
--- ============ DISABLE DEFAULTS ===========
--- =========================================
-vim.g.loaded_gzip = 1
-vim.g.loaded_zip = 1
-vim.g.loaded_zipPlugin = 1
-vim.g.loaded_tar = 1
-vim.g.loaded_tarPlugin = 1
+local policy = require("buffer_policy")
+local shared = require("state")
 
-vim.g.loaded_getscriptPlugin = 1
-vim.g.loaded_getscript = 1
-vim.g.loaded_vimball = 1
-vim.g.loaded_vimballPlugin = 1
-vim.g.loaded_2html_plugin = 1
+-- Neovim 0.12+ 전용. 사용자 플러그인 경로를 제외하고 설치본의 기본 런타임만 사용합니다.
+vim.opt.packpath = { vim.env.VIMRUNTIME }
+-- Keep the installation's parser directory as well as its runtime scripts.
+vim.opt.runtimepath = vim.tbl_filter(function(path)
+	return path == shared.config_root or path == vim.env.VIMRUNTIME or path:match("/lib[^/]*/nvim$") ~= nil
+end, vim.opt.runtimepath:get())
 
-vim.g.loaded_logiPat = 1
-vim.g.loaded_rrhelper = 1
-
-vim.g.loaded_netrw = 1
-vim.g.loaded_netrwPlugin = 1
-vim.g.loaded_netrwSettings = 1
+-- Choose compatibility paths once at startup, not on every editor event.
+-- The legacy API references below are used only when the new API is absent.
+shared.highlight_yank = vim.hl.hl_op or vim.hl.on_yank
+shared.set_window_width = nil
+if vim.api.nvim_win_resize then
+	shared.set_window_width = function(win, width)
+		vim.api.nvim_win_resize(win, width, -1, {})
+	end
+else
+	-- Neovim 0.12 does not provide nvim_win_resize().
+	shared.set_window_width = vim.api.nvim_win_set_width
+end
 
 -- =========================================
 -- ============== CORE OPTIONS =============
 -- =========================================
-HOME_PATH = vim.loop.os_homedir()
+shared.nopack_data = vim.fn.stdpath("data") .. "/nopack"
+-- Keep existing sessions and undo files when adopting the nopack name.
+local legacy_data = vim.fn.stdpath("data") .. "/offline"
+if vim.fn.isdirectory(legacy_data) == 1 and vim.fn.isdirectory(shared.nopack_data) == 0 then
+	if vim.fn.rename(legacy_data, shared.nopack_data) ~= 0 then
+		shared.nopack_data = legacy_data
+	end
+end
 -- Share persistent undo across Pack and Nopack, independently of NVIM_APPNAME.
 local undo_dir = (vim.env.XDG_STATE_HOME or vim.fn.expand("~/.local/state")) .. "/nvim/undo"
 vim.fn.mkdir(undo_dir, "p")
+shared.is_ssh = vim.env.SSH_CONNECTION ~= nil or vim.env.SSH_TTY ~= nil
+
+-- Use PATH first, then existing Mason installations; never install tools here.
+function shared.resolve_tool(name)
+	local path = vim.fn.exepath(name)
+	if path ~= "" then
+		return path
+	end
+	local installed = vim.fn.stdpath("data") .. "/mason/bin/" .. name
+	return vim.fn.executable(installed) == 1 and installed or ""
+end
 
 local default_options = {
-	backup = false, -- creates a backup file
-	clipboard = "unnamedplus", -- allows neovim to access the system clipboard
-	lazyredraw = false,
+	backup = false, -- do not retain a backup after writing
+	clipboard = shared.is_ssh and "" or "unnamedplus", -- SSH copies through the yank hook below; local desktops use their provider
+	lazyredraw = false, -- keep normal redraws; do not defer display updates
 	cmdheight = 1, -- more space in the neovim command line for displaying messages
-	-- colorcolumn = "90", -- fixes indentline for now
 	completeopt = { "menu", "menuone", "noselect", "popup", "fuzzy" },
 	autocompletedelay = 150,
 	complete = { ".", "w", "b", "t" },
 	pumborder = "rounded",
+	winborder = "rounded",
 	conceallevel = 0, -- so that `` is visible in markdown files
 	fileencoding = "utf-8", -- the encoding written to a file
-	foldmethod = "manual",
-	foldexpr = "",
+	foldmethod = "manual", -- folds are controlled manually
+	foldexpr = "", -- no plugin-provided fold expression
 	guifont = "RobotoMono Nerd Font Mono,monospace:h17", -- prefer solid-dot Braille glyphs for dashboard art
 	hidden = true, -- required to keep multiple buffers and open multiple buffers
 	hlsearch = true, -- highlight all matches on previous search pattern
 	ignorecase = true, -- ignore case in search patterns
 	mouse = "a", -- allow the mouse to be used in neovim
 	pumheight = 10, -- pop up menu height
-	showmode = true, -- we don't need to see things like -- INSERT -- anymore
+	showmode = true, -- show the active input mode
 	showtabline = 2, -- always show tabs
 	smartcase = true, -- smart case
-	smartindent = true, -- make indenting smarter again
+	smartindent = false, -- let filetype indent rules handle '#' lines normally
 	splitbelow = true, -- force all horizontal splits to go below current window
-	splitright = true, -- force all vertical splits to go to the right of current window
-	swapfile = false, -- creates a swapfile
+	splitright = true, -- force all vertical splits to go to the right current window
+	swapfile = false, -- do not create swap files
 	termguicolors = true, -- set term gui colors (most terminals support this)
 	title = true, -- set the title of window to the value of the titlestring
-	-- -- opt.titlestring = "%<%F%=%l/%L - nvim" -- what the title of the window will be set to
 	undodir = undo_dir, -- shared persistent undo
 	undofile = true, -- enable persistent undo
-	updatetime = 250, -- CursorHold/write delay; completion uses autocompletedelay
-	writebackup = false, -- if a file is being edited by another program (or was written to file while editing with another program), it is not allowed to be edited
+	updatetime = 250, -- idle time before CursorHold
+	writebackup = false, -- do not create a temporary backup while writing
 	expandtab = true, -- convert tabs to spaces
 	shiftwidth = 4, -- the number of spaces inserted for each indentation
-	tabstop = 4, -- insert 2 spaces for a tab
-	cursorline = true, -- highlight the current line
-	cursorcolumn = true, -- highlight the current vertical line
+	tabstop = 4, -- display tabs at four-column stops
+	cursorline = true,
+	cursorlineopt = "line,number", -- highlight the current row and its line number
+	cursorcolumn = true, -- highlight the current column to form a crosshair
 	number = true, -- set numbered lines
 	relativenumber = false, -- set relative numbered lines
 	numberwidth = 2, -- set number column width to 2 {default 4}
 	signcolumn = "yes", -- always show the sign column, otherwise it would shift the text each time
-	wrap = true, -- display lines as one long line
+	wrap = true, -- wrap long lines at the window edge
 	spell = false,
 	spelllang = "en",
 	background = "dark",
-	scrolloff = 5, -- is one of my fav
+	scrolloff = 5, -- keep context above and below the cursor
 	sidescrolloff = 8,
 	ttyfast = true,
 	sessionoptions = "buffers,curdir,tabpages,winsize",
-} ---  VIM ONLY COMMANDS  ---cmd "filetype plugin on"cmd('let &titleold="' .. TERMINAL .. '"')cmd "set inccommand=split"cmd "set iskeyword+=-"
+}
 
----  SETTINGS  ---
+-- Apply the shared editor options before configuring window-local behavior.
 vim.opt.shortmess:append("c")
-vim.opt.fillchars:append({ foldopen = "-", foldclose = ">" })
 
 for k, v in pairs(default_options) do
 	vim.opt[k] = v
 end
 
--- Filetype indentation and navigation are editing options, independent of the theme.
-vim.cmd("filetype indent on")
+-- Editing and command-line options are independent of the display modules.
+vim.cmd("filetype plugin indent on")
+vim.cmd("syntax enable")
 vim.opt.whichwrap:append("<,>,[,],h,l")
 vim.opt.iskeyword:append("-")
+-- Keep :find / Tab completion from recursively walking an entire server.
+vim.opt.path = { ".", "" }
+vim.opt.wildmenu = true
+vim.opt.wildmode = "longest:full,full"
+vim.opt.wildignore:append({ "*/.git/*", "*/node_modules/*", "*/__pycache__/*" })
+
+-- Runtime UI changes use vim.wo[win][0] / vim.opt_local, never window defaults.
+-- Numbering is window-local; ordinary navigation only touches the entered window.
+local function show_line_numbers(win)
+	if not vim.api.nvim_win_is_valid(win) then
+		return
+	end
+	local buf = vim.api.nvim_win_get_buf(win)
+	if policy.is_source(buf) or vim.bo[buf].filetype == "netrw" then
+		if not vim.wo[win].number then
+			vim.wo[win][0].number = true
+		end
+		if vim.wo[win].relativenumber then
+			vim.wo[win][0].relativenumber = false
+		end
+		if vim.wo[win].statuscolumn ~= "" then
+			vim.wo[win][0].statuscolumn = ""
+		end
+	end
+end
+vim.api.nvim_create_autocmd({ "WinEnter", "BufWinEnter", "FileType", "VimEnter", "SessionLoadPost" }, {
+	group = vim.api.nvim_create_augroup("nopack-line-numbers", { clear = true }),
+	callback = function(args)
+		if args.event == "FileType" then
+			-- Apply after filetype plugins, only to windows displaying this buffer.
+			vim.schedule(function()
+				for _, win in ipairs(vim.fn.win_findbuf(args.buf)) do
+					show_line_numbers(win)
+				end
+			end)
+		elseif args.event == "VimEnter" or args.event == "SessionLoadPost" then
+			for _, win in ipairs(vim.api.nvim_list_wins()) do
+				show_line_numbers(win)
+			end
+		else
+			show_line_numbers(vim.api.nvim_get_current_win())
+		end
+	end,
+})
 
 -- =========================================
 -- ================ LEADER =================

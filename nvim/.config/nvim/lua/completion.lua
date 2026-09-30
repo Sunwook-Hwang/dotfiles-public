@@ -2,8 +2,8 @@ local policy = require("buffer_policy")
 -- =========================================
 -- ======== COMPLETION / SNIPPETS ========
 -- =========================================
--- Native completion and snippets; LSP automatic popup is enabled on attach.
--- Ctrl-Space: request, Ctrl-n/p: select, Enter: accept, Tab/Shift-Tab: snippet/completion.
+-- Blink 대체: 내장 LSP 완성과 스니펫. 이 모듈에서 LSP 자동 팝업도 관리합니다.
+-- Ctrl-Space: 요청, Ctrl-n/p: 선택, Enter: 선택 확정, Tab/Shift-Tab: 스니펫·후보 이동.
 vim.keymap.set("i", "<C-Space>", function()
 	if not policy.allows(0) then
 		return
@@ -29,7 +29,7 @@ for key, direction in pairs({ ["<Tab>"] = 1, ["<S-Tab>"] = -1 }) do
 	end, { desc = "Snippet tabstop / completion / " .. key })
 end
 -- Buffers without completion providers use words/tags; connected providers use the async engine.
-local completion_buffers = {}
+local completion_buffers, pending_completion = {}, {}
 local function buffer_completion(buf)
 	local eligible = policy.allows(buf)
 	vim.bo[buf].autocomplete = eligible
@@ -62,12 +62,11 @@ vim.api.nvim_create_autocmd("LspAttach", {
 	end,
 })
 vim.api.nvim_create_autocmd("User", {
-	pattern = "PackBufferRestricted",
+	pattern = "NopackBufferRestricted",
 	callback = function(args)
 		buffer_completion(args.data.buf)
 	end,
 })
-local pending_completion = {}
 vim.api.nvim_create_autocmd({ "BufEnter", "FileType", "LspDetach" }, {
 	callback = function(args)
 		if

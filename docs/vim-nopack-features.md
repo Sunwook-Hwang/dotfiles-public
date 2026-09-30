@@ -21,7 +21,7 @@ is required.
 For the normal repository installation, run `./install_dotfiles.sh`; it links
 `vim/.vimrc` to `~/.vimrc`, backing up a conflicting file. `./clean_dotfiles.sh`
 removes that link. On a restricted server, copy just `vim/.vimrc` to `~/.vimrc`
-and run `vim`. Existing `pvi` / `npvi` aliases continue to launch **Neovim**;
+and run `vim`. Existing `pvi` / `vi` aliases continue to launch **Neovim**;
 this configuration is launched with **`vim`**.
 
 Caches, persistent undo, netrw state, and sessions are stored under
@@ -63,7 +63,7 @@ The theme is `retrobox` when bundled, otherwise `desert`.
 In compatible terminals, the cursor is a block in Normal mode, a vertical bar in
 Insert mode, and an underline in Replace mode.
 
-Basic editing defaults also match npvi: incremental search, one space when `J`
+Basic editing defaults also match vi: incremental search, one space when `J`
 joins sentences, comment-leader removal on joins, retained cursor columns for
 `gg`/`G`, decimal handling of zero-prefixed numbers, and filetype-based indentation.
 Vim's bundled matchit extends `%`/`g%` to language constructs and HTML tags.
@@ -135,12 +135,12 @@ the system `cp`/`mv` commands. Destructive actions use the resolved tree path;
 ambiguous decorated names are refused. Refresh stays inside the existing tree.
 Use `:Ntree /path` or `gn` in the tree to set its root manually.
 
-Project roots match npvi: Git/project markers for ordinary source,
+Project roots match vi: Git/project markers for ordinary source,
 the package directory inside `site-packages`/`dist-packages`, and the Python
 standard-library directory identified by `os.py` plus `importlib/__init__.py`.
 This does not hard-code a Python version.
 
-Sticky Scroll uses the same bounded indentation-based heuristic as npvi,
+Sticky Scroll uses the same bounded indentation-based heuristic as vi,
 including multiline Python function signatures. It preserves source line
 numbers, the sign/number gutter, indent guides, and native syntax colors.
 It shows at most eight scope lines; overflow keeps the outermost scope and
@@ -183,7 +183,7 @@ original editing tab without changing its window settings.
 
 Formatters are searched on **PATH, then existing Neovim Mason binaries**; Vim
 never installs them. Python prefers Ruff, then Black. Other registrations match
-npvi: StyLua; clang-format for C/C++/CUDA/Proto; Prettier for JS/TS/React,
+vi: StyLua; clang-format for C/C++/CUDA/Proto; Prettier for JS/TS/React,
 HTML/CSS/SCSS/Less, JSON/JSONC, YAML, Markdown/MDX, GraphQL, Vue, Handlebars;
 Buildifier for Bazel; shfmt for Shell; cmake-format; latexindent for TeX; rustfmt.
 MLIR has no standalone formatter registration. There is no LSP-format fallback.

@@ -13,14 +13,11 @@ alias tad='tmux at -d'
 
 alias lg='lazygit'
 unalias vi pvi npvi onvi offvi 2>/dev/null || true
-unfunction pvi npvi 2>/dev/null || true
+unfunction vi pvi npvi 2>/dev/null || true
 
-# Persist the selected Neovim profile; vi without a selector reuses it.
-function vi {
-  "$HOME/.local/libexec/dotfiles/vi" "$@"
-}
-alias pvi='vi --pack'
-alias npvi='vi --nopack'
+# FLASH is always the default; the package profile is selected explicitly.
+alias vi='env NVIM_APPNAME=nvim nvim'
+alias pvi='env NVIM_APPNAME=nvim-pack nvim'
 
 alias neovide='NVIM_APPNAME=neovide-terminal neovide'
 

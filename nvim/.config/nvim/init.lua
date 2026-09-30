@@ -1,36 +1,52 @@
---.--.   ,--.,--.,--.   ,--.    ,------. ,-----. ,------.      ,---.  ,--. ,--.,--.  ,--.,--.   ,--. ,-----.  ,-----. ,--. ,--.
--- \  `.'  / |  ||   `.'   |    |  .---''  .-.  '|  .--. '    '   .-' |  | |  ||  ,'.|  ||  |   |  |'  .-.  ''  .-.  '|  .'   /
---  \     /  |  ||  |'.'|  |    |  `--, |  | |  ||  '--'.'    `.  `-. |  | |  ||  |' '  ||  |.'.|  ||  | |  ||  | |  ||  .   '
---   \   /   |  ||  |   |  |    |  |`   '  '-'  '|  |\  \     .-'    |'  '-'  '|  | `   ||   ,'.   |'  '-'  ''  '-'  '|  |\   \
---    `-'    `--'`--'   `--'    `--'     `-----' `--' '--'    `-----'  `-----' `--'  `--''--'   '--' `-----'  `-----' `--' '--'
+-- ============================================================================
+--                   ________    ___   _____ __  __
+--                  / ____/ /   /   | / ___// / / /
+--                 / /_  / /   / /| | \__ \/ /_/ /
+--                / __/ / /___/ ___ |___/ / __  /
+--               /_/   /_____/_/  |_/____/_/ /_/
 --
-
+--                NO-PACK / SPEED MODE
+--                Native Neovim. Zero third-party neovim plugins.
+--                Dotfiles by Sunwook Hwang
+-- ============================================================================
+-- Neovim 0.12+; language servers and formatters are optional external tools.
+-- Keep this file and the adjacent lua/ directory together when copying the profile.
 if vim.fn.has("nvim-0.12") == 0 then
-	error("This configuration requires Neovim 0.12 or newer")
+	error("This nopack config requires Neovim 0.12 or newer")
 end
 
--- Resolve symlinks so modules also load when this file is used directly with -u.
+-- Resolve symlinks so direct -u launches find this profile's modules too.
 local config_file = vim.uv.fs_realpath(debug.getinfo(1, "S").source:sub(2))
-vim.opt.runtimepath:prepend(vim.fs.dirname(config_file))
+local config_root = vim.fs.dirname(config_file)
+vim.opt.runtimepath:prepend(config_root)
+require("state").config_root = config_root
 
--- Keep initialization order explicit; nopack remains a standalone configuration.
+-- Preserve initialization order; shared functions are defined before events run.
 require("options")
+require("bigfile")
 require("keymaps")
-require("plugins")
-require("ui")
-require("context")
-require("git")
-require("session")
-require("clipboard")
-require("whichkey")
-require("pickers")
-require("breadcrumbs")
-require("outline")
-require("terminal")
-require("format")
-require("completion")
-require("explorer")
-require("lsp")
-require("buffers")
-require("statusline")
 require("theme")
+require("statusline")
+require("indent")
+require("explorer")
+require("completion")
+require("navigation")
+require("buffers")
+require("project")
+require("jobs")
+require("pickers")
+require("search")
+require("editing")
+require("terminal")
+require("session")
+require("dashboard")
+require("git")
+require("format")
+require("tags")
+require("lsp")
+require("outline")
+require("diagnostics")
+require("syntax")
+require("context")
+require("breadcrumbs")
+require("whichkey")

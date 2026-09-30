@@ -34,32 +34,16 @@ function backup_conflicts {
   done < <(git ls-files --cached --others --exclude-standard "$folder")
 }
 
-# Migrate the old symlink selector before Stow replaces it.
-nvim_init="$TARGET/.config/nvim/init.lua"
-mode_file="${XDG_STATE_HOME:-$TARGET/.local/state}/nvim-mode"
-if [[ ! -f "$mode_file" ]]; then
-  mode=nvim-nopack
-  if [[ -L "$nvim_init" ]]; then
-    case "$(readlink "$nvim_init")" in
-    *init.online.lua) mode=nvim ;;
+# Remove only links owned by the retired profile/launcher layout.
+for legacy in "$TARGET/.config/nvim-nopack" "$TARGET/.local/libexec/dotfiles/vi"; do
+  if [[ -L "$legacy" ]]; then
+    case "$(readlink "$legacy")" in
+      *nvim-nopack/.config/nvim-nopack|*tools/.local/libexec/dotfiles/vi) unlink "$legacy" ;;
     esac
   fi
-  mkdir -p "$(dirname "$mode_file")"
-  printf '%s\n' "$mode" >"$mode_file"
-fi
+done
 
-# Remove a directory link installed under the previous app name.
-legacy_config="$TARGET/.config/nvim-offline"
-if [[ -L "$legacy_config" ]]; then
-  case "$(readlink "$legacy_config")" in
-  */nvim-offline/.config/nvim-offline) rm "$legacy_config" ;;
-  esac
-fi
-if [[ "$(cat "$mode_file")" == nvim-offline ]]; then
-  printf 'nvim-nopack\n' >"$mode_file"
-fi
-
-for folder in claude codex ghostty git herdr nvim nvim-nopack neovide-terminal vim zsh csh tmux tools; do
+for folder in claude codex ghostty git herdr nvim nvim-pack neovide-terminal vim zsh csh tmux tools; do
   [[ -d "$folder" ]] || continue
   echo "Linking $folder"
   stow "${STOW_IGNORE_ARGS[@]}" -D -t "$TARGET" "$folder"
@@ -67,30 +51,27 @@ for folder in claude codex ghostty git herdr nvim nvim-nopack neovide-terminal v
   stow "${STOW_IGNORE_ARGS[@]}" -t "$TARGET" "$folder"
 done
 
-for app in nvim nvim-nopack neovide-terminal; do
+for app in nvim nvim-pack neovide-terminal; do
   if [[ ! "$TARGET/.config/$app/init.lua" -ef "$CURDIR/$app/.config/$app/init.lua" ]]; then
     echo "Neovim configuration was not linked correctly: $TARGET/.config/$app/init.lua" >&2
     exit 1
   fi
 done
 
-# Preserve nopack sessions, undo files and tags from the shared data directory.
+# Keep installed plugins and tools with pack; sessions/undo remain shared under nvim.
 data_home="${XDG_DATA_HOME:-$TARGET/.local/share}"
-for base in "$data_home" "${XDG_STATE_HOME:-$TARGET/.local/state}" "${XDG_CACHE_HOME:-$TARGET/.cache}"; do
-  if [[ -d "$base/nvim-offline" && ! -e "$base/nvim-nopack" ]]; then
-    mv "$base/nvim-offline" "$base/nvim-nopack"
+mkdir -p "$data_home/nvim" "$data_home/nvim-pack"
+for item in site mason; do
+  if [[ -d "$data_home/nvim/$item" && ! -L "$data_home/nvim/$item" && ! -e "$data_home/nvim-pack/$item" ]]; then
+    mv "$data_home/nvim/$item" "$data_home/nvim-pack/$item"
   fi
 done
-mkdir -p "$data_home/nvim-nopack"
-if [[ -d "$data_home/nvim/offline" && ! -e "$data_home/nvim-nopack/nopack" ]]; then
-  mv "$data_home/nvim/offline" "$data_home/nvim-nopack/nopack"
+if [[ -d "$data_home/nvim-nopack/nopack" && ! -e "$data_home/nvim/nopack" ]]; then
+  mv "$data_home/nvim-nopack/nopack" "$data_home/nvim/nopack"
 fi
-if [[ -d "$data_home/nvim-nopack/offline" && ! -e "$data_home/nvim-nopack/nopack" ]]; then
-  mv "$data_home/nvim-nopack/offline" "$data_home/nvim-nopack/nopack"
-fi
-# Existing Mason executables remain available without loading pack plugins.
-if [[ ! -e "$data_home/nvim-nopack/mason" && ! -L "$data_home/nvim-nopack/mason" ]]; then
-  ln -s "$data_home/nvim/mason" "$data_home/nvim-nopack/mason"
+# FLASH can use already installed Mason tools without loading any plugins.
+if [[ ! -e "$data_home/nvim/mason" && ! -L "$data_home/nvim/mason" ]]; then
+  ln -s "$data_home/nvim-pack/mason" "$data_home/nvim/mason"
 fi
 
 echo "Done."

@@ -15,24 +15,7 @@ cd "$CURDIR"
 
 echo "Unlinking dotfiles from $TARGET"
 
-# Preserve an old selector's choice while migrating to named configurations.
-nvim_init="$TARGET/.config/nvim/init.lua"
-if [[ -L "$nvim_init" ]]; then
-  case "$(readlink "$nvim_init")" in
-  init.online.lua | init.offline.lua | "$TARGET/.config/nvim/init.online.lua" | "$TARGET/.config/nvim/init.offline.lua")
-    mode_file="${XDG_STATE_HOME:-$TARGET/.local/state}/nvim-mode"
-    if [[ ! -f "$mode_file" ]]; then
-      mode=nvim-nopack
-      [[ "$(readlink "$nvim_init")" == *init.online.lua ]] && mode=nvim
-      mkdir -p "$(dirname "$mode_file")"
-      printf '%s\n' "$mode" >"$mode_file"
-    fi
-    rm "$nvim_init"
-    ;;
-  esac
-fi
-
-for folder in claude codex ghostty git nvim nvim-nopack neovide-terminal vim tmux zsh csh tools; do
+for folder in claude codex ghostty git nvim nvim-pack neovide-terminal vim tmux zsh csh tools; do
   [[ -d "$folder" ]] || continue
   echo "Unlinking $folder"
   stow "${STOW_IGNORE_ARGS[@]}" -D -t "$TARGET" "$folder"

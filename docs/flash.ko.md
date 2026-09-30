@@ -146,6 +146,8 @@ Python 표준 라이브러리는 `os.py`와 `importlib/__init__.py`가 함께 �
 | `o`, `v`, `t`    | 가로 분할, 세로 분할, 탭으로 열기   |
 | `p`              | 파일 미리보기                       |
 | `Space nr`       | 트리 새로고침                       |
+| `gn`             | 커서 디렉터리를 트리 루트로 지정 |
+| `:Ntree 경로`     | 트리 루트를 직접 지정 |
 | `gh`             | 숨김 파일 토글                      |
 | `Space nh`       | 숨김 패턴 편집                      |
 | `%`, `d`         | 파일/디렉터리 생성                  |
@@ -262,12 +264,18 @@ Tailwind·ESLint는 프로젝트 설정이나 dependency가 있을 때만 연결
 | `Space lt`         | 진단 표시 토글                   |
 | `Space o`          | LSP 또는 ctags 코드 아웃라인     |
 
+분석 가능한 버퍼에서는 입력 중 자동으로 완성 후보를 표시합니다. LSP가 있으면
+식별자 입력과 서버의 트리거 문자에 반응하며, `Ctrl-Space`로 직접 요청할 수도 있습니다.
+
 LSP가 없으면 현재·열린 버퍼 단어와 ctags 심볼을 내장 완성에 사용합니다. `gd`와 코드
 아웃라인도 지원되는 ctags가 있으면 설치된 ctags가 지원하는 언어의 저장된 소스를 대상으로 fallback합니다.
 
 편집창과 아웃라인은 포커스를 유지한 채 양방향으로 위치를 추적하며, 커서 이동 시 심볼을 다시 요청하지 않습니다. LSP는 가장 안쪽의 포함 심볼을, 범위 정보가 없는 ctags는 앞쪽에서 가장 가까운 선언을 선택합니다.
 
 `:checkhealth vim.lsp`로 연결 상태를 확인할 수 있습니다.
+
+아웃라인 안에서는 `r`로 새로고침하고, `q`로 닫습니다. `Enter`는 선택한 심볼로
+이동하면서 편집창으로 포커스를 옮깁니다.
 
 ## 포맷팅
 
@@ -314,19 +322,48 @@ Pack과 Nopack은 `${XDG_STATE_HOME:-$HOME/.local/state}/nvim/sessions`에서 �
 플로팅 창·터미널·fold·모드별 옵션은 복원하지 않습니다. 기존 Nopack 세션은 원래 위치에
 남겨둡니다. 미저장 파일 내용의 백업은 아니며, 같은 프로젝트는 마지막 저장이 우선합니다.
 
+이름 있는 소스 버퍼가 있으면 **Neovim 종료 시 세션을 자동 저장**합니다.
+`Space pd`는 현재 실행에서의 저장을 중지하며 기존 세션 파일을 삭제하지 않습니다.
+
+터미널을 띄운 채 `Ctrl-h/j/k/l`로 편집창과 오갈 수 있고, 터미널 입력 모드에서도
+Shift 방향키로 창 크기를 조절합니다. `Esc Esc` 또는 `Ctrl-\` 다음 `Ctrl-n`으로
+터미널 일반 모드에 들어가 `hjkl`, `Ctrl-u/d`로 출력 기록을 탐색하고 `y`로 복사합니다.
+`i`를 누르면 셸 입력으로 돌아갑니다. `Ctrl-t`로 숨겨도 셸 작업은 유지되지만
+Neovim 자체를 종료한 뒤까지 작업을 유지하는 기능은 아닙니다.
+
 ## 편집 편의 기능
 
-- 괄호, 대괄호, 중괄호, 따옴표와 백틱 자동 짝 맞추기
-- 빈 쌍에서 Backspace를 누르면 두 문자 함께 삭제
-- `jk`로 Insert 모드 종료
-- `Ctrl-s`로 저장
-- `Alt-j/k`로 현재 줄 또는 Visual 선택 이동
-- `Ctrl-h/j/k/l`로 창 이동
-- Shift 방향키로 창 크기 조절
-- 검색 다음/이전 결과를 화면 중앙에 유지
-- Visual 들여쓰기 후 선택 유지
-- `Ctrl-t` terminal 버퍼 재사용
-- yank highlight와 SSH 환경의 OSC52 복사
+주석 토글은 플러그인 없이 Neovim 내장 기능을 사용합니다. 파일타입에 맞는
+`commentstring`이 필요하며, 동작하지 않으면 `:set filetype? commentstring?`으로 확인합니다.
+
+| 키 | 동작 |
+| --- | --- |
+| `gcc` | 현재 줄 주석 토글 |
+| Visual `gc` | 선택한 줄 주석 토글; 예: `V`로 여러 줄 선택 후 `gc` |
+| `>>` / `<<` | 현재 줄 들여쓰기 / 내어쓰기 |
+| Visual `>` / `<` | 선택 영역 들여쓰기 / 내어쓰기 후 선택 유지 |
+| `Space a` | 파일 전체 선택 |
+| `Space Th` | 커서 단어의 다른 출현 위치 강조 토글; 기본 꺼짐 |
+| `Space Sa` | 파일 전체 범위로 커서 단어 또는 Visual 선택 문자열의 치환 명령 준비 |
+| `Space Sf` | 현재 줄부터 마지막 줄까지 같은 치환 명령 준비 |
+| Normal `Esc` | 검색 강조 해제 |
+| Normal `+` / `-` | 숫자 증가 / 감소 |
+| `jk` | Insert 모드 종료 |
+| `Ctrl-s` | 저장 |
+| `Alt-j/k` | 현재 줄 또는 Visual 선택 이동 |
+| `Ctrl-h/j/k/l` | Normal·Terminal 모드에서 창 이동 |
+| Insert `Alt-방향키` | Insert 모드를 나가면서 해당 방향 창으로 이동 |
+| Shift 방향키 | Normal·Terminal 모드에서 창 크기를 5칸씩 조절 |
+| `Space w` | 현재 탭의 모든 창에 diff 적용; 해제는 `:windo diffoff` |
+| Visual `p` / `P` | 복사한 내용을 유지하면서 선택 영역 교체 |
+| Normal `x` | 문자를 삭제하되 복사 레지스터는 덮어쓰지 않음 |
+
+치환 키는 명령을 바로 실행하지 않습니다. 바꿀 문자열과 마지막 `/`를 입력하고,
+필요하면 `g`(줄의 모든 일치)·`c`(확인) 플래그를 붙인 뒤 Enter로 실행합니다.
+
+괄호·대괄호·중괄호·따옴표·백틱은 자동으로 짝을 만들고, 빈 쌍에서 Backspace는
+두 문자를 함께 삭제합니다. 검색 `n`/`N`은 결과를 화면 중앙에 유지하며,
+복사한 내용은 잠깐 강조됩니다.
 
 로컬 Windows·macOS·Linux에서는 `unnamedplus`로 Neovim의 시스템 clipboard provider를
 사용합니다. SSH에서는 `yy`와 Visual `y`의 내용을 OSC52로 접속한 PC의 터미널에 전송하며,
@@ -470,6 +507,9 @@ python3 -m venv "$HOME/.local/opt/nvim-tools/python"
 :lua print(vim.fn.exepath('ty'))
 :lua print(vim.fn.stdpath('data') .. '/mason/bin')
 ```
+
+외부에서 프로젝트 설정이나 도구를 바꿨다면 `:NopackRefresh`로 프로젝트 루트와
+포매터 가용성을 갱신할 수 있습니다. 새 LSP 등록을 위해서는 Neovim을 재실행합니다.
 
 `exepath()`는 PATH만 확인하며 FLASH의 Mason fallback은 포함하지 않습니다.
 LSP가 연결되어도 선택한 Python 환경에 패키지가 없으면 import 오류가 날 수 있습니다.

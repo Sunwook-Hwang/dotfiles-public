@@ -153,6 +153,8 @@ parent repository.
 | `o`, `v`, `t`    | Open in a horizontal split, vertical split, or tab |
 | `p`              | Preview a file                                     |
 | `Space nr`       | Refresh the tree                                   |
+| `gn`             | Set the cursor directory as the tree root |
+| `:Ntree path`     | Set the tree root explicitly |
 | `gh`             | Toggle hidden files                                |
 | `Space nh`       | Edit hidden-file patterns                          |
 | `%`, `d`         | Create a file/directory                            |
@@ -272,11 +274,18 @@ language is not attached automatically.
 | `Space lt`         | Toggle diagnostic display                               |
 | `Space o`          | LSP or ctags code outline                               |
 
+Completion opens automatically while typing in analysis-eligible buffers. With
+LSP, identifier input and server trigger characters request candidates;
+`Ctrl-Space` can also request them explicitly.
+
 Without LSP, built-in completion uses words from the current and open buffers
 plus ctags symbols. When supported ctags is installed, `gd` and the outline fall
 back to saved sources in languages supported by the installed ctags. Use `:checkhealth vim.lsp` to inspect LSP state.
 
 The outline and editor track each other without moving focus or requesting symbols on cursor movement. LSP tracking selects the innermost enclosing symbol; ctags tracking uses the nearest preceding declaration because it has no scope ranges.
+
+Inside the outline, `r` refreshes and `q` closes it. `Enter` jumps to the selected
+symbol and moves focus to the editor.
 
 ## Formatting
 
@@ -326,19 +335,50 @@ Explorer, help, floating windows, terminals, folds, and profile options are not
 restored. Existing sessions in the old Nopack directory remain untouched. Sessions
 are not backups of unsaved file contents. The last editor to save a project wins.
 
+Sessions are **saved automatically when Neovim exits** if a named source buffer
+exists. `Space pd` disables saving for this run without deleting existing sessions.
+
+Keep the terminal open while moving between windows with `Ctrl-h/j/k/l`;
+Shift-arrow resizing also works in Terminal input mode. Press `Esc Esc` or
+`Ctrl-\` followed by `Ctrl-n` to enter Terminal Normal mode, navigate output with
+`hjkl` or `Ctrl-u/d`, and copy with `y`. Press `i` to resume shell input. Hiding
+the terminal with `Ctrl-t` keeps its shell running; this does not keep jobs alive
+after Neovim itself exits.
+
 ## Editing conveniences
 
-- Automatic pairs for brackets, braces, quotes, and backticks
-- Backspace deletes both characters of an empty pair
-- `jk` leaves Insert mode
-- `Ctrl-s` saves
-- `Alt-j/k` moves the current line or Visual selection
-- `Ctrl-h/j/k/l` moves between windows
-- Shift-arrow keys resize windows
-- Next/previous search results remain centered
-- Visual indentation preserves the selection
-- `Ctrl-t` reuses its terminal buffer
-- Yank highlighting and OSC52 copy over SSH
+Comment toggling uses Neovim's built-in support without a plugin. It needs a
+valid `commentstring` for the filetype; inspect `:set filetype? commentstring?`
+if commenting does not work.
+
+| Key | Action |
+| --- | --- |
+| `gcc` | Toggle the current line's comment |
+| Visual `gc` | Toggle comments on selected lines; e.g. select lines with `V`, then `gc` |
+| `>>` / `<<` | Indent / unindent the current line |
+| Visual `>` / `<` | Indent / unindent the selection and keep it selected |
+| `Space a` | Select the entire file |
+| `Space Th` | Toggle highlighting other occurrences of the cursor word; off by default |
+| `Space Sa` | Prepare substitution of the cursor word or Visual selection throughout the file |
+| `Space Sf` | Prepare the same substitution from the current line to the end |
+| Normal `Esc` | Clear search highlighting |
+| Normal `+` / `-` | Increment / decrement a number |
+| `jk` | Leave Insert mode |
+| `Ctrl-s` | Save |
+| `Alt-j/k` | Move the current line or Visual selection |
+| `Ctrl-h/j/k/l` | Move between windows in Normal or Terminal mode |
+| Insert `Alt-arrow` | Leave Insert mode and move to the window in that direction |
+| Shift-arrow | Resize by five rows/columns in Normal or Terminal mode |
+| `Space w` | Enable diff in all windows of the current tab; clear with `:windo diffoff` |
+| Visual `p` / `P` | Replace the selection while preserving the copied text |
+| Normal `x` | Delete a character without overwriting the yank register |
+
+Substitution keys prepare a command rather than executing it. Type the replacement
+and closing `/`, optionally add `g` (all matches per line) or `c` (confirm), then Enter.
+
+Brackets, braces, quotes, and backticks pair automatically; Backspace removes both
+characters of an empty pair. Search `n`/`N` keeps results centered, and copied text
+is briefly highlighted.
 
 Local Windows, macOS, and Linux sessions use `unnamedplus` with Neovim's desktop
 clipboard provider. Over SSH, `yy` and Visual `y` send text to the client terminal
@@ -488,6 +528,10 @@ If tools are missing, restart Neovim after installing them and check:
 :lua print(vim.fn.exepath('ty'))
 :lua print(vim.fn.stdpath('data') .. '/mason/bin')
 ```
+
+After external project configuration or tool changes, `:NopackRefresh` refreshes
+project roots and formatter availability. Restart Neovim to register newly
+available LSP servers.
 
 `exepath()` checks PATH only, not FLASH's Mason fallback. A connected server can
 still report import errors if the selected Python environment lacks dependencies.

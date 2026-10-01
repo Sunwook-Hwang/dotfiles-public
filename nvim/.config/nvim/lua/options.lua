@@ -131,7 +131,9 @@ local numbering_group = vim.api.nvim_create_augroup("nopack-line-numbers", { cle
 vim.api.nvim_create_autocmd("BufWinLeave", {
 	group = numbering_group,
 	callback = function(args)
-		if not policy.is_source(args.buf) then
+		-- A source may briefly occupy a utility window during a nested transition.
+		-- Never remember the utility's temporary settings as that source's choice.
+		if not policy.is_source(args.buf) or vim.w.nopack_numbering_utility then
 			return
 		end
 		local saved = {}
@@ -184,7 +186,7 @@ local function update_window_numbering(win)
 		end
 	end
 end
-vim.api.nvim_create_autocmd({ "WinEnter", "BufWinEnter", "FileType", "VimEnter", "SessionLoadPost" }, {
+vim.api.nvim_create_autocmd({ "WinEnter", "BufEnter", "BufWinEnter", "FileType", "VimEnter", "SessionLoadPost" }, {
 	group = numbering_group,
 	callback = function(args)
 		if args.event == "FileType" then

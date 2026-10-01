@@ -175,7 +175,7 @@ clean/reinstall; a fresh install defaults to nopack.
 | Formatting      | `Space lf` runs installed formatters asynchronously or falls back to LSP; no format-on-save                                     |
 | Search          | `Space f` finds files, `Space Enter` finds Git-tracked files, `Space st` searches text live, `Space t` searches the cursor word |
 | Code outline    | `Space o` opens LSP symbols or a ctags fallback; `Enter` jumps, `r` refreshes, `q` closes                                       |
-| File tree       | `Space e` toggles a native expandable editable tree without line numbers with cached Git status signs                                                        |
+| File tree       | `Space e` opens an editable project-root tree and reveals the current file; indentation guides, Git signs, hidden/ignored toggles, and nested path creation |
 | Git             | Unstaged line signs, branch/file status, and side-by-side index/HEAD diff with `Space gd/gD`                                    |
 | Terminal        | `Ctrl-t` toggles a reusable bottom split; `Esc Esc` exits Terminal mode                                                         |
 | Auto pairs      | Brackets `() [] {}`, single/double quotes, and backticks; skip existing closers and delete empty pairs                          |

@@ -130,7 +130,8 @@ Closing the last buffer leaves an empty buffer.
 
 The Git root is the preferred project root. Without Git, the configuration
 searches upward for CMake, Make, package.json, Python, Cargo, Bazel, and Buf
-project markers. The editor cwd, search, LSP, and ctags share this root. The explorer starts in the current file directory.
+project markers. The editor cwd, search, LSP, and ctags share this root. The explorer
+starts at this root and expands the path to the current file.
 For installed Python libraries, the top-level package under `site-packages` or
 `dist-packages` is the root (for example, `site-packages/tvm`). Git discovery
 stops at that package boundary, so a parent Homebrew or project repository is
@@ -143,34 +144,56 @@ parent repository.
 
 ### Editable file explorer
 
-`Space e` opens a native expandable tree without line numbers on the left, starting in the current
-file's directory. No Oil plugin or other package is needed. Like Oil, edit the
+`Space e` opens a native expandable tree without line numbers on the left, starting at the project
+root and expanding the path to the current file. No Oil plugin or other package is needed. Like Oil, edit the
 listing with normal Vim commands, then use `:w` and confirm the operations.
 
 | Key | Action |
 | --- | --- |
-| `Enter` / `l` | Open the file in an editor or expand/collapse the folder |
-| `h` | Collapse the folder or its parent |
-| `-` / `_` | Parent / working directory |
-| `Ctrl+s/h/t` | Open in a vertical split / horizontal split / tab |
-| `Ctrl+p` | Toggle file preview |
+| `Enter` / `za` | Open the file in an editor or expand/collapse the folder |
+| `zc` | Collapse the folder or its parent |
+| `-` / `\w` | Parent / working directory |
+| `\v` / `\s` / `\t` | Open in a vertical split / horizontal split / tab |
+| `\p` | Toggle file preview |
 | `Ctrl+c` | Close the explorer and return to an editor |
-| `Ctrl+l` | Refresh the listing |
-| `g.` | Toggle hidden files |
+| `gr` | Refresh the listing |
+| `g.` | Toggle hidden files (shown by default) |
+| `\i` | Toggle Git ignored files (shown by default) |
 | `gs` | Choose name/size/mtime and ascending/descending order |
-| `` ` `` / `g~` | Set global / tab working directory |
+| `\d` / `\D` | Set global / tab working directory |
 | `gx` | Open in an external application |
-| `g?` | Show explorer help |
+| `g?` | Toggle explorer help, including after returning to edit the tree |
 | `yy` → `p`, rename pasted row, `:w` | Copy a file or directory |
-| Edit a filename, `:w` | Rename without changing file contents |
+| `i` / `a` | Edit the filename at / after the cursor |
+| `I` / `A` | Edit at the start / end of the filename |
+| `cc` | Replace the entire filename |
+| Edit a filename, `Esc`, `:w` | Confirm the rename without changing file contents |
 | `o`, type a filename, `:w` | Create an empty file; append `/` for a directory |
 | `dd`, `:w` | Delete the file or directory after confirmation |
+
+To create a folder, press `o`, type `src/`, then press `Esc`, run `:w` and confirm.
+Without the trailing `/`, `src` creates an empty file. Keep the `/` suffix when
+renaming a folder. On any folder row, `o` creates a child automatically and expands
+existing collapsed folders. `O` creates an entry above at the same depth.
+Type `test/main.py` to create both the missing `test` folder and its file in one
+save; `a/b/` creates nested folders. Paths are relative to the row's containing
+folder. A new folder row and its children can also be saved together. Absolute
+paths and `.` / `..` components are rejected.
 
 `yypp` pastes two copies of the entry; give each a distinct name before saving.
 `cc`, `S`, and `I` preserve the concealed file identity column. Duplicate names,
 existing destinations, and externally changed source files are rejected before
 saving. Unsaved directory edits prompt Save / Discard / Cancel when navigating.
-Use `Ctrl+w h/j/k/l` to move between windows; Oil keys apply only in the explorer.
+Use `Ctrl+h/j/k/l` or `Ctrl+w h/j/k/l` to move between windows.
+`Ctrl+s` still saves and `Ctrl+t` still toggles the terminal. Explorer-only
+commands use LocalLeader (default `\`); `h/l` retain normal cursor movement.
+
+`g?` toggles a single help window from either the tree or the help window.
+Inside help, `q`, `Esc`, or `Ctrl+c` closes it. Closing or hiding its owner tree
+also closes help. The help window cannot be reused as a source editor.
+Hidden and Git ignored entries are shown by default and can be toggled separately.
+Git ignore checks run asynchronously in batches and reuse cached results until
+refresh; hiding an entry does not schedule its deletion when saving.
 
 Copy and recursive cleanup use asynchronous native filesystem calls. While `:w`
 is running, directory listings are temporarily read-only and a second save is
@@ -181,10 +204,12 @@ unsaved text; deletion rejects modified source buffers and removes clean stale
 buffers through the normal buffer-close policy.
 
 Folders expand below their row. Expansion reads only the selected folder; collapse
-and re-expansion reuse its listing until refresh, reopen or save. Use two spaces per
-tree depth. `o` inserts a child under an expanded folder; pastes use the selected
+and re-expansion reuse its listing until refresh, reopen or save. Vertical guides
+show the tree depth without `+`/`-` markers or line numbers. Guides update after
+listing edits and undo without scanning directories. `o` inserts a child under a folder; pastes use the selected
 row's depth. Collapse a folder before `dd`, or select its complete visible subtree.
-Save changes to a folder separately from edits inside it. Directory symlinks open
+Save renames/deletions of a folder separately from other edits inside it;
+creating a folder and its children together is supported. Directory symlinks open
 as a separate root to avoid recursive cycles. Local files, recursive directory
 copies and symlinks are supported. Trash/SSH adapters, permission
 columns, overwrite and cyclic rename operations are not implemented. Undo edits
@@ -378,7 +403,6 @@ if commenting does not work.
 | --- | --- |
 | `gcc` | Toggle the current line's comment |
 | Visual `gc` | Toggle comments on selected lines; e.g. select lines with `V`, then `gc` |
-| `>>` / `<<` | Indent / unindent the current line |
 | Visual `>` / `<` | Indent / unindent the selection and keep it selected |
 | `Space a` | Select the entire file |
 | `Space Th` | Toggle highlighting other occurrences of the cursor word; off by default |

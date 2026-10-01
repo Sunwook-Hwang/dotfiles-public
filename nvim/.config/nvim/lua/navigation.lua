@@ -4,7 +4,7 @@ local shared = require("state")
 -- =========================================
 -- ====== FILE TREE: TOGGLE / REVEAL =====
 -- =========================================
--- Space e: 현재 파일의 디렉터리를 편집 가능한 사이드바로 엽니다.
+-- Space e: 프로젝트 루트에서 열고 현재 파일까지 폴더를 펼칩니다.
 -- 프로젝트 탐색 함수는 PROJECT ROOT에서 정의되며 키 실행 시 호출됩니다.
 
 local explorer = require("explorer")
@@ -19,8 +19,7 @@ vim.keymap.set("n", "<leader>e", function()
 		end
 	end
 	local file = policy.is_source(0) and vim.api.nvim_buf_get_name(0) or ""
-	local root = file ~= "" and vim.fs.dirname(file) or shared.project_root()
-	explorer.open(root, true)
+	explorer.open(shared.project_root(), true, file)
 end, { silent = true, nowait = true, desc = "Toggle editable file explorer" })
 
 -- =========================================

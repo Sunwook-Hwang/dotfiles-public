@@ -28,6 +28,21 @@ local copied_ids = {} -- retain identities that may still be in named/numbered r
 local group = vim.api.nvim_create_augroup("flash-directory", { clear = true })
 local saving, locks
 local tree_ns = vim.api.nvim_create_namespace("flash-directory-tree")
+local function close_help(buf)
+	local state = states[buf]
+	local help = state and state.help
+	if not help then
+		return
+	end
+	state.help = nil
+	if vim.api.nvim_win_is_valid(help.win) and vim.api.nvim_win_get_buf(help.win) == help.buf then
+		local focused = vim.api.nvim_get_current_win() == help.win
+		vim.api.nvim_win_close(help.win, true)
+		if focused and vim.api.nvim_win_is_valid(help.owner) then
+			vim.api.nvim_set_current_win(help.owner)
+		end
+	end
+end
 
 local window_options = {}
 local ui_options = { "conceallevel", "concealcursor", "wrap", "winbar", "foldenable", "spell", "cursorcolumn", "list" }
@@ -188,8 +203,12 @@ local function tree_rows(buf)
 				failure = "Invalid tree indentation at row " .. index .. "; collapse folders before deleting their row"
 				break
 			end
-			if name == "" or name == "." or name == ".." or name:find("[/\\%z]") then
-				failure = "Use one filename per row (no path separators): " .. label
+			local invalid = name == "" or name:sub(1, 1) == "/" or name:find("[\\%z]") or name:find("//", 1, true)
+			for component in name:gmatch("[^/]+") do
+				invalid = invalid or component == "." or component == ".."
+			end
+			if invalid then
+				failure = "Use a relative path without '.' or '..': " .. label
 				break
 			end
 			local target = vim.fs.joinpath(parents[depth], name)
@@ -222,9 +241,32 @@ function M.path(buf, line, index)
 	local row = tree_rows(buf)[index]
 	return row and row.target
 end
-local function render(buf)
-	local state, lines = states[buf], {}
-	state.originals = {}
+-- Decorations follow the affected text rows, never cursor motion or filesystem scans.
+local function draw_tree(buf, first, last)
+	-- Edits can move old marks to the end-of-buffer position, past the last row.
+	local finish = last == vim.api.nvim_buf_line_count(buf) and -1 or last
+	vim.api.nvim_buf_clear_namespace(buf, tree_ns, first, finish)
+	for offset, line in ipairs(vim.api.nvim_buf_get_lines(buf, first, last, false)) do
+		local label = line:match("^/%d+ (.*)$")
+		label = label or line
+		local spaces = label:match("^ *") or ""
+		local depth = math.floor(#spaces / 2)
+		local index = first + offset - 1
+		if depth > 0 then
+			vim.api.nvim_buf_set_extmark(buf, tree_ns, index, #(line:match("^/%d+ ") or ""), {
+				virt_text = { { string.rep("│ ", depth), "NonText" } },
+				virt_text_pos = "overlay",
+				right_gravity = false,
+			})
+		end
+	end
+end
+local render
+render = function(buf)
+	local state, lines, originals, unchecked = states[buf], {}, {}, {}
+	if state.filtering then
+		return
+	end
 	local function visit(directory, depth)
 		local listing = state.children[directory]
 		if not listing then
@@ -262,14 +304,19 @@ local function render(buf)
 			return state.reverse and av > bv or not state.reverse and av < bv
 		end)
 		for _, entry in ipairs(listing) do
-			if state.hidden or entry.name:sub(1, 1) ~= "." then
+			if
+				(state.hidden or entry.name:sub(1, 1) ~= ".") and (state.show_ignored or not state.ignored[entry.path])
+			then
+				if not state.show_ignored and state.ignored[entry.path] == nil then
+					unchecked[#unchecked + 1] = entry.path
+				end
 				local id = ids[entry.path]
 				if not id then
 					next_id = next_id + 1
 					id, ids[entry.path] = next_id, next_id
 				end
 				entry.id = id
-				entries[id], state.originals[id], state.known[id] = entry, entry, true
+				entries[id], originals[id], state.known[id] = entry, entry, true
 				lines[#lines + 1] = "/"
 					.. id
 					.. " "
@@ -283,6 +330,44 @@ local function render(buf)
 		end
 	end
 	visit(state.root, 0)
+	if #unchecked > 0 then
+		local root = shared.find_git_root(state.root)
+		if root and vim.fn.executable("git") == 1 then
+			local tick = vim.api.nvim_buf_get_changedtick(buf)
+			state.filtering = true
+			vim.system(
+				{ "git", "check-ignore", "-z", "--stdin" },
+				{
+					cwd = root,
+					stdin = table.concat(unchecked, "\0") .. "\0",
+				},
+				vim.schedule_wrap(function(result)
+					if states[buf] ~= state then
+						return
+					end
+					state.filtering = nil
+					if result.code > 1 then
+						state.show_ignored = true
+						vim.notify("Cannot filter Git ignored files: " .. (result.stderr or ""), vim.log.levels.WARN)
+					else
+						for _, path in ipairs(unchecked) do
+							state.ignored[path] = false
+						end
+						for _, path in ipairs(vim.split(result.stdout or "", "\0", { plain = true, trimempty = true })) do
+							state.ignored[path] = true
+						end
+					end
+					-- Never replace listing edits made while Git was running.
+					if vim.api.nvim_buf_get_changedtick(buf) == tick then
+						render(buf)
+					end
+				end)
+			)
+			return
+		end
+		state.show_ignored = true
+	end
+	state.originals = originals
 	if #lines == 0 then
 		lines = { "" }
 	end
@@ -290,25 +375,19 @@ local function render(buf)
 	if changed then
 		local undolevels, modifiable = vim.bo[buf].undolevels, vim.bo[buf].modifiable
 		vim.bo[buf].modifiable, vim.bo[buf].undolevels = true, -1
+		states[buf].rendering = true
 		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+		states[buf].rendering = nil
 		vim.bo[buf].undolevels, vim.bo[buf].modifiable = undolevels, modifiable
 	end
 	vim.bo[buf].modified = false
-	vim.api.nvim_buf_clear_namespace(buf, tree_ns, 0, -1)
-	for index, row in pairs(tree_rows(buf)) do
-		local prefix = lines[index]:match("^/%d+ *") or ""
-		local marker = row.directory and (state.expanded[row.target] and "- " or "+ ") or "  "
-		vim.api.nvim_buf_set_extmark(buf, tree_ns, index - 1, #prefix, {
-			virt_text = { { marker, "Directory" } },
-			virt_text_pos = "inline",
-		})
-	end
+	draw_tree(buf, 0, vim.api.nvim_buf_line_count(buf))
 	if changed then
 		vim.api.nvim_exec_autocmds("User", { pattern = "NopackExplorerChanged", modeline = false })
 	end
 end
 local function refresh(buf)
-	states[buf].children = {}
+	states[buf].children, states[buf].ignored = {}, {}
 	render(buf)
 end
 
@@ -390,7 +469,13 @@ local function plan(buf)
 					and op.kind == "rename"
 					and op.target == parent.target .. op.source.path:sub(#parent.source.path + 1)
 			)
-		if parent and not covered or op.target and ancestor(op.target, target_dirs) and not covered then
+		local target_parent = op.target and ancestor(op.target, target_dirs)
+		local moving_parent = op.target and ancestor(op.target, source_dirs)
+		if
+			parent and not covered
+			or target_parent and target_parent.kind ~= "create" and not covered
+			or moving_parent and moving_parent.kind ~= "copy" and not covered
+		then
 			error("Save folder changes separately from edits inside it", 0)
 		end
 		if not covered then
@@ -398,6 +483,44 @@ local function plan(buf)
 		end
 	end
 	operations = filtered
+	-- Materialize missing parent folders as ordinary create operations in the same
+	-- transaction, so cancellation and rollback cover the complete relative path.
+	local directories, additions = {}, {}
+	for _, op in ipairs(operations) do
+		if op.target then
+			local parent = vim.fs.dirname(op.target)
+			while parent ~= state.root do
+				if directories[parent] ~= nil then
+					break
+				end
+				local stat = vim.uv.fs_stat(parent)
+				if stat then
+					if stat.type ~= "directory" then
+						error("Parent is not a folder: " .. parent, 0)
+					end
+					directories[parent] = true
+					break
+				end
+				if targets[parent] and not target_dirs[parent] then
+					error("Parent is planned as a file: " .. parent, 0)
+				end
+				directories[parent] = true
+				if not target_dirs[parent] then
+					additions[#additions + 1] = { kind = "create", directory = true, target = parent }
+				end
+				parent = vim.fs.dirname(parent)
+			end
+		end
+	end
+	vim.list_extend(operations, additions)
+	table.sort(operations, function(a, b)
+		-- Install parent directories before their descendants.
+		local ap, bp = a.target or a.source.path, b.target or b.source.path
+		if #ap == #bp then
+			return ap < bp
+		end
+		return #ap < #bp
+	end)
 
 	local buffers, parents = {}, {}
 	for _, loaded in ipairs(vim.api.nvim_list_bufs()) do
@@ -465,6 +588,9 @@ local function commit(buf)
 				error("File changed during confirmation: " .. op.source.path, 0)
 			end
 			local parent = vim.fs.dirname(op.target or op.source.path)
+			while not vim.uv.fs_stat(parent) do
+				parent = vim.fs.dirname(parent)
+			end
 			op.stage = checked(vim.uv.fs_mkdtemp(parent .. "/.flash-XXXXXX"))
 			op.item = vim.fs.joinpath(op.stage, "item")
 			stages[#stages + 1] = op
@@ -644,6 +770,10 @@ local function commit(buf)
 	return true
 end
 local function save(buf, callback)
+	if states[buf].filtering then
+		vim.notify("Git ignore filtering in progress", vim.log.levels.INFO)
+		return
+	end
 	if saving then
 		vim.notify("A directory save is already running", vim.log.levels.WARN)
 		return
@@ -682,6 +812,10 @@ local function save(buf, callback)
 	end
 end
 local function clean(buf, action)
+	if states[buf].filtering then
+		vim.notify("Git ignore filtering in progress", vim.log.levels.INFO)
+		return
+	end
 	if saving then
 		vim.notify("Directory save in progress", vim.log.levels.WARN)
 		return
@@ -729,9 +863,6 @@ local function style_window(win)
 		end
 		vim.wo[win][0].conceallevel = 3
 		vim.wo[win][0].concealcursor = "nvic"
-		vim.wo[win][0].number = false
-		vim.wo[win][0].relativenumber = false
-		vim.wo[win][0].statuscolumn = ""
 		vim.wo[win][0].wrap = false
 		vim.wo[win][0].foldenable = false
 		vim.wo[win][0].spell = false
@@ -758,11 +889,19 @@ vim.api.nvim_create_autocmd({ "BufWinEnter", "WinEnter" }, {
 vim.api.nvim_create_autocmd("WinClosed", {
 	group = group,
 	callback = function(args)
-		window_options[tonumber(args.match)] = nil
+		local closed = tonumber(args.match)
+		window_options[closed] = nil
+		for buf, state in pairs(states) do
+			if state.help and state.help.owner == closed then
+				close_help(buf)
+			elseif state.help and state.help.win == closed then
+				state.help = nil
+			end
+		end
 	end,
 })
 
-function M.open(root, sidebar)
+function M.open(root, sidebar, file)
 	root = vim.uv.fs_realpath(root) or vim.fs.normalize(root)
 	if vim.fn.isdirectory(root) ~= 1 then
 		error("Not a directory: " .. root, 0)
@@ -777,7 +916,7 @@ function M.open(root, sidebar)
 	end
 	if states[previous] and vim.bo[previous].modified then
 		clean(previous, function()
-			M.open(root, sidebar)
+			M.open(root, sidebar, file)
 		end)
 		return
 	end
@@ -796,7 +935,9 @@ function M.open(root, sidebar)
 			known = {},
 			children = {},
 			expanded = {},
-			hidden = false,
+			hidden = true,
+			show_ignored = true,
+			ignored = {},
 			sort = "name",
 			reverse = false,
 		}
@@ -860,16 +1001,27 @@ function M.open(root, sidebar)
 		end
 		for _, key in ipairs({ "o", "O" }) do
 			vim.keymap.set("n", key, function()
-				local row = tree_rows(buf)[vim.fn.line(".")]
-				local depth = row and row.depth or 0
-				if key == "o" and row and states[buf].expanded[row.target] then
-					depth = depth + 1
+				if states[buf].filtering or not vim.bo[buf].modifiable then
+					return
 				end
-				local index = vim.fn.line(".") - (key == "O" and 1 or 0)
+				local index = vim.fn.line(".")
+				local row = tree_rows(buf)[index]
+				local depth = row and row.depth or 0
+				if key == "o" and row and row.directory then
+					depth = depth + 1
+					local collapsed = not states[buf].expanded[row.target]
+					states[buf].expanded[row.target] = true
+					-- Existing clean folders can expand before editing. Pending rows
+					-- stay untouched; their children appear after the save.
+					if collapsed and row.id and not vim.bo[buf].modified then
+						render(buf)
+					end
+				end
+				index = index - (key == "O" and 1 or 0)
 				vim.api.nvim_buf_set_lines(buf, index, index, false, { string.rep(" ", depth * 2) })
 				vim.api.nvim_win_set_cursor(0, { index + 1, depth * 2 })
 				vim.cmd("startinsert!")
-			end, { buffer = buf, desc = "Create tree entry" })
+			end, { buffer = buf, desc = "Create entry (o on a folder creates a child)" })
 		end
 		vim.keymap.set("i", "<BS>", function()
 			local prefix = vim.fn.getline("."):match("^/%d+ *")
@@ -915,10 +1067,10 @@ function M.open(root, sidebar)
 		map("<CR>", function()
 			open()
 		end, "Open file / expand or collapse folder")
-		map("l", function()
+		map("za", function()
 			open()
 		end, "Open file / expand or collapse folder")
-		map("h", function()
+		map("zc", function()
 			clean(buf, function()
 				local row = tree_rows(buf)[vim.fn.line(".")]
 				if not row then
@@ -938,7 +1090,11 @@ function M.open(root, sidebar)
 				end
 			end)
 		end, "Collapse folder / parent")
-		for key, cmd in pairs({ ["<C-s>"] = "belowright vnew", ["<C-h>"] = "belowright new", ["<C-t>"] = "tabnew" }) do
+		for key, cmd in pairs({
+			["<localleader>v"] = "belowright vnew",
+			["<localleader>s"] = "belowright new",
+			["<localleader>t"] = "tabnew",
+		}) do
 			map(key, function()
 				open(cmd)
 			end, "Open in split / tab")
@@ -946,10 +1102,10 @@ function M.open(root, sidebar)
 		map("-", function()
 			M.open(vim.fs.dirname(states[buf].root))
 		end, "Parent directory")
-		map("_", function()
+		map("<localleader>w", function()
 			M.open(vim.fn.getcwd())
 		end, "Working directory")
-		map("<C-l>", function()
+		map("gr", function()
 			clean(buf, function(refreshed)
 				if not refreshed then
 					refresh(buf)
@@ -962,7 +1118,13 @@ function M.open(root, sidebar)
 				refresh(buf)
 			end)
 		end, "Toggle hidden files")
-		for key, cmd in pairs({ ["`"] = "cd", ["g~"] = "tcd" }) do
+		map("<localleader>i", function()
+			clean(buf, function()
+				states[buf].show_ignored = not states[buf].show_ignored
+				render(buf)
+			end)
+		end, "Toggle Git ignored files")
+		for key, cmd in pairs({ ["<localleader>d"] = "cd", ["<localleader>D"] = "tcd" }) do
 			map(key, function()
 				vim.cmd(cmd .. " " .. vim.fn.fnameescape(states[buf].root))
 			end, "Change working directory")
@@ -996,7 +1158,7 @@ function M.open(root, sidebar)
 				end)
 			end)
 		end, "Choose sort order")
-		map("<C-p>", function()
+		map("<localleader>p", function()
 			for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
 				if vim.wo[win].previewwindow then
 					vim.api.nvim_win_close(win, false)
@@ -1015,39 +1177,60 @@ function M.open(root, sidebar)
 			end
 		end, "Toggle preview")
 		map("g?", function()
+			if states[buf].help then
+				close_help(buf)
+				return
+			end
+			local owner = vim.api.nvim_get_current_win()
 			local help = vim.api.nvim_create_buf(false, true)
 			local items = {
 				{ "Navigation" },
-				{ "Enter / l", "Open file or expand/collapse folder" },
-				{ "h", "Collapse folder or its parent" },
-				{ "- / _", "Root parent / working directory" },
-				{ "Ctrl-s / Ctrl-h", "Open in vertical / horizontal split" },
-				{ "Ctrl-t", "Open in a new tab" },
-				{ "Ctrl-p", "Toggle file preview" },
+				{ "Enter / za", "Open file or expand/collapse folder" },
+				{ "zc", "Collapse folder or its parent" },
+				{ "- / Local w", "Root parent / working directory" },
+				{ "Local v / Local s", "Open in vertical / horizontal split" },
+				{ "Local t", "Open in a new tab" },
+				{ "Local p", "Toggle file preview" },
 				{ "Ctrl-c", "Close explorer, return to editor" },
 				{},
 				{ "File operations  (apply with :w)" },
 				{ "yy / p", "Copy entry; rename pasted row" },
-				{ "cc / I", "Replace / edit filename" },
+				{ "i / a", "Edit name here / after the cursor" },
+				{ "I / A", "Edit at filename start / end" },
+				{ "cc", "Replace the entire filename" },
 				{ "o / O", "Create entry below / above" },
+				{ "name / name/", "Create a file / folder" },
+				{ "test/main.py", "Create missing folders and the file" },
 				{ "dd", "Delete entry; collapse folder first" },
 				{ ":w", "Review and confirm file operations" },
 				{},
 				{ "View" },
-				{ "Ctrl-l", "Refresh directory contents" },
-				{ "g. / gs", "Toggle hidden files / choose sort order" },
-				{ "` / g~", "Set global / tab working directory" },
+				{ "gr", "Refresh directory contents" },
+				{ "g. / Local i", "Toggle hidden / Git ignored files" },
+				{ "gs", "Choose sort order" },
+				{ "Local d / Local D", "Set global / tab working directory" },
 				{ "gx", "Open in an external application" },
 				{},
 				{ "Notes" },
-				{ "  Two spaces per depth; append / for a new folder." },
-				{ "  Save parent-folder and child edits separately." },
+				{ "  Edit names normally; Esc ends editing, :w applies." },
+				{ "  Example: o, src/, Esc, :w creates the src folder." },
+				{ "  On a folder row, o creates a child automatically." },
+				{ "  Keep / when renaming folders. Paths are relative." },
+				{ "  New folders and their files can be saved together." },
+				{ "  Save folder renames/deletes separately from child edits." },
 				{ "  Rename duplicate entries before saving." },
 				{},
-				{ "q / Esc", "Close this guide" },
+				{ "g?", "Toggle guide from the tree or guide" },
+				{ "q / Esc", "Close while focused in the guide" },
 			}
 			local lines, width = {}, 0
+			local localleader = vim.g.maplocalleader or "\\"
 			for index, item in ipairs(items) do
+				if item[2] then
+					item[1] = item[1]:gsub("Local ([%a])", function(key)
+						return localleader .. key
+					end)
+				end
 				lines[index] = item[2] and string.format("  %-16s  %s", item[1], item[2])
 					or item[1] and "  " .. item[1]
 					or ""
@@ -1078,9 +1261,11 @@ function M.open(root, sidebar)
 				col = math.floor((vim.o.columns - width) / 2),
 			})
 			vim.wo[win].wrap = true
-			for _, key in ipairs({ "q", "<Esc>", "<C-c>" }) do
+			vim.wo[win].winfixbuf = true
+			states[buf].help = { win = win, buf = help, owner = owner }
+			for _, key in ipairs({ "g?", "q", "<Esc>", "<C-c>" }) do
 				vim.keymap.set("n", key, function()
-					vim.api.nvim_win_close(win, true)
+					close_help(buf)
 				end, { buffer = help })
 			end
 		end, "Directory help")
@@ -1089,6 +1274,32 @@ function M.open(root, sidebar)
 			buffer = buf,
 			callback = function()
 				save(buf)
+			end,
+		})
+		vim.api.nvim_buf_attach(buf, false, {
+			on_lines = function(_, changed, _, first, old_last, last)
+				local state = states[changed]
+				if not state or state.rendering then
+					return
+				end
+				-- Undo restores old extmarks after on_lines. Draw after the edit
+				-- completes, merging changed ranges without timers or cursor work.
+				local pending = state.redraw
+				if pending then
+					pending.first = math.min(pending.first, first)
+					pending.last = math.max(pending.last + last - old_last, last + 1)
+					return
+				end
+				state.redraw = { first = first, last = last + 1 }
+				vim.schedule(function()
+					if states[changed] ~= state then
+						return
+					end
+					local range = state.redraw
+					state.redraw = nil
+					local count = vim.api.nvim_buf_line_count(changed)
+					draw_tree(changed, math.min(range.first, count - 1), math.min(range.last, count))
+				end)
 			end,
 		})
 		vim.api.nvim_create_autocmd("TextYankPost", {
@@ -1114,8 +1325,18 @@ function M.open(root, sidebar)
 				end
 			end,
 		})
-		refresh(buf)
-	elseif not vim.bo[buf].modified then
+	end
+	if file and file ~= "" then
+		local parent = vim.uv.fs_realpath(vim.fs.dirname(file))
+		file = parent and vim.fs.joinpath(parent, vim.fs.basename(file)) or file
+		if vim.startswith(file, root:gsub("/+$", "") .. "/") then
+			while parent and parent ~= root do
+				states[buf].expanded[parent] = true
+				parent = vim.fs.dirname(parent)
+			end
+		end
+	end
+	if not vim.bo[buf].modified then
 		refresh(buf) -- navigation/reopening is an explicit filesystem refresh
 	end
 	if saving and locks[buf] == nil then
@@ -1130,12 +1351,22 @@ function M.open(root, sidebar)
 		vim.api.nvim_set_current_buf(buf)
 	end
 	style_window(vim.api.nvim_get_current_win())
+	if file and not states[buf].filtering then
+		for index, row in pairs(tree_rows(buf)) do
+			if row.target == file then
+				local line = vim.api.nvim_buf_get_lines(buf, index - 1, index, false)[1]
+				vim.api.nvim_win_set_cursor(0, { index, #(line:match("^/%d+ *") or "") })
+				break
+			end
+		end
+	end
 	return buf
 end
 vim.api.nvim_create_autocmd("BufWipeout", {
 	group = group,
 	callback = function(args)
 		local state = states[args.buf]
+		close_help(args.buf)
 		states[args.buf] = nil
 		if state then
 			for id in pairs(state.known) do
@@ -1160,6 +1391,7 @@ vim.api.nvim_create_autocmd("BufHidden", {
 		if not states[args.buf] then
 			return
 		end
+		close_help(args.buf)
 		-- Defer disposal until all listeners have finished using the event's ID.
 		vim.schedule(function()
 			if

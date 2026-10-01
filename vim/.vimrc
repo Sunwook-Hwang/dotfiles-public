@@ -630,6 +630,9 @@ augroup NopackFiletypes
   autocmd BufRead,BufNewFile *.bzl,BUILD,BUILD.bazel,WORKSPACE,WORKSPACE.bazel,MODULE.bazel setfiletype bzl
   autocmd BufRead,BufNewFile *.mlir setfiletype mlir
   autocmd BufRead,BufNewFile *.mdx setfiletype markdown.mdx
+  " Prefer Verilog over the V language for .v files.
+  autocmd BufRead,BufNewFile *.v,*.vh setlocal filetype=verilog
+  autocmd BufRead,BufNewFile *.sv,*.svh setlocal filetype=systemverilog
 augroup END
 
 function! s:Pair(open, close) abort
@@ -1152,7 +1155,7 @@ function! s:RevealTreeFile(relative) abort
 endfunction
 
 let s:project_roots = {}
-let s:project_markers = ['CMakeLists.txt', 'compile_commands.json', 'Makefile', 'package.json', 'pyproject.toml', 'ty.toml', 'pyrightconfig.json', 'Cargo.toml', 'WORKSPACE', 'WORKSPACE.bazel', 'MODULE.bazel', 'buf.yaml']
+let s:project_markers = ['CMakeLists.txt', 'compile_commands.json', 'Makefile', 'package.json', 'pyproject.toml', 'ty.toml', 'pyrightconfig.json', 'Cargo.toml', 'WORKSPACE', 'WORKSPACE.bazel', 'MODULE.bazel', 'buf.yaml', 'verible.filelist']
 
 function! s:ProjectRoot(...) abort
   let buf = a:0 ? a:1 : bufnr('%')
@@ -3867,6 +3870,8 @@ let s:formatters = {
       \ 'tex': [['latexindent', '-']],
       \ 'plaintex': [['latexindent', '-']],
       \ 'rust': [['rustfmt', '--emit=stdout', '--edition=2021']],
+      \ 'verilog': [['verible-verilog-format', '--stdin_name', '%', '-']],
+      \ 'systemverilog': [['verible-verilog-format', '--stdin_name', '%', '-']],
       \ }
 for s:ft in ['c', 'cpp', 'cuda', 'proto']
   let s:formatters[s:ft] = [['clang-format', '--assume-filename=%']]

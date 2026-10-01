@@ -13,6 +13,7 @@ local markers = {
 	"WORKSPACE.bazel",
 	"MODULE.bazel",
 	"buf.yaml",
+	"verible.filelist",
 }
 
 local function find_git_root(dir)

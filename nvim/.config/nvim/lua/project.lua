@@ -20,6 +20,7 @@ local markers = {
 	"WORKSPACE.bazel",
 	"MODULE.bazel",
 	"buf.yaml",
+	"verible.filelist",
 }
 local git_roots, project_roots = {}, {}
 function shared.find_git_root(dir)

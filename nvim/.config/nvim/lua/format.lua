@@ -48,6 +48,8 @@ local formatters = {
 	tex = { { "latexindent", "-" } },
 	plaintex = { { "latexindent", "-" } },
 	rust = { { "rustfmt", "--emit=stdout", "--edition=2021" } },
+	verilog = { { "verible-verilog-format", "--stdin_name", "%", "-" } },
+	systemverilog = { { "verible-verilog-format", "--stdin_name", "%", "-" } },
 }
 vim.api.nvim_create_autocmd({ "FileType", "BufFilePost", "BufWritePost", "BufWipeout" }, {
 	group = vim.api.nvim_create_augroup("nopack-format-status", { clear = true }),

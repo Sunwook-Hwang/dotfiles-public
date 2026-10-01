@@ -86,6 +86,10 @@ local default_options = {
 	cursorline = true,
 	cursorlineopt = "line,number", -- highlight the current row and its line number
 	cursorcolumn = true, -- highlight the current column to form a crosshair
+	-- ===== USER SETTINGS: LINE NUMBERS / 줄 번호 설정 =====
+	-- 아래 두 값만 수정하세요. true = 켜기, false = 끄기. 재시작 후 적용됩니다.
+	-- number: 줄 번호 표시. relativenumber: 현재 커서에서 떨어진 줄 수 표시.
+	-- 둘 다 true이면 현재 줄은 실제 번호, 나머지 줄은 상대 번호로 표시됩니다.
 	number = true, -- set numbered lines
 	relativenumber = false, -- set relative numbered lines
 	numberwidth = 2, -- set number column width to 2 {default 4}
@@ -119,43 +123,83 @@ vim.opt.wildmode = "longest:full,full"
 vim.opt.wildignore:append({ "*/.git/*", "*/node_modules/*", "*/__pycache__/*" })
 
 -- Runtime UI changes use vim.wo[win][0] / vim.opt_local, never window defaults.
--- Numbering is window-local; ordinary navigation only touches the entered window.
-local function show_line_numbers(win)
+-- Ordinary editor navigation preserves :set/:setlocal and filetype settings.
+-- Only utility windows own temporary numbering/statuscolumn changes.
+local numbering_options = { "number", "relativenumber", "statuscolumn" }
+local source_numbering = {}
+local numbering_group = vim.api.nvim_create_augroup("nopack-line-numbers", { clear = true })
+vim.api.nvim_create_autocmd("BufWinLeave", {
+	group = numbering_group,
+	callback = function(args)
+		if not policy.is_source(args.buf) then
+			return
+		end
+		local saved = {}
+		for _, name in ipairs(numbering_options) do
+			saved[name] = vim.wo[name]
+		end
+		local win = vim.api.nvim_get_current_win()
+		source_numbering[win] = source_numbering[win] or {}
+		source_numbering[win][args.buf] = saved
+	end,
+})
+vim.api.nvim_create_autocmd({ "WinClosed", "BufWipeout" }, {
+	group = numbering_group,
+	callback = function(args)
+		if args.event == "WinClosed" then
+			source_numbering[tonumber(args.match)] = nil
+		else
+			for _, buffers in pairs(source_numbering) do
+				buffers[args.buf] = nil
+			end
+		end
+	end,
+})
+local function update_window_numbering(win)
 	if not vim.api.nvim_win_is_valid(win) then
 		return
 	end
 	local buf = vim.api.nvim_win_get_buf(win)
 	local source = policy.is_source(buf)
-	if source or vim.bo[buf].filetype == "netrw" then
-		local number = not source or default_options.number
-		local relative = source and default_options.relativenumber or false
-		if vim.wo[win].number ~= number then
-			vim.wo[win][0].number = number
+	if source then
+		if vim.w[win].nopack_numbering_utility then
+			local saved = (source_numbering[win] or {})[buf] or {}
+			for _, name in ipairs(numbering_options) do
+				local value = saved[name]
+				if value == nil then
+					value = vim.go[name]
+				end
+				vim.wo[win][0][name] = value
+			end
+			vim.w[win].nopack_numbering_utility = nil
 		end
-		if vim.wo[win].relativenumber ~= relative then
-			vim.wo[win][0].relativenumber = relative
-		end
+	else
+		vim.w[win].nopack_numbering_utility = true
+	end
+	if vim.bo[buf].filetype == "netrw" then
+		vim.wo[win][0].number = true
+		vim.wo[win][0].relativenumber = false
 		if vim.wo[win].statuscolumn ~= "" then
 			vim.wo[win][0].statuscolumn = ""
 		end
 	end
 end
 vim.api.nvim_create_autocmd({ "WinEnter", "BufWinEnter", "FileType", "VimEnter", "SessionLoadPost" }, {
-	group = vim.api.nvim_create_augroup("nopack-line-numbers", { clear = true }),
+	group = numbering_group,
 	callback = function(args)
 		if args.event == "FileType" then
 			-- Apply after filetype plugins, only to windows displaying this buffer.
 			vim.schedule(function()
 				for _, win in ipairs(vim.fn.win_findbuf(args.buf)) do
-					show_line_numbers(win)
+					update_window_numbering(win)
 				end
 			end)
 		elseif args.event == "VimEnter" or args.event == "SessionLoadPost" then
 			for _, win in ipairs(vim.api.nvim_list_wins()) do
-				show_line_numbers(win)
+				update_window_numbering(win)
 			end
 		else
-			show_line_numbers(vim.api.nvim_get_current_win())
+			update_window_numbering(vim.api.nvim_get_current_win())
 		end
 	end,
 })

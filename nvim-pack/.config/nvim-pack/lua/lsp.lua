@@ -1,6 +1,8 @@
 local policy = require("buffer_policy")
 local project = require("project")
 local Snacks = require("snacks")
+-- .v is ambiguous with the V language; this profile uses it for Verilog.
+vim.filetype.add({ extension = { v = "verilog", vh = "verilog", sv = "systemverilog", svh = "systemverilog" } })
 local python_selection
 local function cancel_python_selection(buf)
 	if python_selection and (not buf or python_selection.buf == buf) then
@@ -342,6 +344,11 @@ require("mason").setup({
 	ui = { icons = { package_installed = "OK", package_pending = "...", package_uninstalled = "-" } },
 })
 local servers = {
+	verible = {
+		cmd = { "verible-verilog-ls" },
+		filetypes = { "verilog", "systemverilog" },
+		root_markers = { "verible.filelist", ".git" },
+	},
 	clangd = {
 		cmd = { "clangd" },
 		filetypes = { "c", "cpp", "objc", "objcpp", "cuda" },
@@ -627,6 +634,7 @@ require("mason-tool-installer").setup({
 		"latexindent",
 		"neocmakelsp",
 		"rust-analyzer",
+		"verible",
 		"shfmt",
 		"starpls",
 		"texlab",

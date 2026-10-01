@@ -34,6 +34,8 @@ require("conform").setup({
 		tex = { "latexindent" },
 		plaintex = { "latexindent" },
 		rust = { "rustfmt" },
+		verilog = { "verible" },
+		systemverilog = { "verible" },
 	},
 })
 vim.keymap.set("n", "<leader>lf", function()

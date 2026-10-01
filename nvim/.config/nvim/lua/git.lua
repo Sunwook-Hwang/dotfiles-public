@@ -61,7 +61,7 @@ local function draw_netrw_git(win, buf, top, statuses)
 		existing[mark[1]] = mark
 	end
 	for row, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
-		local path = explorer.path(buf, line)
+		local path = explorer.path(buf, line, row)
 		if path then
 			local xy = statuses[path]
 			if xy then

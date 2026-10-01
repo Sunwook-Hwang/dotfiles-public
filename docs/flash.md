@@ -143,13 +143,14 @@ parent repository.
 
 ### Editable file explorer
 
-`Space e` opens a native directory listing on the left, starting in the current
+`Space e` opens a native expandable tree without line numbers on the left, starting in the current
 file's directory. No Oil plugin or other package is needed. Like Oil, edit the
 listing with normal Vim commands, then use `:w` and confirm the operations.
 
 | Key | Action |
 | --- | --- |
-| `Enter` | Open the file in an editor or enter the directory |
+| `Enter` / `l` | Open the file in an editor or expand/collapse the folder |
+| `h` | Collapse the folder or its parent |
 | `-` / `_` | Parent / working directory |
 | `Ctrl+s/h/t` | Open in a vertical split / horizontal split / tab |
 | `Ctrl+p` | Toggle file preview |
@@ -179,8 +180,13 @@ and copied file identities are retained. Renames preserve open source buffers an
 unsaved text; deletion rejects modified source buffers and removes clean stale
 buffers through the normal buffer-close policy.
 
-This is a flat directory view, replacing netrw's recursive tree. It supports local
-files, recursive directory copies and symlinks. Trash/SSH adapters, permission
+Folders expand below their row. Expansion reads only the selected folder; collapse
+and re-expansion reuse its listing until refresh, reopen or save. Use two spaces per
+tree depth. `o` inserts a child under an expanded folder; pastes use the selected
+row's depth. Collapse a folder before `dd`, or select its complete visible subtree.
+Save changes to a folder separately from edits inside it. Directory symlinks open
+as a separate root to avoid recursive cycles. Local files, recursive directory
+copies and symlinks are supported. Trash/SSH adapters, permission
 columns, overwrite and cyclic rename operations are not implemented. Undo edits
 in the listing before saving; filesystem operations are not an undo history.
 

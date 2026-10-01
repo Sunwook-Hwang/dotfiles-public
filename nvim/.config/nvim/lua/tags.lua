@@ -67,8 +67,8 @@ vim.api.nvim_create_autocmd("User", {
 		for root, project in pairs(shared.tag_projects) do
 			shared.cancel_tag_build(root, project)
 		end
-		for _, cancel in pairs(shared.definition_requests) do
-			cancel()
+		for _, request in pairs(shared.definition_requests) do
+			request.cancel()
 		end
 	end,
 })
@@ -563,28 +563,46 @@ shared.map("n", "gd", function()
 		return
 	end
 	local source_word = vim.fn.expand("<cword>")
-	if shared.definition_requests[buf] then
-		shared.definition_requests[buf]()
+	local position, context = vim.api.nvim_win_get_cursor(win), policy.source_context(buf)
+	local previous = shared.definition_requests[buf]
+	if previous then
+		-- Repeated gd at the unchanged position shares the outstanding request.
+		if
+			previous.win == win
+			and vim.deep_equal(previous.position, position)
+			and policy.source_unchanged(previous.context)
+		then
+			return
+		end
+		previous.cancel()
 	end
 	if #vim.lsp.get_clients({ bufnr = buf, method = "textDocument/definition" }) == 0 then
 		ctags_definition()
 		return
 	end
-	local position, context = vim.api.nvim_win_get_cursor(win), policy.source_context(buf)
-	local done, cancel = false, nil
-	local function stop()
-		done = true
-		shared.definition_requests[buf] = nil
-		if cancel then
-			cancel()
-		end
-	end
-	shared.definition_requests[buf] = stop
-	local function finish(results)
+	local request = { win = win, position = position, context = context }
+	local done, cancel, timer = false, nil, nil
+	local function stop(completed)
 		if done then
 			return
 		end
-		stop()
+		done = true
+		shared.definition_requests[buf] = nil
+		if timer and not timer:is_closing() then
+			timer:stop()
+			timer:close()
+		end
+		if not completed and cancel then
+			cancel()
+		end
+	end
+	request.cancel = stop
+	shared.definition_requests[buf] = request
+	local function finish(results, completed)
+		if done then
+			return
+		end
+		stop(completed)
 		-- A late response must not redirect another window, file, or a moved cursor.
 		if
 			not policy.allows(buf)
@@ -636,16 +654,20 @@ shared.map("n", "gd", function()
 	end
 	cancel = vim.lsp.buf_request_all(buf, "textDocument/definition", function(client)
 		return vim.lsp.util.make_position_params(win, client.offset_encoding)
-	end, finish)
-	vim.defer_fn(function()
-		finish({})
-	end, 5000)
+	end, function(results)
+		finish(results, true)
+	end)
+	if not done then
+		timer = vim.defer_fn(function()
+			finish({})
+		end, 5000)
+	end
 end, "Go to definition: LSP, then ctags")
 
 vim.api.nvim_create_autocmd({ "BufUnload", "BufFilePost", "FileType" }, {
 	callback = function(args)
 		if shared.definition_requests[args.buf] then
-			shared.definition_requests[args.buf]()
+			shared.definition_requests[args.buf].cancel()
 		end
 	end,
 })
@@ -656,7 +678,7 @@ vim.api.nvim_create_autocmd("User", {
 		local buf = args.data.buf
 		attach_tags(buf)
 		if shared.definition_requests[buf] then
-			shared.definition_requests[buf]()
+			shared.definition_requests[buf].cancel()
 		end
 		local file = vim.api.nvim_buf_get_name(buf)
 		file = vim.uv.fs_realpath(file) or file

@@ -97,7 +97,7 @@ multiline declarations can still be missed.
 ## Native Space-key guide
 
 Pressing `Space` in Normal mode opens a native guide for the available Space
-key mappings. Buffer-local LSP and netrw mappings appear only when applicable.
+key mappings. Buffer-local LSP and explorer mappings appear only when applicable.
 
 - Continue typing to close the guide and run the selected mapping.
 - `Esc`, `Ctrl-c`, or an unmapped key cancels it.
@@ -110,7 +110,7 @@ key mappings. Buffer-local LSP and netrw mappings appear only when applicable.
 | ---------------------- | --------------------------------------------------------- |
 | `Space f`              | Fuzzy-find project files                                  |
 | `Space Enter`          | Find Git-tracked files                                    |
-| `Space e`              | Toggle the project tree and reveal the current file       |
+| `Space e`              | Toggle the editable file explorer       |
 | `Space sb`             | Select an open buffer                                     |
 | `Space sr`             | Select a recent file                                      |
 | `Space sn`             | Find Neovim configuration files                           |
@@ -130,7 +130,7 @@ Closing the last buffer leaves an empty buffer.
 
 The Git root is the preferred project root. Without Git, the configuration
 searches upward for CMake, Make, package.json, Python, Cargo, Bazel, and Buf
-project markers. The editor cwd, tree, search, LSP, and ctags share this root.
+project markers. The editor cwd, search, LSP, and ctags share this root. The explorer starts in the current file directory.
 For installed Python libraries, the top-level package under `site-packages` or
 `dist-packages` is the root (for example, `site-packages/tvm`). Git discovery
 stops at that package boundary, so a parent Homebrew or project repository is
@@ -141,34 +141,51 @@ Python standard-library files use the directory containing both `os.py` and
 precedence over this enclosing standard-library root; neither crosses into a
 parent repository.
 
-### netrw tree
+### Editable file explorer
 
-`Space e` opens netrw on the left and reuses its state within the same project.
+`Space e` opens a native directory listing on the left, starting in the current
+file's directory. No Oil plugin or other package is needed. Like Oil, edit the
+listing with normal Vim commands, then use `:w` and confirm the operations.
 
-| Key              | Action                                             |
-| ---------------- | -------------------------------------------------- |
-| `Enter`, `l`     | Expand/collapse a directory or open a file         |
-| `h`              | Collapse the parent branch                         |
-| `-`              | Go to the parent directory                         |
-| `o`, `v`, `t`    | Open in a horizontal split, vertical split, or tab |
-| `p`              | Preview a file                                     |
-| `Space nr`       | Refresh the tree                                   |
-| `gn`             | Set the cursor directory as the tree root |
-| `:Ntree path`     | Set the tree root explicitly |
-| `gh`             | Toggle hidden files                                |
-| `Space nh`       | Edit hidden-file patterns                          |
-| `%`, `d`         | Create a file/directory                            |
-| `R`, `D`         | Rename/delete                                      |
-| `mf`, `mu`       | Mark files/clear all marks                         |
-| `mt`, `mc`, `mm` | Set a target, then copy/move                       |
-| `g?`             | Show complete netrw help                           |
+| Key | Action |
+| --- | --- |
+| `Enter` | Open the file in an editor or enter the directory |
+| `-` / `_` | Parent / working directory |
+| `Ctrl+s/h/t` | Open in a vertical split / horizontal split / tab |
+| `Ctrl+p` | Toggle file preview |
+| `Ctrl+c` | Close the explorer and return to an editor |
+| `Ctrl+l` | Refresh the listing |
+| `g.` | Toggle hidden files |
+| `gs` | Choose name/size/mtime and ascending/descending order |
+| `` ` `` / `g~` | Set global / tab working directory |
+| `gx` | Open in an external application |
+| `g?` | Show explorer help |
+| `yy` → `p`, rename pasted row, `:w` | Copy a file or directory |
+| Edit a filename, `:w` | Rename without changing file contents |
+| `o`, type a filename, `:w` | Create an empty file; append `/` for a directory |
+| `dd`, `:w` | Delete the file or directory after confirmation |
 
-`%` opens the new file in the first editor pane of the current tab and keeps the
-tree open. If only the tree is open, an editor pane is created next to it.
+`yypp` pastes two copies of the entry; give each a distinct name before saving.
+`cc`, `S`, and `I` preserve the concealed file identity column. Duplicate names,
+existing destinations, and externally changed source files are rejected before
+saving. Unsaved directory edits prompt Save / Discard / Cancel when navigating.
+Use `Ctrl+w h/j/k/l` to move between windows; Oil keys apply only in the explorer.
 
-The tree margin displays the two-character Git index/worktree state. `.M` is a
-saved modification, `M.` is a staged modification, `??` is untracked, and `**`
-marks a directory containing mixed states.
+Copy and recursive cleanup use asynchronous native filesystem calls. While `:w`
+is running, directory listings are temporarily read-only and a second save is
+rejected; source editor buffers remain editable. Unchanged listings are not
+rewritten. Hidden clean directory buffers are released, while unsaved listings
+and copied file identities are retained. Renames preserve open source buffers and
+unsaved text; deletion rejects modified source buffers and removes clean stale
+buffers through the normal buffer-close policy.
+
+This is a flat directory view, replacing netrw's recursive tree. It supports local
+files, recursive directory copies and symlinks. Trash/SSH adapters, permission
+columns, overwrite and cyclic rename operations are not implemented. Undo edits
+in the listing before saving; filesystem operations are not an undo history.
+
+The margin retains Git index/worktree status: `.M` is a saved modification, `M.`
+is staged, `??` is untracked, and `**` marks mixed directory contents.
 
 ## Search and picker UI
 

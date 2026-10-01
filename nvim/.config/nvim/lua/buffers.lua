@@ -180,6 +180,7 @@ local function delete_buffer(buf, force, replacement)
 		end
 	end
 end
+shared.delete_buffer = delete_buffer -- filesystem actions use the same split-preserving policy
 local function close_current_buffer(force)
 	local is_terminal = vim.bo.buftype == "terminal"
 	if vim.bo.modified and not is_terminal and not force then

@@ -176,7 +176,7 @@ local function update_window_numbering(win)
 	else
 		vim.w[win].nopack_numbering_utility = true
 	end
-	if vim.bo[buf].filetype == "netrw" then
+	if vim.bo[buf].filetype == "netrw" or vim.bo[buf].filetype == "flash-explorer" then
 		vim.wo[win][0].number = true
 		vim.wo[win][0].relativenumber = false
 		if vim.wo[win].statuscolumn ~= "" then

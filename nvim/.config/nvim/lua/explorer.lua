@@ -1,46 +1,5 @@
+-- Native editable directory buffers: row IDs retain file identity through yy/p.
 local shared = require("state")
-
--- =========================================
--- ======= FILE TREE: NETRW OPTIONS ======
--- =========================================
--- NvimTree 대체: 기본 netrw의 트리 모드와 버퍼 전용 키를 설정합니다.
--- Enter/l: 열기·접기, h: 상위 가지 접기, Space nr: 새로고침, g?: 조작 도움말.
-function shared.netrw_command(command)
-	local saved_lazyredraw = vim.o.lazyredraw
-	vim.o.lazyredraw = true
-	local ok, err = pcall(vim.cmd, command)
-	vim.api.nvim_exec_autocmds("User", { pattern = "NopackNetrwRedraw", modeline = false })
-	vim.o.lazyredraw = saved_lazyredraw
-	if not ok then
-		error(err)
-	end
-end
-
-function shared.netrw_refresh()
-	local root = vim.w.netrw_treetop or vim.b.netrw_curdir
-	-- Drop deleted/renamed branches before netrw rereads expanded directories.
-	local tree = vim.w.netrw_treedict
-	if tree then
-		for path in pairs(tree) do
-			if vim.fn.isdirectory(path) == 0 then
-				tree[path] = nil
-			end
-		end
-		vim.w.netrw_treedict = tree
-	end
-	-- The refresh plug routes through BrowseChgDir, which can treat an absolute
-	-- tree root as a file and open it in the editor window. Refresh in place.
-	shared.netrw_command("call netrw#Call('NetrwRefresh', 1, " .. vim.fn.string(root) .. ")")
-end
-
-local function netrw_set_tree_root(path)
-	if path == "" then
-		path = vim.fn["netrw#Call"]("NetrwTreePath", vim.w.netrw_treetop)
-	end
-	-- Explicit directory syntax avoids BrowseChgDir's absolute-path file branch.
-	shared.netrw_command("call netrw#SetTreetop(1, " .. vim.fn.string(path:gsub("/+$", "") .. "/") .. ")")
-end
-
 function shared.sidebar_width()
 	return math.max(20, math.min(40, math.floor(vim.o.columns * 0.25)))
 end
@@ -61,512 +20,943 @@ vim.api.nvim_create_autocmd("BufWinEnter", {
 		end
 	end,
 })
-local function netrw_help()
-	local lines = {
-		"netrw file explorer · Nopack configuration",
-		"",
-		"Navigation / Opening",
-		"  j / k             Move down / up",
-		"  gg / G            First / last line",
-		"  Enter / l         Expand or collapse directory / open file",
-		"  h                 Collapse parent branch",
-		"  -                 Go to parent directory",
-		"  o / v / t         Open in horizontal split / vertical split / tab",
-		"  p                 Preview file",
-		"  Ctrl-h/j/k/l      Move to left / lower / upper / right window",
-		"  Space e           Toggle file explorer",
-		"",
-		"Display / Refresh",
-		"  Space nr          Refresh tree",
-		"  gh                Toggle hidden files",
-		"  Space nh          Edit file hiding patterns",
-		"  s / r             Change sort order / reverse sorting",
-		"",
-		"File Operations",
-		"  % / d             New file / new directory",
-		"  R / D             Rename / delete",
-		"  mf / mu           Toggle file mark / unmark all files",
-		"  mt                Set current directory as copy/move target",
-		"  mc / mm           Copy / move marked files to target",
-		"",
-		"g? / q / Esc: Close help · j/k: Scroll",
-	}
-	local buf = vim.api.nvim_create_buf(false, true)
-	vim.bo[buf].bufhidden = "wipe"
-	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-	vim.bo[buf].modifiable = false
-	local width = math.max(1, math.min(78, vim.o.columns - 4))
-	local height = math.max(1, math.min(#lines, vim.o.lines - 6))
-	local win = vim.api.nvim_open_win(buf, true, {
-		relative = "editor",
-		row = math.max(0, math.floor((vim.o.lines - height - 2) / 2)),
-		col = math.max(0, math.floor((vim.o.columns - width - 2) / 2)),
-		width = width,
-		height = height,
-		style = "minimal",
-		border = "rounded",
-		title = " netrw help ",
-	})
-	vim.wo[win][0].wrap = true
-	local function close()
-		if vim.api.nvim_win_is_valid(win) then
-			vim.api.nvim_win_close(win, true)
-		end
-	end
-	for _, key in ipairs({ "g?", "q", "<Esc>" }) do
-		vim.keymap.set("n", key, close, { buf = buf, silent = true, nowait = true, desc = "Close netrw help" })
-	end
-	vim.api.nvim_create_autocmd("BufLeave", {
-		buffer = buf,
-		once = true,
-		callback = function()
-			vim.schedule(close)
-		end,
-	})
-end
-local function netrw_cursor_paths()
-	local parent, directory = vim.b.netrw_curdir, vim.b.netrw_curdir
-	if vim.w.netrw_liststyle == 3 and vim.w.netrw_treetop then
-		local ok, tree_path = pcall(vim.fn["netrw#Call"], "NetrwTreePath", vim.w.netrw_treetop)
-		if ok and type(tree_path) == "string" and tree_path ~= "" then
-			tree_path = vim.fs.normalize(tree_path)
-			local stat = vim.uv.fs_lstat(tree_path)
-			local target = stat and stat.type == "link" and vim.uv.fs_stat(tree_path)
-			local parent_directory = (stat or {}).type == "directory"
-				or ((target or {}).type == "directory" and not vim.fn.getline("."):find("\t -->", 1, true))
-			if vim.fn.getline("."):sub(-1) == "/" then
-				directory = tree_path
-				parent = vim.fs.dirname(directory)
-			elseif not parent_directory then
-				parent, directory = vim.fs.dirname(tree_path), vim.fs.dirname(tree_path)
-			else
-				parent, directory = tree_path, tree_path
-			end
-		end
-	end
-	return parent, directory
-end
-local function netrw_at_cursor(function_name, use_directory, append_path, ...)
-	local parent, directory = netrw_cursor_paths()
-	local path = use_directory and directory or parent
-	vim.b.netrw_curdir = path
-	local args = { ... }
-	local encoded = { vim.fn.string(function_name) }
-	for _, arg in ipairs(args) do
-		encoded[#encoded + 1] = vim.fn.string(arg)
-	end
-	if append_path then
-		encoded[#encoded + 1] = vim.fn.string(path)
-	end
-	shared.netrw_command("call netrw#Call(" .. table.concat(encoded, ", ") .. ")")
-end
-local function netrw_cursor_path()
-	local parent = netrw_cursor_paths()
-	local word = vim.fn["netrw#Call"]("NetrwGetWord")
-	if type(word) ~= "string" or word == "" or word == "./" or word == "../" then
-		return
-	end
-	local path = vim.fs.joinpath(parent, (word:gsub("/+$", "")))
-	if word:sub(-1) == "/" then
-		return vim.uv.fs_lstat(path) and path or nil
-	end
-	local display = vim.fn.getline("."):match("^[^\t]*")
-	local suffix
-	for _, candidate in ipairs({ "*@", "@", "*" }) do
-		if vim.endswith(display, word .. candidate) then
-			suffix = candidate
-			break
-		end
-	end
-	local paths = vim.tbl_filter(function(candidate)
-		return vim.uv.fs_lstat(candidate) ~= nil
-	end, suffix and { path, path .. suffix } or { path })
-	if #paths > 1 then
-		vim.notify("Ambiguous Netrw name; use the terminal:\n" .. table.concat(paths, "\n"), vim.log.levels.ERROR)
-		return nil, true
-	end
-	return paths[1]
-end
-local function netrw_selected_paths(first, last)
-	local marked = vim.fn["netrw#Expose"]("netrwmarkfilelist")
-	local paths = type(marked) == "table" and vim.deepcopy(marked) or {}
-	local blocked = false
-	if #paths == 0 then
-		local cursor = vim.api.nvim_win_get_cursor(0)
-		for row = first, last do
-			vim.api.nvim_win_set_cursor(0, { row, 0 })
-			local path, ambiguous = netrw_cursor_path()
-			blocked = blocked or ambiguous
-			if path then
-				paths[#paths + 1] = path
-			end
-		end
-		vim.api.nvim_win_set_cursor(0, cursor)
-	end
-	return vim.tbl_filter(function(path)
-		return vim.uv.fs_lstat(path) ~= nil
-	end, vim.fn.uniq(vim.fn.sort(paths))),
-		blocked,
-		type(marked) == "table"
-end
-local function netrw_delete(first, last)
-	local paths, blocked, marked = netrw_selected_paths(first, last)
-	if #paths == 0 then
-		if not blocked then
-			vim.notify("No local file selected", vim.log.levels.ERROR)
-		end
-		return
-	end
-	local label = #paths == 1 and paths[1] or ("these " .. #paths .. " items")
-	if vim.fn.confirm("Delete " .. label .. "?", "&Yes\n&No", 2) ~= 1 then
-		return
-	end
-	local failed = {}
-	for _, path in ipairs(paths) do
-		local stat = vim.uv.fs_lstat(path)
-		if not stat or vim.fn.delete(path, stat.type == "directory" and "rf" or "") ~= 0 then
-			failed[#failed + 1] = path
-		end
-	end
-	if marked then
-		vim.fn["netrw#Call"]("NetrwUnMarkFile", 1)
-	end
-	shared.netrw_refresh()
-	if #failed > 0 then
-		vim.notify("Delete failed:\n" .. table.concat(failed, "\n"), vim.log.levels.ERROR)
+
+local M = {}
+vim.g.loaded_netrwPlugin = 1 -- directory buffers are owned by this explorer
+local states, entries, ids, next_id = {}, {}, {}, 0
+local copied_ids = {} -- retain identities that may still be in named/numbered registers
+local group = vim.api.nvim_create_augroup("flash-directory", { clear = true })
+local saving, locks
+
+local window_options = {}
+local ui_options = { "conceallevel", "concealcursor", "wrap", "winbar", "foldenable", "spell", "cursorcolumn", "list" }
+local function restore_window(win, saved)
+	for name, value in pairs(saved or {}) do
+		vim.wo[win][0][name] = value
 	end
 end
-local function netrw_rename(first, last)
-	local paths, blocked, marked = netrw_selected_paths(first, last)
-	if #paths == 0 then
-		if not blocked then
-			vim.notify("No local file selected", vim.log.levels.ERROR)
-		end
-		return
+local function focus_editor()
+	local origin = vim.api.nvim_get_current_win()
+	local previous = {}
+	for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+		previous[win] = true
 	end
-	for _, old in ipairs(paths) do
-		local new = vim.fn.input("Moving " .. old .. " to: ", old, "file")
-		if new == "" then
-			break
-		end
-		if
-			new ~= old and (not vim.uv.fs_lstat(new) or vim.fn.confirm("Overwrite " .. new .. "?", "&Yes\n&No", 2) == 1)
-		then
-			if vim.fn.rename(old, new) ~= 0 then
-				vim.notify("Rename failed: " .. old, vim.log.levels.ERROR)
-			end
-		end
+	shared.focus_editor()
+	local win = vim.api.nvim_get_current_win()
+	if not previous[win] then
+		restore_window(win, window_options[origin])
 	end
-	if marked then
-		vim.fn["netrw#Call"]("NetrwUnMarkFile", 1)
-	end
-	shared.netrw_refresh()
 end
-local function netrw_transfer(command)
-	local files = vim.fn["netrw#Expose"]("netrwmarkfilelist")
-	local target = vim.fn["netrw#Expose"]("netrwmftgt")
-	if type(files) ~= "table" or #files == 0 or type(target) ~= "string" or vim.fn.isdirectory(target) == 0 then
-		vim.notify("Mark files with mf and set a target with mt", vim.log.levels.ERROR)
-		return
+local function encode(name)
+	return (name:gsub("%%", "%%25"):gsub("\n", "%%0A"):gsub("\r", "%%0D"):gsub("\t", "%%09"))
+end
+local function decode(name)
+	return (name:gsub("%%(%x%x)", function(hex)
+		return string.char(tonumber(hex, 16))
+	end))
+end
+local function stat_key(stat)
+	return stat and table.concat({ stat.type, stat.dev, stat.ino, stat.size, stat.mtime.sec, stat.mtime.nsec }, ":")
+end
+local function buffer_path(buf, parents)
+	if states[buf] then
+		return states[buf].root
 	end
-	local argv = { command }
-	if command == "cp" then
-		argv[#argv + 1] = "-R"
-	end
-	vim.list_extend(argv, files)
-	argv[#argv + 1] = target
-	local buf = vim.api.nvim_get_current_buf()
-	local key = "netrw-transfer:" .. buf
-	if shared.running[key] then
-		vim.notify("A file transfer is already running from this tree")
-		return
-	end
-	local marked = vim.deepcopy(files)
-	-- File mutations must finish normally; cancellation must not interrupt a move.
-	shared.run_command(key, argv, { atomic = true }, function()
-		if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].filetype == "netrw" then
-			vim.api.nvim_buf_call(buf, function()
-				if vim.deep_equal(vim.fn["netrw#Expose"]("netrwmarkfilelist"), marked) then
-					vim.fn["netrw#Call"]("NetrwUnMarkFile", 1)
+	local name = vim.api.nvim_buf_get_name(buf)
+	if name ~= "" and vim.bo[buf].buftype == "" then
+		-- Resolve directory aliases (/tmp, symlinked projects), preserving file symlinks.
+		local directory = vim.fs.dirname(name)
+		local parent = parents[directory]
+		if parent == nil then
+			local ancestor, suffix = directory, ""
+			while true do
+				local resolved = vim.uv.fs_realpath(ancestor)
+				if resolved then
+					parent = resolved .. suffix
+					break
 				end
-				shared.netrw_refresh()
-			end)
+				local above = vim.fs.dirname(ancestor)
+				if above == ancestor then
+					parent = false
+					break
+				end
+				suffix = "/" .. vim.fs.basename(ancestor) .. suffix
+				ancestor = above
+			end
+			parents[directory] = parent
+		end
+		if parent then
+			return vim.fs.joinpath(parent, vim.fs.basename(name))
+		end
+	end
+	return name
+end
+local function checked(value, err)
+	if not value then
+		error(err or "Filesystem operation failed", 0)
+	end
+	return value
+end
+-- Filesystem work runs in libuv's worker pool; never spin a nested vim.wait loop.
+local function fs(method, ...)
+	local thread = coroutine.running()
+	local arguments = { ... }
+	arguments[#arguments + 1] = vim.schedule_wrap(function(err, result)
+		local ok, failure = coroutine.resume(thread, result, err)
+		if not ok then
+			vim.notify(failure, vim.log.levels.ERROR)
 		end
 	end)
+	checked(vim.uv[method](unpack(arguments)))
+	return coroutine.yield()
 end
-vim.g.netrw_banner = 0
-vim.g.netrw_liststyle = 3
-vim.g.netrw_winsize = 25
-vim.g.netrw_browse_split = 4
-vim.g.netrw_keepdir = 1
--- netrw reapplies these after drawing, overriding FileType window options.
-vim.g.netrw_bufsettings = "noma nomod nu nobl nowrap ro nornu"
--- Reserve native helper mappings before netrw initializes any new buffer;
--- otherwise it tries to install Ctrl-h/l over the global window shortcuts.
-vim.keymap.set("n", "<Plug>NopackNetrwHideEdit", "<Plug>NetrwHideEdit")
-vim.keymap.set("n", "<Plug>NopackNetrwRefresh", "<Plug>NetrwRefresh")
-local netrw_lines_group = vim.api.nvim_create_augroup("nopack-netrw-lines", { clear = true })
-vim.api.nvim_create_autocmd("Syntax", {
-	group = netrw_lines_group,
-	pattern = "netrw",
-	callback = function()
-		vim.cmd([[syntax match Conceal /[|│]/ contained containedin=netrwTreeBar conceal cchar=┊]])
-	end,
-})
-vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter", "WinEnter" }, {
-	group = netrw_lines_group,
-	callback = function()
-		if vim.bo.filetype == "netrw" then
-			vim.opt_local.conceallevel, vim.opt_local.concealcursor = 2, "nvic"
-			shared.fix_sidebar_width(vim.api.nvim_get_current_win())
-		end
-	end,
-})
-vim.api.nvim_create_autocmd("FileType", {
-	pattern = "netrw",
-	callback = function(args)
-		vim.w.netrw_liststyle = 3
-		vim.opt_local.number = true
-		vim.opt_local.relativenumber = false
-		vim.opt_local.wrap = false
-		vim.api.nvim_buf_create_user_command(args.buf, "Ntree", function(opts)
-			netrw_set_tree_root(vim.fn.expandcmd(opts.args))
-		end, { nargs = "?", complete = "dir" })
-		vim.keymap.set("n", "gn", function()
-			netrw_set_tree_root("")
-		end, { buf = args.buf, silent = true, desc = "Set tree root to cursor directory" })
-		vim.keymap.set("n", "g?", netrw_help, { buf = args.buf, silent = true, desc = "Show netrw help" })
-		local function file_operation(key, function_name, use_directory, append_path, desc, ...)
-			local call_args = { ... }
-			vim.keymap.set("n", key, function()
-				netrw_at_cursor(function_name, use_directory, append_path, unpack(call_args))
-			end, { buf = args.buf, silent = true, nowait = true, desc = desc })
-		end
-		vim.keymap.set("n", "D", function()
-			netrw_delete(vim.fn.line("."), vim.fn.line("."))
-		end, { buf = args.buf, silent = true, nowait = true, desc = "Delete file" })
-		vim.keymap.set("n", "<Del>", function()
-			netrw_delete(vim.fn.line("."), vim.fn.line("."))
-		end, { buf = args.buf, silent = true, nowait = true, desc = "Delete file" })
-		vim.keymap.set("x", "D", function()
-			local first, last = vim.fn.line("v"), vim.fn.line(".")
-			vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
-			netrw_delete(math.min(first, last), math.max(first, last))
-		end, { buf = args.buf, silent = true, nowait = true, desc = "Delete selected files" })
-		vim.keymap.set("x", "<Del>", "D", { buf = args.buf, remap = true, silent = true })
-		vim.keymap.set({ "n", "x" }, "<RightMouse>", "<Cmd>normal! <LeftMouse><CR>D", {
-			buf = args.buf,
-			remap = true,
-			silent = true,
-		})
-		vim.keymap.set("n", "R", function()
-			netrw_rename(vim.fn.line("."), vim.fn.line("."))
-		end, { buf = args.buf, silent = true, nowait = true, desc = "Rename file" })
-		vim.keymap.set("x", "R", function()
-			local first, last = vim.fn.line("v"), vim.fn.line(".")
-			vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "nx", false)
-			netrw_rename(math.min(first, last), math.max(first, last))
-		end, { buf = args.buf, silent = true, nowait = true, desc = "Rename selected files" })
-		vim.keymap.set("n", "%", function()
-			local _, directory = netrw_cursor_paths()
-			vim.fn.inputsave()
-			local name = vim.fn.input("Enter filename: ")
-			vim.fn.inputrestore()
-			if name == "" then
-				return
+local function remove(path)
+	local stat = checked(fs("fs_lstat", path))
+	if stat.type == "directory" then
+		checked(fs("fs_chmod", path, bit.bor(stat.mode % 4096, 448)))
+		local scan = checked(fs("fs_scandir", path))
+		while true do
+			local name = vim.uv.fs_scandir_next(scan)
+			if not name then
+				break
 			end
-			local path = vim.fn.isabsolutepath(name) == 1 and name or vim.fs.joinpath(directory, name)
-			-- NetrwOpenFile always edits in the tree window, ignoring browse_split.
-			shared.focus_editor()
-			vim.cmd("edit " .. vim.fn.fnameescape(path))
-		end, { buf = args.buf, silent = true, nowait = true, desc = "Create file in first editor window" })
-		file_operation("d", "NetrwMakeDir", true, false, "Create directory", "")
-		vim.keymap.set("n", "mf", function()
-			local parent = netrw_cursor_paths()
-			local path = netrw_cursor_path()
+			remove(vim.fs.joinpath(path, name))
+		end
+		checked(fs("fs_rmdir", path))
+	else
+		checked(fs("fs_unlink", path))
+	end
+end
+local function copy(source, target, defer_mode)
+	local stat = checked(fs("fs_lstat", source))
+	if stat.type == "directory" then
+		local mode = stat.mode % 4096
+		checked(fs("fs_mkdir", target, bit.bor(mode, 448))) -- writable while populating
+		local scan = checked(fs("fs_scandir", source))
+		while true do
+			local name = vim.uv.fs_scandir_next(scan)
+			if not name then
+				break
+			end
+			copy(vim.fs.joinpath(source, name), vim.fs.joinpath(target, name))
+		end
+		if not defer_mode then
+			checked(fs("fs_chmod", target, mode))
+		end
+		return mode
+	elseif stat.type == "link" then
+		checked(fs("fs_symlink", checked(fs("fs_readlink", source)), target))
+	elseif stat.type == "file" then
+		checked(fs("fs_copyfile", source, target, 1)) -- exclusive; never overwrite
+	else
+		error("Cannot copy special file: " .. source, 0)
+	end
+end
+
+function M.is_buffer(buf)
+	return vim.bo[buf].filetype == "flash-explorer"
+end
+function M.root(buf)
+	return states[buf] and states[buf].root or ""
+end
+function M.path(buf, line)
+	local state = states[buf]
+	if not state then
+		return
+	end
+	local name = line:match("^/%d+ (.*)$") or line
+	name = decode(name:gsub("/$", ""))
+	if name ~= "" and name ~= "." and name ~= ".." and not name:find("[/\\%z]") then
+		return vim.fs.joinpath(state.root, name)
+	end
+end
+local function refresh(buf)
+	local state = states[buf]
+	local scan = checked(vim.uv.fs_scandir(state.root))
+	local listing = {}
+	while true do
+		local name = vim.uv.fs_scandir_next(scan)
+		if not name then
+			break
+		end
+		if state.hidden or name:sub(1, 1) ~= "." then
+			local path = vim.fs.joinpath(state.root, name)
+			local stat = checked(vim.uv.fs_lstat(path))
+			listing[#listing + 1] = {
+				name = name,
+				path = path,
+				stat = stat,
+				directory = stat.type == "directory" or stat.type == "link" and vim.fn.isdirectory(path) == 1,
+			}
+		end
+	end
+	table.sort(listing, function(a, b)
+		if a.directory ~= b.directory then
+			return a.directory
+		end
+		local av, bv = a[state.sort], b[state.sort]
+		if state.sort == "size" then
+			av, bv = a.stat.size, b.stat.size
+		end
+		if state.sort == "mtime" then
+			av, bv = a.stat.mtime.sec, b.stat.mtime.sec
+		end
+		if av == bv then
+			av, bv = a.name, b.name
+		end
+		return state.reverse and av > bv or not state.reverse and av < bv
+	end)
+	local lines = {}
+	state.originals = {}
+	for _, entry in ipairs(listing) do
+		local id = ids[entry.path]
+		if not id then
+			next_id = next_id + 1
+			id = next_id
+			ids[entry.path] = id
+		end
+		entry.id, entry.key = id, stat_key(entry.stat)
+		local metadata = { id = id, path = entry.path, name = entry.name, key = entry.key, directory = entry.directory }
+		entries[id], state.originals[id] = metadata, metadata
+		lines[#lines + 1] = "/" .. id .. " " .. encode(entry.name) .. (entry.directory and "/" or "")
+	end
+	if #lines == 0 then
+		lines = { "" }
+	end
+	if vim.deep_equal(lines, vim.api.nvim_buf_get_lines(buf, 0, -1, false)) then
+		vim.bo[buf].modified = false
+		return
+	end
+	-- Undo belongs to pending listing edits, never to already applied filesystem work.
+	local undolevels = vim.bo[buf].undolevels
+	local modifiable = vim.bo[buf].modifiable
+	vim.bo[buf].modifiable = true
+	vim.bo[buf].undolevels = -1
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+	vim.bo[buf].undolevels = undolevels
+	vim.bo[buf].modifiable = modifiable
+	vim.bo[buf].modified = false
+	vim.api.nvim_exec_autocmds("User", { pattern = "NopackExplorerChanged", modeline = false })
+end
+
+local function plan(buf)
+	local state, rows, targets = states[buf], {}, {}
+	for _, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
+		if line ~= "" then
+			local id, label = line:match("^/(%d+) (.*)$")
+			id = tonumber(id)
+			local source = id and (state.originals[id] or entries[id])
+			-- Save plans must not share mutable paths with the directory ID cache.
+			source = source and vim.tbl_extend("force", {}, source)
+			if id and not source then
+				error("Unknown file ID: " .. id, 0)
+			end
+			label = label or line
+			local directory = label:sub(-1) == "/"
+			local name = decode(directory and label:sub(1, -2) or label)
+			if name == "" or name == "." or name == ".." or name:find("[/\\%z]") then
+				error("Use one filename per row (no path separators): " .. label, 0)
+			end
+			if source and source.directory ~= directory then
+				error("Keep the directory '/' marker: " .. label, 0)
+			end
+			local target = vim.fs.joinpath(state.root, name)
+			if targets[target] then
+				error("Duplicate name; rename pasted entries before :w: " .. name, 0)
+			end
+			targets[target] = true
+			rows[#rows + 1] = { id = id, source = source, target = target, directory = directory }
+		end
+	end
+	local operations, retained = {}, {}
+	-- An unchanged row owns the original; other rows with its ID are copies.
+	for _, row in ipairs(rows) do
+		if row.source and row.source.path == row.target then
+			retained[row.id] = true
+		end
+	end
+	for _, row in ipairs(rows) do
+		if row.source then
+			if row.source.path ~= row.target then
+				row.kind = state.originals[row.id] and not retained[row.id] and "rename" or "copy"
+				retained[row.id] = true
+				operations[#operations + 1] = row
+			end
+		else
+			row.kind = "create"
+			operations[#operations + 1] = row
+		end
+	end
+	for id, entry in pairs(state.originals) do
+		if not retained[id] then
+			operations[#operations + 1] = { kind = "delete", source = vim.tbl_extend("force", {}, entry) }
+		end
+	end
+	local buffers, parents = {}, {}
+	for _, loaded in ipairs(vim.api.nvim_list_bufs()) do
+		buffers[#buffers + 1] = {
+			id = loaded,
+			name = buffer_path(loaded, parents),
+			modified = vim.bo[loaded].modified,
+			directory = states[loaded] ~= nil,
+		}
+	end
+	for _, op in ipairs(operations) do
+		if op.source and stat_key(vim.uv.fs_lstat(op.source.path)) ~= op.source.key then
+			error("File changed externally; refresh before editing: " .. op.source.path, 0)
+		end
+		if op.target then
+			for _, buffer in ipairs(buffers) do
+				local name = buffer.name
+				if name == op.target or vim.startswith(name, op.target .. "/") then
+					error("Destination already has an open buffer: " .. op.target, 0)
+				end
+			end
+		end
+		if op.target and vim.uv.fs_lstat(op.target) then
+			error("Destination already exists: " .. op.target, 0)
+		end
+		if op.source and op.target and vim.startswith(op.target, op.source.path .. "/") then
+			error("Cannot copy a directory inside itself", 0)
+		end
+		if op.kind == "delete" or op.kind == "rename" then
+			for _, buffer in ipairs(buffers) do
+				local name = buffer.name
+				if
+					buffer.modified
+					and (op.kind == "delete" or buffer.directory)
+					and (name == op.source.path or vim.startswith(name, op.source.path .. "/"))
+				then
+					error("Save or discard modified buffer first: " .. name, 0)
+				end
+			end
+		end
+	end
+	return operations, buffers
+end
+local function commit(buf)
+	local operations, buffers = plan(buf)
+	if #operations == 0 then
+		vim.bo[buf].modified = false
+		return true
+	end
+	local summary = {}
+	for _, op in ipairs(operations) do
+		summary[#summary + 1] = op.kind
+			.. " "
+			.. (op.source and op.source.path or "")
+			.. (op.target and " -> " .. op.target or "")
+	end
+	if vim.fn.confirm(table.concat(summary, "\n"), "&Apply\n&Cancel", 2) ~= 1 then
+		return false
+	end
+	local stages = {}
+	local ok, err = pcall(function()
+		-- Stage every operation before removing originals or exposing destinations.
+		for _, op in ipairs(operations) do
+			if op.source and stat_key(vim.uv.fs_lstat(op.source.path)) ~= op.source.key then
+				error("File changed during confirmation: " .. op.source.path, 0)
+			end
+			local parent = vim.fs.dirname(op.target or op.source.path)
+			op.stage = checked(vim.uv.fs_mkdtemp(parent .. "/.flash-XXXXXX"))
+			op.item = vim.fs.joinpath(op.stage, "item")
+			stages[#stages + 1] = op
+			if op.kind == "copy" then
+				op.mode = copy(op.source.path, op.item, true)
+			elseif op.kind == "create" then
+				if op.directory then
+					checked(vim.uv.fs_mkdir(op.item, 493))
+				else
+					checked(vim.uv.fs_close(checked(vim.uv.fs_open(op.item, "wx", 420))))
+				end
+			end
+		end
+		local _, current_buffers = plan(buf) -- recheck after asynchronous staging
+		buffers = current_buffers
+		for _, op in ipairs(stages) do
+			if op.kind == "rename" or op.kind == "delete" then
+				if stat_key(vim.uv.fs_lstat(op.source.path)) ~= op.source.key then
+					error("File changed during save: " .. op.source.path, 0)
+				end
+				checked(vim.uv.fs_rename(op.source.path, op.item))
+				op.moved = true
+			end
+		end
+		for _, op in ipairs(stages) do
+			if op.target then
+				if vim.uv.fs_lstat(op.target) then
+					error("Destination appeared during save: " .. op.target, 0)
+				end
+				checked(vim.uv.fs_rename(op.item, op.target))
+				op.installed = true
+			end
+		end
+	end)
+	if not ok then
+		local recovery = {}
+		for i = #stages, 1, -1 do
+			local op = stages[i]
+			local rollback_ok = true
+			if op.installed then
+				rollback_ok = vim.uv.fs_rename(op.target, op.item) ~= nil
+			end
+			if rollback_ok and op.moved then
+				rollback_ok = not vim.uv.fs_lstat(op.source.path) and vim.uv.fs_rename(op.item, op.source.path) ~= nil
+			end
+			op.rollback_ok = rollback_ok
+			if not rollback_ok then
+				recovery[#recovery + 1] = op.stage
+			end
+		end
+		-- Restore every original before yielding to asynchronous cleanup.
+		for _, op in ipairs(stages) do
+			if op.rollback_ok and not pcall(remove, op.stage) then
+				recovery[#recovery + 1] = op.stage
+			end
+		end
+		error(tostring(err) .. (#recovery > 0 and "\nRecover files from: " .. table.concat(recovery, "\n") or ""), 0)
+	end
+	for _, op in ipairs(stages) do
+		if op.mode then
+			local chmod_ok, chmod_err = vim.uv.fs_chmod(op.target, op.mode)
+			if not chmod_ok then
+				vim.notify("Copied, but could not restore directory permissions: " .. chmod_err, vim.log.levels.WARN)
+			end
+		end
+		if op.kind == "rename" then
+			for _, buffer in ipairs(buffers) do
+				local loaded = buffer.id
+				local directory = states[loaded]
+				local name = buffer.name
+				if name == op.source.path or vim.startswith(name, op.source.path .. "/") then
+					local destination = op.target .. name:sub(#op.source.path + 1)
+					if directory then
+						directory.root = destination
+						for _, win in ipairs(vim.fn.win_findbuf(loaded)) do
+							vim.wo[win][0].winbar = destination:gsub("%%", "%%%%")
+						end
+					end
+					vim.api.nvim_buf_set_name(loaded, (directory and "flash://" or "") .. destination)
+					buffer.name = destination
+				end
+			end
+			local moved = {}
+			if op.source.directory then
+				for path, id in pairs(ids) do
+					if path == op.source.path or vim.startswith(path, op.source.path .. "/") then
+						moved[path] = id
+					end
+				end
+			else
+				moved[op.source.path] = ids[op.source.path]
+			end
+			for path, id in pairs(moved) do
+				local destination = op.target .. path:sub(#op.source.path + 1)
+				ids[path], ids[destination] = nil, id
+				entries[id].path = destination
+				entries[id].name = vim.fs.basename(destination)
+			end
+		end
+	end
+	local deleted = {}
+	for _, buffer in ipairs(buffers) do
+		for _, op in ipairs(stages) do
+			if
+				op.kind == "delete"
+				and (buffer.name == op.source.path or vim.startswith(buffer.name, op.source.path .. "/"))
+			then
+				deleted[buffer.id] = true
+				break
+			end
+		end
+	end
+	local replacement
+	if next(deleted) then
+		for _, candidate in ipairs(shared.buffers()) do
+			if not deleted[candidate] and require("buffer_policy").is_source(candidate) then
+				replacement = candidate
+				break
+			end
+		end
+		for candidate in pairs(deleted) do
+			if vim.api.nvim_buf_is_valid(candidate) then
+				if vim.bo[candidate].modified then
+					vim.notify(
+						"Deleted file has unsaved buffer; kept: " .. vim.api.nvim_buf_get_name(candidate),
+						vim.log.levels.WARN
+					)
+				else
+					if not replacement and #vim.fn.win_findbuf(candidate) > 0 then
+						replacement = vim.api.nvim_create_buf(true, false)
+					end
+					shared.delete_buffer(candidate, false, replacement)
+				end
+			end
+		end
+	end
+	for _, op in ipairs(stages) do
+		local removed, failure = pcall(remove, op.stage)
+		if not removed then
+			vim.notify("Could not remove staging directory: " .. op.stage .. "\n" .. failure, vim.log.levels.WARN)
+		end
+	end
+	if states[buf] and vim.api.nvim_buf_is_valid(buf) then
+		refresh(buf)
+	end
+	for candidate, state in pairs(states) do
+		if candidate ~= buf and not vim.bo[candidate].modified and vim.fn.isdirectory(state.root) == 1 then
+			-- Only refresh directories directly affected by this explicit save.
+			for _, op in ipairs(stages) do
+				if
+					op.kind == "rename" and (state.root == op.target or vim.startswith(state.root, op.target .. "/"))
+				then
+					refresh(candidate)
+					break
+				end
+			end
+		end
+	end
+	if vim.api.nvim_buf_is_valid(buf) then
+		vim.api.nvim_exec_autocmds("BufWritePost", { buffer = buf, modeline = false })
+	end
+	return true
+end
+local function save(buf, callback)
+	if saving then
+		vim.notify("A directory save is already running", vim.log.levels.WARN)
+		return
+	end
+	saving = buf
+	locks = {}
+	for candidate in pairs(states) do
+		locks[candidate] = vim.bo[candidate].modifiable
+		vim.bo[candidate].modifiable = false
+	end
+	local thread = coroutine.create(function()
+		local ok, result = pcall(commit, buf)
+		saving = nil
+		for candidate, value in pairs(locks) do
+			if vim.api.nvim_buf_is_valid(candidate) then
+				vim.bo[candidate].modifiable = value
+			end
+		end
+		locks = nil
+		-- A hidden modified listing survives; completed, unused listings do not.
+		for candidate in pairs(states) do
+			if not vim.bo[candidate].modified and #vim.fn.win_findbuf(candidate) == 0 then
+				vim.api.nvim_buf_delete(candidate, { force = true })
+			end
+		end
+		if not ok then
+			vim.notify(result, vim.log.levels.ERROR)
+		end
+		if callback and vim.api.nvim_buf_is_valid(buf) then
+			callback(ok and result)
+		end
+	end)
+	local ok, failure = coroutine.resume(thread)
+	if not ok then
+		vim.notify(failure, vim.log.levels.ERROR)
+	end
+end
+local function clean(buf, action)
+	if saving then
+		vim.notify("Directory save in progress", vim.log.levels.WARN)
+		return
+	end
+	if not vim.bo[buf].modified then
+		return action(false, false)
+	end
+	local win = vim.api.nvim_get_current_win()
+	local choice = vim.fn.confirm("Unsaved directory edits", "&Save\n&Discard\n&Cancel", 3)
+	if choice == 1 then
+		return save(buf, function(saved)
+			if saved and vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == buf then
+				if vim.api.nvim_get_current_win() == win then
+					action(true, false)
+				else
+					vim.api.nvim_win_call(win, function()
+						action(true, false)
+					end)
+				end
+			end
+		end)
+	end
+	if choice == 2 then
+		refresh(buf)
+		return action(true, true)
+	end
+end
+
+local function style_window(win)
+	local buf = vim.api.nvim_win_get_buf(win)
+	if states[buf] then
+		if not window_options[win] then
+			local saved = {}
+			for _, name in ipairs(ui_options) do
+				saved[name] = vim.wo[win][name]
+			end
+			-- A split inherits the explorer's temporary options, not editor defaults.
+			for origin, options in pairs(window_options) do
+				if vim.api.nvim_win_is_valid(origin) and vim.api.nvim_win_get_buf(origin) == buf then
+					saved = vim.deepcopy(options)
+					break
+				end
+			end
+			window_options[win] = saved
+		end
+		vim.wo[win][0].conceallevel = 3
+		vim.wo[win][0].concealcursor = "nvic"
+		vim.wo[win][0].number = true
+		vim.wo[win][0].relativenumber = false
+		vim.wo[win][0].statuscolumn = ""
+		vim.wo[win][0].wrap = false
+		vim.wo[win][0].foldenable = false
+		vim.wo[win][0].spell = false
+		vim.wo[win][0].cursorcolumn = false
+		vim.wo[win][0].list = false
+		vim.wo[win][0].winbar = states[buf].root:gsub("%%", "%%%%")
+		local cursor = vim.api.nvim_win_get_cursor(win)
+		local line = vim.api.nvim_buf_get_lines(buf, cursor[1] - 1, cursor[1], false)[1] or ""
+		local prefix = line:match("^/%d+ ")
+		if prefix and cursor[2] < #prefix then
+			vim.api.nvim_win_set_cursor(win, { cursor[1], #prefix })
+		end
+	elseif window_options[win] then
+		restore_window(win, window_options[win])
+		window_options[win] = nil
+	end
+end
+vim.api.nvim_create_autocmd({ "BufWinEnter", "WinEnter" }, {
+	group = group,
+	callback = function()
+		style_window(vim.api.nvim_get_current_win())
+	end,
+})
+vim.api.nvim_create_autocmd("WinClosed", {
+	group = group,
+	callback = function(args)
+		window_options[tonumber(args.match)] = nil
+	end,
+})
+
+function M.open(root, sidebar)
+	root = vim.uv.fs_realpath(root) or vim.fs.normalize(root)
+	if vim.fn.isdirectory(root) ~= 1 then
+		error("Not a directory: " .. root, 0)
+	end
+	local previous = vim.api.nvim_get_current_buf()
+	local origin = vim.api.nvim_get_current_win()
+	local saved = vim.deepcopy(window_options[origin] or {})
+	if not window_options[origin] then
+		for _, name in ipairs(ui_options) do
+			saved[name] = vim.wo[origin][name]
+		end
+	end
+	if states[previous] and vim.bo[previous].modified then
+		clean(previous, function()
+			M.open(root, sidebar)
+		end)
+		return
+	end
+	local buf
+	for candidate, state in pairs(states) do
+		if state.root == root then
+			buf = candidate
+			break
+		end
+	end
+	if not buf then
+		buf = vim.api.nvim_create_buf(false, false)
+		states[buf] = { root = root, originals = {}, hidden = false, sort = "name", reverse = false }
+		vim.api.nvim_buf_set_name(buf, "flash://" .. root)
+		vim.bo[buf].buftype = "acwrite"
+		vim.bo[buf].bufhidden = "hide"
+		vim.bo[buf].swapfile = false
+		vim.bo[buf].undofile = false
+		vim.bo[buf].filetype = "flash-explorer"
+		vim.api.nvim_buf_call(buf, function()
+			vim.cmd([[syntax match FlashDirectoryId /^\/\d\+ / conceal]])
+			vim.cmd([[syntax match FlashDirectoryFolder /.*\/$/ contains=FlashDirectoryId]])
+			vim.cmd("highlight default link FlashDirectoryFolder Directory")
+		end)
+		local function map(key, fn, desc)
+			vim.keymap.set("n", key, fn, { buffer = buf, silent = true, desc = desc })
+		end
+		-- Keep hidden identity columns when replacing an entire filename.
+		for key, action in pairs({ ["0"] = "", ["^"] = "", ["<Home>"] = "", I = "i", cc = "C", S = "C" }) do
+			vim.keymap.set("n", key, function()
+				local prefix = vim.fn.getline("."):match("^/%d+ ") or ""
+				return "0" .. (#prefix > 0 and #prefix .. "l" or "") .. action
+			end, { buffer = buf, expr = true, desc = "Edit filename without its ID" })
+		end
+		vim.keymap.set("i", "<BS>", function()
+			local prefix = vim.fn.getline("."):match("^/%d+ ")
+			return prefix and vim.fn.col(".") <= #prefix + 1 and "" or "<BS>"
+		end, { buffer = buf, expr = true })
+		local function open(command)
+			local line = vim.fn.getline(".")
+			local path = M.path(buf, line)
+			local id = tonumber(line:match("^/(%d+) "))
+			local original = id and entries[id] and entries[id].path
 			if not path then
 				return
 			end
-			local liststyle = vim.w.netrw_liststyle
-			vim.b.netrw_curdir = parent
-			vim.w.netrw_liststyle = 0
-			vim.fn["netrw#Call"]("NetrwMarkFile", 1, vim.fs.basename(path))
-			vim.w.netrw_liststyle = liststyle
-		end, { buf = args.buf, silent = true, nowait = true, desc = "Toggle file mark" })
-		local function set_target()
-			local _, directory = netrw_cursor_paths()
-			shared.netrw_command("call netrw#MakeTgt(" .. vim.fn.string(directory) .. ")")
+			clean(buf, function(_, discarded)
+				if discarded then
+					path = original
+				end
+				if not path then
+					return
+				end
+				if not vim.uv.fs_lstat(path) then
+					vim.notify("Entry does not exist; save directory edits first: " .. path, vim.log.levels.WARN)
+					return
+				end
+				if command then
+					local saved = window_options[vim.api.nvim_get_current_win()]
+					vim.cmd(command)
+					restore_window(vim.api.nvim_get_current_win(), saved)
+				end
+				if vim.fn.isdirectory(path) == 1 then
+					M.open(path)
+				else
+					focus_editor()
+					vim.cmd("edit " .. vim.fn.fnameescape(path))
+				end
+			end)
 		end
-		vim.keymap.set(
-			"n",
-			"mt",
-			set_target,
-			{ buf = args.buf, silent = true, nowait = true, desc = "Set copy/move target" }
-		)
-		vim.keymap.set("n", "<Plug>NetrwCLeftmouse", function()
-			vim.cmd("normal! " .. vim.keycode("<LeftMouse>"))
-			set_target()
-		end, { buf = args.buf, silent = true })
-		vim.keymap.set("n", "mc", function()
-			netrw_transfer("cp")
-		end, { buf = args.buf, silent = true, nowait = true, desc = "Copy marked files" })
-		vim.keymap.set("n", "mm", function()
-			netrw_transfer("mv")
-		end, { buf = args.buf, silent = true, nowait = true, desc = "Move marked files" })
-		-- Give netrw's helpers keys without conflicting with Ctrl-h/l window movement.
-		vim.keymap.set("n", "<leader>nh", function()
-			shared.netrw_command("normal " .. vim.api.nvim_replace_termcodes("<Plug>NetrwHideEdit", true, false, true))
-		end, { buf = args.buf, silent = true, desc = "Edit tree hide patterns" })
-		vim.keymap.set("n", "<Plug>NetrwRefresh", shared.netrw_refresh, { buf = args.buf, silent = true })
-		-- netrw's substring hasmapto() check also matches the HideEdit alias.
-		vim.keymap.set("n", "a", "<Plug>NetrwHide_a", { buf = args.buf, silent = true })
-		vim.keymap.set(
-			"n",
-			"<leader>nr",
-			shared.netrw_refresh,
-			{ buf = args.buf, silent = true, desc = "Refresh tree" }
-		)
-		for _, direction in ipairs({ "h", "j", "k", "l" }) do
-			vim.keymap.set("n", "<C-" .. direction .. ">", "<C-w>" .. direction, {
-				buf = args.buf,
-				silent = true,
-				desc = "Move to " .. direction .. " window",
+		map("<CR>", function()
+			open()
+		end, "Open file / directory")
+		for key, cmd in pairs({ ["<C-s>"] = "belowright vnew", ["<C-h>"] = "belowright new", ["<C-t>"] = "tabnew" }) do
+			map(key, function()
+				open(cmd)
+			end, "Open in split / tab")
+		end
+		map("-", function()
+			M.open(vim.fs.dirname(states[buf].root))
+		end, "Parent directory")
+		map("_", function()
+			M.open(vim.fn.getcwd())
+		end, "Working directory")
+		map("<C-l>", function()
+			clean(buf, function(refreshed)
+				if not refreshed then
+					refresh(buf)
+				end
+			end)
+		end, "Refresh directory")
+		map("g.", function()
+			clean(buf, function()
+				states[buf].hidden = not states[buf].hidden
+				refresh(buf)
+			end)
+		end, "Toggle hidden files")
+		for key, cmd in pairs({ ["`"] = "cd", ["g~"] = "tcd" }) do
+			map(key, function()
+				vim.cmd(cmd .. " " .. vim.fn.fnameescape(states[buf].root))
+			end, "Change working directory")
+		end
+		map("gx", function()
+			local path = M.path(buf, vim.fn.getline("."))
+			if path then
+				vim.ui.open(path)
+			end
+		end, "Open externally")
+		map("<C-c>", function()
+			clean(buf, function()
+				local win = vim.api.nvim_get_current_win()
+				focus_editor()
+				vim.api.nvim_win_close(win, false)
+			end)
+		end, "Close explorer")
+		map("gs", function()
+			clean(buf, function()
+				vim.ui.select({ "name", "size", "mtime" }, { prompt = "Sort by" }, function(column)
+					if not column then
+						return
+					end
+					vim.ui.select({ "ascending", "descending" }, { prompt = "Sort order" }, function(order)
+						if order and states[buf] and not vim.bo[buf].modified then
+							states[buf].sort = column
+							states[buf].reverse = order == "descending"
+							refresh(buf)
+						end
+					end)
+				end)
+			end)
+		end, "Choose sort order")
+		map("<C-p>", function()
+			for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+				if vim.wo[win].previewwindow then
+					vim.api.nvim_win_close(win, false)
+					return
+				end
+			end
+			local path = M.path(buf, vim.fn.getline("."))
+			if path and vim.fn.filereadable(path) == 1 then
+				local saved = window_options[vim.api.nvim_get_current_win()]
+				vim.cmd("pedit " .. vim.fn.fnameescape(path))
+				for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+					if vim.wo[win].previewwindow then
+						restore_window(win, saved)
+					end
+				end
+			end
+		end, "Toggle preview")
+		map("g?", function()
+			local help = vim.api.nvim_create_buf(false, true)
+			local lines = {
+				"Enter: open | -: parent | _: cwd",
+				"Ctrl-s/h/t: split/tab | Ctrl-p: preview | Ctrl-c: close",
+				"Ctrl-l: refresh | g.: hidden | gs: sort | gx: external",
+				"yy/p + rename + :w: copy | edit name + :w: rename",
+				"o + name + :w: create | dd + :w: delete",
+				"Add / to create a directory. Rename duplicates before :w.",
+				"Files change only after :w and confirmation. q/Esc: close help",
+			}
+			vim.api.nvim_buf_set_lines(help, 0, -1, false, lines)
+			vim.bo[help].modifiable = false
+			vim.bo[help].bufhidden = "wipe"
+			local width = math.min(68, vim.o.columns - 4)
+			local height = math.min(#lines, vim.o.lines - 4)
+			local win = vim.api.nvim_open_win(help, true, {
+				relative = "editor",
+				style = "minimal",
+				border = "single",
+				width = width,
+				height = height,
+				row = math.floor((vim.o.lines - height) / 2),
+				col = math.floor((vim.o.columns - width) / 2),
 			})
-		end
-		for _, key in ipairs({ "<CR>", "l" }) do
-			vim.keymap.set("n", key, function()
-				shared.netrw_command(
-					"normal " .. vim.api.nvim_replace_termcodes("<Plug>NetrwLocalBrowseCheck", true, false, true)
-				)
-			end, {
-				buf = args.buf,
-				silent = true,
-				desc = "Toggle directory / open file",
-			})
-		end
-		vim.keymap.set("n", "h", function()
-			shared.netrw_command(
-				"normal " .. vim.api.nvim_replace_termcodes("<Plug>NetrwTreeSqueeze", true, false, true)
-			)
-		end, {
-			buf = args.buf,
-			silent = true,
-			desc = "Collapse parent directory",
+			for _, key in ipairs({ "q", "<Esc>", "<C-c>" }) do
+				vim.keymap.set("n", key, function()
+					vim.api.nvim_win_close(win, true)
+				end, { buffer = help })
+			end
+		end, "Directory help")
+		vim.api.nvim_create_autocmd("BufWriteCmd", {
+			group = group,
+			buffer = buf,
+			callback = function()
+				save(buf)
+			end,
 		})
-	end,
-})
-
-local reveal_cache = {}
-function shared.reveal_tree_file(relative)
-	local buf = vim.api.nvim_get_current_buf()
-	local tick = vim.api.nvim_buf_get_changedtick(buf)
-	local top = vim.w.netrw_treetop or vim.b.netrw_curdir
-	local cached = reveal_cache[buf]
-	if cached and cached.relative == relative and cached.tick == tick and cached.top == top then
-		if vim.api.nvim_win_get_cursor(0)[1] ~= cached.row then
-			vim.api.nvim_win_set_cursor(0, { cached.row, 0 })
-			vim.cmd("normal! zz")
-		end
-		return
+		vim.api.nvim_create_autocmd("TextYankPost", {
+			group = group,
+			buffer = buf,
+			callback = function()
+				for _, line in ipairs(vim.v.event.regcontents) do
+					local id = tonumber(line:match("^/(%d+) "))
+					if id and entries[id] then
+						copied_ids[id] = true
+					end
+				end
+			end,
+		})
+		vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+			group = group,
+			buffer = buf,
+			callback = function()
+				local prefix = vim.fn.getline("."):match("^/%d+ ")
+				local cursor = vim.api.nvim_win_get_cursor(0)
+				if prefix and cursor[2] < #prefix then
+					vim.api.nvim_win_set_cursor(0, { cursor[1], #prefix })
+				end
+			end,
+		})
+		refresh(buf)
+	elseif not vim.bo[buf].modified then
+		refresh(buf) -- navigation/reopening is an explicit filesystem refresh
 	end
-	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-	-- Netrw uses either ASCII or UTF-8 tree bars, depending on its runtime.
-	local tree_bar = "| "
-	for _, line in ipairs(lines) do
-		if line:sub(1, #"│ ") == "│ " then
-			tree_bar = "│ "
-			break
-		elseif line:sub(1, 2) == "| " then
-			break
-		end
+	if saving and locks[buf] == nil then
+		locks[buf] = vim.bo[buf].modifiable
+		vim.bo[buf].modifiable = false
 	end
-	local parts = vim.split(relative, "/", { plain = true, trimempty = true })
-	local parent_line = 1
-	for depth, name in ipairs(parts) do
-		local directory = depth < #parts
-		local prefix = string.rep(tree_bar, depth)
-		local label = prefix .. name .. (directory and "/" or "")
-		local found
-		for row = parent_line + 1, #lines do
-			if depth > 1 and lines[row]:sub(1, #prefix) ~= prefix then
-				break
-			end
-			if lines[row] == label then
-				found = row
-				break
-			end
-		end
-		if not found then
-			return
-		end
-		vim.api.nvim_win_set_cursor(0, { found, 0 })
-		if directory then
-			local child_prefix = string.rep(tree_bar, depth + 1)
-			if not lines[found + 1] or lines[found + 1]:sub(1, #child_prefix) ~= child_prefix then
-				local open = vim.api.nvim_replace_termcodes("<Plug>NetrwLocalBrowseCheck", true, false, true)
-				shared.netrw_command("normal " .. open)
-				lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-			end
-		end
-		parent_line = found
+	if sidebar then
+		local win = vim.api.nvim_open_win(buf, true, { split = "left", win = 0, width = shared.sidebar_width() })
+		window_options[win] = saved
+		shared.fix_sidebar_width(win)
+	else
+		vim.api.nvim_set_current_buf(buf)
 	end
-	reveal_cache[buf] = {
-		relative = relative,
-		tick = vim.api.nvim_buf_get_changedtick(buf),
-		top = top,
-		row = parent_line,
-	}
-	vim.cmd("normal! zz")
+	style_window(vim.api.nvim_get_current_win())
+	return buf
 end
 vim.api.nvim_create_autocmd("BufWipeout", {
+	group = group,
 	callback = function(args)
-		reveal_cache[args.buf] = nil
-	end,
-})
-
-vim.api.nvim_create_autocmd("User", {
-	group = vim.api.nvim_create_augroup("nopack-explorer-context", { clear = true }),
-	pattern = "NopackProjectContext",
-	callback = function(args)
-		local root, file = args.data.root, args.data.file
-		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-			if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "netrw" then
-				local ok, err = pcall(vim.api.nvim_win_call, win, function()
-					local top = vim.w.netrw_treetop or vim.b.netrw_curdir or ""
-					if top:gsub("/+$", "") ~= root:gsub("/+$", "") then
-						shared.netrw_command("Explore " .. vim.fn.fnameescape(root))
+		local state = states[args.buf]
+		states[args.buf] = nil
+		if state then
+			for id, entry in pairs(state.originals) do
+				if not copied_ids[id] then
+					entries[id] = nil
+					if ids[entry.path] == id then
+						ids[entry.path] = nil
 					end
-					shared.reveal_tree_file(file:sub(#root + 2))
-				end)
-				if not ok then
-					vim.notify(tostring(err), vim.log.levels.WARN)
 				end
 			end
 		end
 	end,
 })
-
+vim.api.nvim_create_autocmd("BufHidden", {
+	group = group,
+	callback = function(args)
+		if not states[args.buf] then
+			return
+		end
+		-- Defer disposal until all listeners have finished using the event's ID.
+		vim.schedule(function()
+			if
+				not saving
+				and states[args.buf]
+				and not vim.bo[args.buf].modified
+				and #vim.fn.win_findbuf(args.buf) == 0
+			then
+				vim.api.nvim_buf_delete(args.buf, { force = true })
+			end
+		end)
+	end,
+})
+function M.refresh(buf)
+	if not saving and states[buf] and not vim.bo[buf].modified then
+		refresh(buf)
+	end
+end
+vim.api.nvim_create_autocmd("BufEnter", {
+	group = group,
+	callback = function(args)
+		if states[args.buf] then
+			return
+		end
+		local name = vim.api.nvim_buf_get_name(args.buf)
+		if vim.bo[args.buf].buftype == "" and name ~= "" and vim.fn.isdirectory(name) == 1 then
+			vim.bo[args.buf].buflisted = false
+			vim.bo[args.buf].buftype = "nofile"
+			M.open(name)
+			-- BufEnter listeners still receive the original ID; dispose after dispatch.
+			vim.schedule(function()
+				if vim.api.nvim_buf_is_valid(args.buf) and #vim.fn.win_findbuf(args.buf) == 0 then
+					vim.api.nvim_buf_delete(args.buf, { force = true })
+				end
+			end)
+		end
+	end,
+})
 vim.api.nvim_create_autocmd("User", {
-	group = "nopack-explorer-context",
+	group = group,
 	pattern = "NopackFilesCreated",
 	callback = function(args)
-		local files = args.data.files
-		for _, win in ipairs(vim.api.nvim_list_wins()) do
-			local buf = vim.api.nvim_win_get_buf(win)
-			if vim.bo[buf].filetype == "netrw" then
-				local top = vim.w[win].netrw_treetop or vim.b[buf].netrw_curdir or ""
-				top = vim.uv.fs_realpath(top) or vim.fs.normalize(top)
-				for file in pairs(files) do
-					file = vim.uv.fs_realpath(file) or vim.fs.normalize(file)
-					if vim.startswith(file, top:gsub("/+$", "") .. "/") then
-						vim.api.nvim_win_call(win, function()
-							-- Refresh expanded subdirectories too, retaining the tree/view.
-							shared.netrw_refresh()
-						end)
-						break
-					end
+		for buf, state in pairs(states) do
+			for path in pairs(args.data.files) do
+				if vim.fs.dirname(path) == state.root then
+					M.refresh(buf)
+					break
 				end
 			end
 		end
 	end,
 })
+return M

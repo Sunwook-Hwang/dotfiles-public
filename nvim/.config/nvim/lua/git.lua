@@ -1,3 +1,4 @@
+local explorer = require("explorer")
 local policy = require("buffer_policy")
 local shared = require("state")
 local actions = require("git_actions")
@@ -10,7 +11,7 @@ local actions = require("git_actions")
 -- Space gn/gp: diff 이동; gb: 현재 줄 inline blame 토글.
 -- 상태줄: 브랜치와 현재 파일의 index/worktree 상태(XY). 미저장 편집은 기존 %m으로 표시.
 -- 화면을 그릴 때는 버퍼 캐시만 읽고, 파일 진입·저장·터미널 복귀 시 비동기로 갱신합니다.
--- netrw Git signs: XY is index/worktree status; ** aggregates mixed children.
+-- Explorer Git signs: XY is index/worktree status; ** aggregates mixed children.
 local netrw_git_namespace = vim.api.nvim_create_namespace("nopack-netrw-git")
 local netrw_git_timer = -1
 local netrw_git_updated = -1000
@@ -19,7 +20,7 @@ local netrw_git_drawn = {}
 local netrw_git_snapshots = {}
 
 function shared.netrw_git_top(win, buf)
-	return vim.w[win].netrw_treetop or vim.b[buf].netrw_curdir or ""
+	return explorer.root(buf)
 end
 
 local function netrw_git_statuses(root, output)
@@ -43,7 +44,7 @@ local function draw_netrw_git(win, buf, top, statuses)
 	if
 		not vim.api.nvim_win_is_valid(win)
 		or vim.api.nvim_win_get_buf(win) ~= buf
-		or vim.bo[buf].filetype ~= "netrw"
+		or not explorer.is_buffer(buf)
 		or shared.netrw_git_top(win, buf) ~= top
 	then
 		return
@@ -59,18 +60,9 @@ local function draw_netrw_git(win, buf, top, statuses)
 	for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(buf, netrw_git_namespace, 0, -1, { details = true })) do
 		existing[mark[1]] = mark
 	end
-	local parents = { [0] = top:gsub("/+$", "") }
 	for row, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
-		local indent = vim.fn.matchstr(line, [[^\%([|│] \)\+]])
-		local depth = vim.fn.strchars(indent) / 2
-		if depth > 0 and parents[depth - 1] then
-			local name = line:sub(#indent + 1):gsub("\t %-%->.*$", ""):gsub("/$", "")
-			local path = parents[depth - 1] .. "/" .. name
-			-- netrw appends type markers; preserve literal suffixes on real filenames.
-			if path:find("[@*=|]$") and not statuses[path] and vim.fn.getftype(path) == "" then
-				path = path:gsub("[@*=|]$", "")
-			end
-			parents[depth] = path
+		local path = explorer.path(buf, line)
+		if path then
 			local xy = statuses[path]
 			if xy then
 				local highlight = (xy:find("U") or xy == "AA" or xy == "DD") and "ErrorMsg"
@@ -100,7 +92,7 @@ end
 local function redraw_netrw_git()
 	for _, win in ipairs(vim.api.nvim_list_wins()) do
 		local buf = vim.api.nvim_win_get_buf(win)
-		if vim.bo[buf].filetype == "netrw" then
+		if explorer.is_buffer(buf) then
 			local top = shared.netrw_git_top(win, buf)
 			draw_netrw_git(win, buf, top, netrw_git_cache[top] or {})
 		end
@@ -113,7 +105,7 @@ local function refresh_netrw_git()
 	local projects = {}
 	for _, win in ipairs(vim.api.nvim_list_wins()) do
 		local buf = vim.api.nvim_win_get_buf(win)
-		if vim.bo[buf].filetype == "netrw" then
+		if explorer.is_buffer(buf) then
 			local top = shared.netrw_git_top(win, buf)
 			local root = shared.find_git_root(top)
 			if not root or vim.fn.isdirectory(top) == 0 then
@@ -134,7 +126,7 @@ local function refresh_netrw_git()
 			local function draw_project(statuses)
 				for _, win in ipairs(vim.api.nvim_list_wins()) do
 					local buf = vim.api.nvim_win_get_buf(win)
-					if vim.bo[buf].filetype == "netrw" then
+					if explorer.is_buffer(buf) then
 						local top = shared.netrw_git_top(win, buf)
 						if shared.find_git_root(top) == root then
 							draw_netrw_git(win, buf, top, statuses)
@@ -173,7 +165,7 @@ local function queue_netrw_git()
 		return
 	end
 	for _, win in ipairs(vim.api.nvim_list_wins()) do
-		if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "netrw" then
+		if explorer.is_buffer(vim.api.nvim_win_get_buf(win)) then
 			local delay = math.max(100, 1000 - (vim.uv.now() - netrw_git_updated))
 			netrw_git_timer = vim.fn.timer_start(delay, refresh_netrw_git)
 			return
@@ -190,7 +182,7 @@ vim.api.nvim_create_autocmd("BufWipeout", {
 })
 vim.api.nvim_create_autocmd("FileType", {
 	group = netrw_git_group,
-	pattern = "netrw",
+	pattern = "flash-explorer",
 	callback = queue_netrw_git,
 })
 vim.api.nvim_create_autocmd(
@@ -203,14 +195,14 @@ vim.api.nvim_create_autocmd(
 vim.api.nvim_create_autocmd("TextChanged", {
 	group = netrw_git_group,
 	callback = function()
-		if vim.bo.filetype == "netrw" then
+		if explorer.is_buffer(vim.api.nvim_get_current_buf()) then
 			redraw_netrw_git()
 		end
 	end,
 })
 vim.api.nvim_create_autocmd("User", {
 	group = netrw_git_group,
-	pattern = "NopackNetrwRedraw",
+	pattern = "NopackExplorerChanged",
 	callback = redraw_netrw_git,
 })
 

@@ -80,7 +80,7 @@ end
 
 -- Use the current file/tree's project or package, independent of the startup cwd.
 shared.project_root = function()
-	local dir = vim.bo.filetype == "netrw" and (vim.w.netrw_treetop or vim.b.netrw_curdir)
+	local dir = vim.bo.filetype == "flash-explorer" and require("explorer").root(vim.api.nvim_get_current_buf())
 		or (policy.is_source(0) and vim.api.nvim_buf_get_name(0) ~= "" and vim.fn.expand("%:p:h"))
 	if not dir then
 		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
@@ -135,7 +135,7 @@ vim.api.nvim_create_autocmd("BufWritePost", {
 })
 vim.api.nvim_create_autocmd("User", {
 	group = "nopack-project-context",
-	pattern = { "NopackRefresh", "NopackNetrwRedraw" },
+	pattern = { "NopackRefresh", "NopackExplorerChanged" },
 	callback = invalidate_project_roots,
 })
 vim.api.nvim_create_user_command("NopackRefresh", function()

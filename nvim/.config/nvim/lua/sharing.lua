@@ -1,5 +1,6 @@
--- Explicit, single-buffer collaboration. No timers, filesystem polling or plugins.
+-- Explicit, single-buffer collaboration. No polling, idle timers or plugins.
 -- An authenticated TCP session orders edits; text operations rebase concurrent changes.
+-- A sidecar next to the source (usually on NFS) advertises the session to later openers.
 local op = require("share_operation")
 local policy = require("buffer_policy")
 local M = {}
@@ -25,10 +26,27 @@ local function channel(socket, receive, disconnected)
 			return
 		end
 		self.closed = true
+		self:settle()
 		close(socket)
 		if disconnected then
 			disconnected(reason)
 		end
+	end
+	-- One-shot limit for connecting/authenticating; cleared once the handshake completes.
+	function connection:deadline(ms, reason)
+		self:settle()
+		self.timer = vim.uv.new_timer()
+		self.timer:start(
+			ms,
+			0,
+			vim.schedule_wrap(function()
+				self:stop(reason)
+			end)
+		)
+	end
+	function connection:settle()
+		close(self.timer)
+		self.timer = nil
 	end
 	function connection:send(message)
 		if self.closed then
@@ -109,6 +127,140 @@ end
 
 local function document_valid(text)
 	assert(#text <= limit and text:sub(-1) == "\n", "Invalid shared document")
+end
+
+-- Sidecar: `.<name>.flash-share` beside the source. Anyone allowed to write the
+-- source may read it and join; it is never world-readable unless the source is
+-- world-writable. Keep this name in sync with the discovery autocmd in init.lua.
+local function sidecar_path(path)
+	return vim.fs.joinpath(vim.fs.dirname(path), "." .. vim.fs.basename(path) .. ".flash-share")
+end
+
+local function printable(value)
+	return (tostring(value):gsub("[%c]", "?"):sub(1, 64))
+end
+
+local function read_sidecar(file)
+	local stat = vim.uv.fs_lstat(file)
+	if not stat or stat.type ~= "file" or stat.size > 4096 then
+		return nil
+	end
+	local fd = vim.uv.fs_open(file, "r", 0)
+	if not fd then
+		return nil
+	end
+	-- Refuse a symlink swapped in after lstat.
+	local opened = vim.uv.fs_fstat(fd)
+	local data = opened and opened.ino == stat.ino and opened.dev == stat.dev and vim.uv.fs_read(fd, 4096, 0)
+	vim.uv.fs_close(fd)
+	local ok, info = pcall(vim.json.decode, data or "")
+	if
+		not ok
+		or type(info) ~= "table"
+		or info.protocol ~= 1
+		or type(info.token) ~= "string"
+		or not info.token:match("^" .. ("%x"):rep(64) .. "$")
+		or type(info.port) ~= "number"
+		or info.port ~= math.floor(info.port)
+		or info.port < 1
+		or info.port > 65535
+		or type(info.hosts) ~= "table"
+		or #info.hosts > 32
+	then
+		return nil
+	end
+	for _, host in ipairs(info.hosts) do
+		if type(host) ~= "string" or #host > 255 or not host:match("^[%w%.:%-_]+$") then
+			return nil
+		end
+	end
+	info.uid, info.user, info.host = stat.uid, printable(info.user), printable(info.host)
+	return info
+end
+
+-- Only a sidecar written on this host can be proven stale.
+local function stale(info)
+	if info.host ~= vim.uv.os_gethostname() or type(info.pid) ~= "number" then
+		return false
+	end
+	local alive, err = vim.uv.kill(info.pid, 0)
+	return not alive and tostring(err):find("ESRCH") ~= nil
+end
+
+local function advertised(bind)
+	if bind ~= "0.0.0.0" and bind ~= "::" then
+		return { bind }
+	end
+	local hosts = { vim.uv.os_gethostname() }
+	for _, addresses in pairs(vim.uv.interface_addresses()) do
+		for _, address in ipairs(addresses) do
+			if
+				not address.internal
+				and (
+					address.family == "inet"
+					or (bind == "::" and address.family == "inet6" and not address.ip:find("^fe80"))
+				)
+			then
+				hosts[#hosts + 1] = address.ip
+			end
+		end
+	end
+	return hosts
+end
+
+local function publish(owner, bind)
+	local stat = assert(vim.uv.fs_stat(owner.path), "Save the source file before sharing")
+	local perm = stat.mode % 512
+	local readable_by_group = bit.band(perm, 16) ~= 0 -- group may write the source
+	local mode = 384 + (readable_by_group and 32 or 0) + (bit.band(perm, 2) ~= 0 and 4 or 0)
+	local file = sidecar_path(owner.path)
+	local existing = read_sidecar(file)
+	if existing then
+		assert(
+			stale(existing) and existing.uid == vim.uv.getuid(),
+			existing.user .. "@" .. existing.host .. " is already sharing this file; use :FlashJoin"
+		)
+		vim.uv.fs_unlink(file)
+	end
+	local info = vim.json.encode({
+		protocol = 1,
+		port = owner.port,
+		token = owner.token,
+		hosts = advertised(bind),
+		host = vim.uv.os_gethostname(),
+		user = vim.uv.os_get_passwd().username,
+		pid = vim.uv.os_getpid(),
+	})
+	-- Write privately under a random name, then link: creation is exclusive and
+	-- readers never see a partial file. O_EXCL does not follow planted symlinks.
+	local temp = file .. "." .. vim.fn.sha256(vim.uv.random(16)):sub(1, 16)
+	local fd = assert(vim.uv.fs_open(temp, "wx", 384))
+	local ok, err = pcall(function()
+		if readable_by_group and stat.gid ~= vim.uv.getgid() then
+			if not vim.uv.fs_fchown(fd, vim.uv.getuid(), stat.gid) then
+				notify("Cannot give the share file the source's group; group members cannot join", vim.log.levels.WARN)
+			end
+		end
+		assert(vim.uv.fs_fchmod(fd, mode))
+		assert(vim.uv.fs_write(fd, info, 0))
+	end)
+	vim.uv.fs_close(fd)
+	if ok then
+		ok, err = vim.uv.fs_link(temp, file)
+		-- NFS may report a retransmitted, successful link as failed.
+		local linked = vim.uv.fs_lstat(temp)
+		ok = ok or (linked and linked.nlink == 2)
+	end
+	vim.uv.fs_unlink(temp)
+	assert(ok, "Cannot create " .. file .. ": " .. tostring(err))
+	owner.sidecar = file
+end
+
+local function unpublish(owner)
+	local info = owner.sidecar and read_sidecar(owner.sidecar)
+	if info and info.token == owner.token then
+		vim.uv.fs_unlink(owner.sidecar)
+	end
 end
 
 local function send_next(session)
@@ -261,6 +413,8 @@ local function create_buffer(session, message)
 	)
 	vim.bo[buf].buftype, vim.bo[buf].bufhidden, vim.bo[buf].swapfile = "acwrite", "hide", false
 	vim.bo[buf].undofile, vim.bo[buf].undolevels = false, -1
+	-- Text comes from peers; never let it set options.
+	vim.bo[buf].modeline = false
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(message.text:sub(1, -2), "\n", { plain = true }))
 	vim.bo[buf].filetype = message.filetype
 	vim.bo[buf].modified = false
@@ -351,19 +505,21 @@ local function create_buffer(session, message)
 	vim.api.nvim_set_current_buf(buf)
 end
 
-local function connect(host, port, token, owner)
+-- Try each advertised host in order until one completes the handshake.
+local function connect(hosts, port, token, owner)
 	assert(not client, "Already sharing; use :FlashShareStop first")
-	local socket = vim.uv.new_tcp()
 	local session = { queue = {}, queue_bytes = 0, undo = {}, redo = {}, connected = false }
 	client = session
 	if owner then
 		owner.session = session
 	end
-	session.connection = channel(socket, function(_, message)
+	local attempt
+	local function receive(_, message)
 		if message.type == "welcome" then
 			assert(not session.connected, "Repeated welcome")
 			document_valid(message.text)
 			op.valid_text(message.text)
+			session.connection:settle()
 			session.id, session.revision, session.connected = message.id, message.revision, true
 			create_buffer(session, message)
 			notify("Connected. u/Ctrl+r undo only your edits; :FlashShareStop disconnects")
@@ -388,7 +544,12 @@ local function connect(host, port, token, owner)
 		else
 			error("Unknown server message")
 		end
-	end, function(reason)
+	end
+	local function disconnected(reason)
+		if not session.id and client == session and hosts[session.attempt + 1] then
+			attempt(session.attempt + 1)
+			return
+		end
 		session.connected = false
 		if client == session then
 			client = nil
@@ -399,36 +560,44 @@ local function connect(host, port, token, owner)
 		if reason then
 			notify(reason, vim.log.levels.WARN)
 		end
-	end)
-	vim.uv.getaddrinfo(
-		host,
-		nil,
-		{ socktype = "stream" },
-		vim.schedule_wrap(function(err, addresses)
-			if session.connection.closed then
-				return
-			end
-			if err or not addresses or not addresses[1] then
-				session.connection:stop(err or "Cannot resolve host")
-				return
-			end
-			socket:connect(
-				addresses[1].addr,
-				port,
-				vim.schedule_wrap(function(connect_error)
-					if session.connection.closed then
-						return
-					end
-					if connect_error then
-						session.connection:stop(connect_error)
-						return
-					end
-					session.connection:read()
-					session.connection:send({ type = "hello", token = token, protocol = 1 })
-				end)
-			)
-		end)
-	)
+	end
+	function attempt(index)
+		local host, socket = hosts[index], vim.uv.new_tcp()
+		local connection = channel(socket, receive, disconnected)
+		session.attempt, session.connection = index, connection
+		-- Unreachable advertised interfaces otherwise block for the OS TCP timeout.
+		connection:deadline(5000, "Cannot reach " .. host .. ":" .. port)
+		vim.uv.getaddrinfo(
+			host,
+			nil,
+			{ socktype = "stream" },
+			vim.schedule_wrap(function(err, addresses)
+				if connection.closed then
+					return
+				end
+				if err or not addresses or not addresses[1] then
+					connection:stop(err or "Cannot resolve " .. host)
+					return
+				end
+				socket:connect(
+					addresses[1].addr,
+					port,
+					vim.schedule_wrap(function(connect_error)
+						if connection.closed then
+							return
+						end
+						if connect_error then
+							connection:stop(connect_error)
+							return
+						end
+						connection:read()
+						connection:send({ type = "hello", token = token, protocol = 1 })
+					end)
+				)
+			end)
+		)
+	end
+	attempt(1)
 end
 
 function M.start(args)
@@ -462,7 +631,8 @@ function M.start(args)
 	assert(owner.disk ~= false, "Source file on disk exceeds 2 MiB")
 	local listener = vim.uv.new_tcp()
 	owner.listener = listener
-	local ok, err = listener:bind(args[2] or "127.0.0.1", port)
+	local address = args[2] or "0.0.0.0"
+	local ok, err = listener:bind(address, port)
 	if not ok then
 		close(listener)
 		error(err)
@@ -487,6 +657,7 @@ function M.start(args)
 						message.type == "hello" and message.protocol == 1 and message.token == owner.token,
 						"Authentication failed"
 					)
+					connection:settle()
 					owner.next_id = owner.next_id + 1
 					connection.id = owner.next_id
 					connection:send({
@@ -540,6 +711,7 @@ function M.start(args)
 				owner.peers[peer] = nil
 			end)
 			owner.peers[peer] = peer
+			peer:deadline(10000, "Authentication timed out")
 			peer:read()
 		end)
 	)
@@ -548,21 +720,89 @@ function M.start(args)
 		error(err)
 	end
 	owner.port = listener:getsockname().port
-	local address = args[2] or "127.0.0.1"
+	ok, err = pcall(publish, owner, address)
+	if not ok then
+		M.stop()
+		error(err, 0)
+	end
 	connect(
-		address == "0.0.0.0" and "127.0.0.1" or address == "::" and "::1" or address,
+		{ address == "0.0.0.0" and "127.0.0.1" or address == "::" and "::1" or address },
 		owner.port,
 		owner.token,
 		owner
 	)
-	notify("Port " .. owner.port .. ". Join: :FlashJoin <host> " .. owner.port .. " " .. owner.token)
+	notify(
+		"Port "
+			.. owner.port
+			.. ". Others opening this file are offered to join. Manual: :FlashJoin <host> "
+			.. owner.port
+			.. " "
+			.. owner.token
+	)
+end
+
+-- Join the session advertised beside a source file. `ask` prompts first.
+function M.discover(buf, ask)
+	local path = vim.api.nvim_buf_get_name(buf)
+	local file = sidecar_path(path)
+	local info = read_sidecar(file)
+	if not info then
+		if ask then
+			return
+		end
+		error("No live share for this file; use :FlashJoin <host> <port> <token>", 0)
+	end
+	if server and server.token == info.token then
+		return
+	end
+	local who = info.user .. "@" .. info.host
+	if stale(info) then
+		if info.uid == vim.uv.getuid() then
+			vim.uv.fs_unlink(file)
+		end
+		notify("Ignored a stale share from " .. who .. " (its Neovim exited)", vim.log.levels.WARN)
+		return
+	end
+	if client then
+		notify(who .. " is sharing this file; :FlashShareStop, then :FlashJoin", vim.log.levels.WARN)
+		return
+	end
+	local question = who .. " is live-sharing " .. vim.fs.basename(path) .. ". Join?"
+	if ask and vim.fn.confirm(question, "&Join\n&Not now", 2) ~= 1 then
+		return
+	end
+	local hosts = {}
+	if info.host == vim.uv.os_gethostname() then
+		hosts[1] = "127.0.0.1"
+		vim.list_extend(hosts, info.hosts)
+	else
+		-- Skip this machine's addresses: identical bridge IPs (e.g. docker0) or loopback
+		-- would reach a local service instead of the owner.
+		local own = { localhost = true }
+		for _, addresses in pairs(vim.uv.interface_addresses()) do
+			for _, address in ipairs(addresses) do
+				own[address.ip] = true
+			end
+		end
+		for _, host in ipairs(info.hosts) do
+			if not own[host] and not host:find("^127%.") then
+				hosts[#hosts + 1] = host
+			end
+		end
+	end
+	assert(hosts[1], who .. " advertises no reachable address")
+	connect(hosts, info.port, info.token)
 end
 
 function M.join(args)
-	assert(#args == 3, "Usage: FlashJoin <host> <port> <token>")
+	if #args == 0 then
+		M.discover(vim.api.nvim_get_current_buf(), false)
+		return
+	end
+	assert(#args == 3, "Usage: FlashJoin [<host> <port> <token>]")
 	local port = tonumber(args[2])
 	assert(port and port > 0 and port <= 65535 and port == math.floor(port), "Invalid port")
-	connect(args[1], port, args[3])
+	connect({ args[1] }, port, args[3])
 end
 
 function M.stop()
@@ -572,6 +812,7 @@ function M.stop()
 		session.connection:stop()
 	end
 	if owner then
+		unpublish(owner)
 		close(owner.listener)
 		for _, peer in pairs(owner.peers) do
 			peer:stop()

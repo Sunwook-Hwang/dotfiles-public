@@ -620,14 +620,24 @@ connect to the chosen port.
 On node A, open the source file and start a session:
 
 ```vim
-:FlashShare 8765 0.0.0.0
+:FlashShare
 ```
 
-The notification (also in `:messages`) contains a random token. On node B:
+This also writes `.<name>.flash-share` beside the file with the host, port and
+random token. When anyone opens that file later, FLASH asks whether to join; no
+IP or token has to be exchanged. `:FlashJoin` without arguments joins the
+current file's session, for example after declining or if the file was opened
+before sharing started. The full manual command is also in `:messages`:
 
 ```vim
-:FlashJoin <node-A-IP> 8765 <token>
+:FlashJoin <node-A-IP> <port> <token>
 ```
+
+The sidecar is readable by the classes (owner/group/other) that may write the
+source, so only people who can already change the file can join. It is removed
+by `:FlashShareStop` or on exit. After a crash, it is cleaned up when someone on
+the same host opens the file again; otherwise delete it by hand. Set
+`vim.g.flash_share_discovery = false` to skip the per-open check.
 
 Both users edit the newly opened shared buffer. Do not continue editing the
 original NFS buffer independently. Concurrent insertions and overlapping
@@ -635,8 +645,8 @@ deletions are rebased rather than replacing the other user's buffer wholesale.
 
 | Command / key | Action |
 | --- | --- |
-| `:FlashShare [port] [bind-address]` | Host the current source buffer; defaults to a free port on `127.0.0.1` |
-| `:FlashJoin <host> <port> <token>` | Join the host's current shared text without opening/writing NFS |
+| `:FlashShare [port] [bind-address]` | Host the current source buffer and advertise it; defaults to a free port on `0.0.0.0` |
+| `:FlashJoin [<host> <port> <token>]` | Join the current file's advertised session, or the given one |
 | `:FlashShareStatus` | Show owner/guest, received revision and pending local edits |
 | `u`, `Ctrl+r` | Undo/redo your own shared edits; each buffer change is one step |
 | `:w` in the owner's shared buffer | Save synchronized text through the original source buffer |
@@ -654,12 +664,16 @@ disk contents changed outside the session. A disconnect keeps the shared text
 available; copy it into a normal buffer to recover unsaved work. Sessions do not
 automatically reconnect or survive Neovim exit.
 
-The feature is loaded only when a share command is used. There is no file polling,
-idle timer or cursor-movement work. Editing reads changed buffer ranges; document
+The module is loaded only when a share command is used or an opened file has a
+sidecar; otherwise each file read costs one `stat`. There is no file polling,
+idle timer or cursor-movement work; one-shot timers only bound connection and
+authentication (5 and 10 seconds). Editing reads changed buffer ranges; document
 rebasing still has a cost. Documents are limited to 1 MiB, connections to eight
 including the owner, and edit/history queues are bounded. This provides text
 sharing, not remote cursor display or multi-file workspace sharing. TCP transport
-is token-authenticated but **not encrypted**; use a trusted internal network or
+is token-authenticated but **not encrypted**: anyone who can observe the
+network, or read the sidecar, can join and read the text. Peers' text cannot set
+options through modelines. Use a trusted internal network or
 an SSH tunnel, and do not expose the listener to the public Internet.
 
 ## Configuration structure

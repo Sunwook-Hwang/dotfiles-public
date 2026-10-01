@@ -67,3 +67,29 @@ for command, action in pairs({
 		end
 	end, { nargs = "*", desc = "Native single-buffer collaboration: " .. action })
 end
+
+-- Offer to join when an opened file has a live-share sidecar (see lua/sharing.lua).
+-- One stat per file read; the module loads only when a sidecar exists.
+vim.api.nvim_create_autocmd("BufReadPost", {
+	group = vim.api.nvim_create_augroup("flash-share-discovery", { clear = true }),
+	callback = function(args)
+		local path = vim.api.nvim_buf_get_name(args.buf)
+		if vim.g.flash_share_discovery == false or vim.bo[args.buf].buftype ~= "" or path == "" then
+			return
+		end
+		if not vim.uv.fs_lstat(vim.fs.joinpath(vim.fs.dirname(path), "." .. vim.fs.basename(path) .. ".flash-share")) then
+			return
+		end
+		vim.schedule(function()
+			if not vim.api.nvim_buf_is_valid(args.buf) then
+				return
+			end
+			local ok, err = pcall(function()
+				require("sharing").discover(args.buf, true)
+			end)
+			if not ok then
+				vim.notify(tostring(err), vim.log.levels.ERROR)
+			end
+		end)
+	end,
+})

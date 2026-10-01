@@ -32,14 +32,12 @@ local function protect_large_file(buf)
 				foldmethod = vim.wo[win].foldmethod,
 				cursorcolumn = vim.wo[win].cursorcolumn,
 				cursorline = vim.wo[win].cursorline,
-				wrap = vim.wo[win].wrap,
 			}
 		end
 		-- Like :setlocal: limit the guard to this buffer, preserving window defaults.
 		vim.wo[win][0].foldmethod = "manual"
 		vim.wo[win][0].cursorcolumn = false
 		vim.wo[win][0].cursorline = false
-		vim.wo[win][0].wrap = false
 	end
 end
 vim.api.nvim_create_autocmd("User", {

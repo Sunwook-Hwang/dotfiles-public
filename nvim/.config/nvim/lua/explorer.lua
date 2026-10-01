@@ -1016,31 +1016,68 @@ function M.open(root, sidebar)
 		end, "Toggle preview")
 		map("g?", function()
 			local help = vim.api.nvim_create_buf(false, true)
-			local lines = {
-				"Enter/l: open or expand/collapse | h: collapse/parent",
-				"-: root parent | _: cwd",
-				"Ctrl-s/h/t: split/tab | Ctrl-p: preview | Ctrl-c: close",
-				"Ctrl-l: refresh | g.: hidden | gs: sort | gx: external",
-				"yy/p + rename + :w: copy | edit name + :w: rename",
-				"o + name + :w: create | dd + :w: delete",
-				"Two spaces per depth. Collapse folders before dd. Add / for folders.",
-				"Rename duplicates before :w. Save parent and child edits separately.",
-				"Files change only after :w and confirmation. q/Esc: close help",
+			local items = {
+				{ "Navigation" },
+				{ "Enter / l", "Open file or expand/collapse folder" },
+				{ "h", "Collapse folder or its parent" },
+				{ "- / _", "Root parent / working directory" },
+				{ "Ctrl-s / Ctrl-h", "Open in vertical / horizontal split" },
+				{ "Ctrl-t", "Open in a new tab" },
+				{ "Ctrl-p", "Toggle file preview" },
+				{ "Ctrl-c", "Close explorer, return to editor" },
+				{},
+				{ "File operations  (apply with :w)" },
+				{ "yy / p", "Copy entry; rename pasted row" },
+				{ "cc / I", "Replace / edit filename" },
+				{ "o / O", "Create entry below / above" },
+				{ "dd", "Delete entry; collapse folder first" },
+				{ ":w", "Review and confirm file operations" },
+				{},
+				{ "View" },
+				{ "Ctrl-l", "Refresh directory contents" },
+				{ "g. / gs", "Toggle hidden files / choose sort order" },
+				{ "` / g~", "Set global / tab working directory" },
+				{ "gx", "Open in an external application" },
+				{},
+				{ "Notes" },
+				{ "  Two spaces per depth; append / for a new folder." },
+				{ "  Save parent-folder and child edits separately." },
+				{ "  Rename duplicate entries before saving." },
+				{},
+				{ "q / Esc", "Close this guide" },
 			}
+			local lines, width = {}, 0
+			for index, item in ipairs(items) do
+				lines[index] = item[2] and string.format("  %-16s  %s", item[1], item[2])
+					or item[1] and "  " .. item[1]
+					or ""
+				width = math.max(width, vim.fn.strdisplaywidth(lines[index]) + 2)
+			end
 			vim.api.nvim_buf_set_lines(help, 0, -1, false, lines)
+			for index, item in ipairs(items) do
+				if item[1] then
+					vim.api.nvim_buf_set_extmark(help, tree_ns, index - 1, 2, {
+						end_col = item[2] and 2 + #item[1] or #lines[index],
+						hl_group = item[2] and "Special" or item[1]:sub(1, 1) == " " and "Comment" or "Title",
+					})
+				end
+			end
 			vim.bo[help].modifiable = false
 			vim.bo[help].bufhidden = "wipe"
-			local width = math.min(68, vim.o.columns - 4)
+			width = math.min(width, vim.o.columns - 4)
 			local height = math.min(#lines, vim.o.lines - 4)
 			local win = vim.api.nvim_open_win(help, true, {
 				relative = "editor",
 				style = "minimal",
 				border = "single",
+				title = " FLASH Explorer ",
+				title_pos = "center",
 				width = width,
 				height = height,
 				row = math.floor((vim.o.lines - height) / 2),
 				col = math.floor((vim.o.columns - width) / 2),
 			})
+			vim.wo[win].wrap = true
 			for _, key in ipairs({ "q", "<Esc>", "<C-c>" }) do
 				vim.keymap.set("n", key, function()
 					vim.api.nvim_win_close(win, true)

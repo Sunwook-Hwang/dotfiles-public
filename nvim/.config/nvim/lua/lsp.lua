@@ -1,5 +1,6 @@
 local policy = require("buffer_policy")
 local shared = require("state")
+local diagnostic_handlers = require("diagnostics").handlers
 
 -- =========================================
 -- ======= LSP: SERVER DEFINITIONS =======
@@ -389,6 +390,7 @@ for _, server in ipairs(servers) do
 		command[1] = executable
 		vim.lsp.config(name, {
 			cmd = command,
+			handlers = diagnostic_handlers,
 			filetypes = server.ft,
 			settings = server.settings,
 			init_options = server.init_options,

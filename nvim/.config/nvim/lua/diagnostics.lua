@@ -1,6 +1,20 @@
 local policy = require("buffer_policy")
 local shared = require("state")
 
+local handlers = {
+	["textDocument/diagnostic"] = function(err, result, ctx)
+		-- Cancellation is advisory: an older response can arrive after newer edits.
+		-- Reject it before the native handler changes diagnostics or resultId state.
+		if
+			not policy.allows(ctx.bufnr)
+			or (ctx.version ~= nil and ctx.version ~= vim.lsp.util.buf_versions[ctx.bufnr])
+		then
+			return
+		end
+		return vim.lsp.diagnostic.on_diagnostic(err, result, ctx)
+	end,
+}
+
 -- =========================================
 -- ============= DIAGNOSTICS =============
 -- =========================================
@@ -38,3 +52,5 @@ shared.map("n", "<leader>lt", function()
 	diagnostics_enabled = not diagnostics_enabled
 	vim.diagnostic.enable(diagnostics_enabled)
 end, "Toggle diagnostics")
+
+return { handlers = handlers }

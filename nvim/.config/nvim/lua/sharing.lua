@@ -409,6 +409,12 @@ local function undo(session, redo)
 			break
 		end
 		history.bytes = history.bytes - op.size(operation)
+		-- Check before queueing: a queued edit that is not applied locally diverges.
+		local ok, after = pcall(op.apply, session.text, operation)
+		if not ok or not pcall(document_valid, after) then
+			notify("That change can no longer be undone", vim.log.levels.WARN)
+			break
+		end
 		record(session, operation, redo and "redo" or "undo")
 		patch_buffer(session, operation)
 	end
@@ -518,10 +524,15 @@ local function create_buffer(session, message)
 				lines[#lines + 1] = ""
 			end
 			lines[1] = lines[1]:sub(col + 1)
-			local operation = op.splice(#session.text, start, removed, table.concat(lines, "\n"))
+			local inserted = table.concat(lines, "\n")
+			local operation = op.splice(#session.text, start, removed, inserted)
 			local ok, after = pcall(op.apply, session.text, operation)
 			if ok then
 				ok = pcall(document_valid, after)
+			end
+			-- splice may move an edit off the final newline; the text must not change.
+			if ok and start + removed == #session.text then
+				ok = after == session.text:sub(1, start) .. inserted
 			end
 			if not ok then
 				session.disabled = true
@@ -605,6 +616,10 @@ local function connect(hosts, port, token, owner)
 			assert(session.connected and message.revision == session.revision, "Revision mismatch")
 			assert(type(message.id) == "number" and type(message.offset) == "number", "Invalid cursor")
 			show_peer(session, message.id, printable(message.label, 128), message.offset)
+		elseif message.type == "refused" then
+			-- Every advertised address reaches the same server; do not retry.
+			session.refused = true
+			error(printable(message.reason, 128), 0)
 		elseif message.type == "leave" then
 			local peer = session.peers[message.id]
 			if peer and peer.mark and vim.api.nvim_buf_is_valid(session.buf) then
@@ -616,7 +631,7 @@ local function connect(hosts, port, token, owner)
 		end
 	end
 	local function disconnected(reason)
-		if not session.id and client == session and hosts[session.attempt + 1] then
+		if not session.id and not session.refused and client == session and hosts[session.attempt + 1] then
 			attempt(session.attempt + 1)
 			return
 		end
@@ -705,6 +720,8 @@ function M.start(args)
 		filetype = vim.bo[source].filetype,
 		disk = disk_content(path),
 	}
+	-- Participants including the owner; unauthenticated connections count until they time out.
+	owner.capacity = math.max(2, math.min(tonumber(vim.g.flash_share_max_peers) or 8, 64))
 	-- Loopback peers (the owner, same-host guests) are labelled with this host's address.
 	local hosts = advertised(args[2] or "0.0.0.0")
 	owner.ip = hosts[2] or hosts[1]
@@ -726,10 +743,7 @@ function M.start(args)
 			end
 			local socket = vim.uv.new_tcp()
 			listener:accept(socket)
-			if vim.tbl_count(owner.peers) >= 8 then
-				close(socket)
-				return
-			end
+			local full = vim.tbl_count(owner.peers) >= owner.capacity
 			local peer
 			peer = channel(socket, function(connection, message)
 				if not connection.id then
@@ -745,7 +759,15 @@ function M.start(args)
 					if ip:find("^127%.") or ip == "::1" or ip:find("^::ffff:127%.") then
 						ip = owner.ip
 					end
-					connection.label = printable(message.user or "?") .. "@" .. ip
+					local label = printable(message.user or "?") .. "@" .. ip
+				-- Same user on one host (or the owner's host) needs a distinguishing suffix.
+				for _, member in pairs(owner.peers) do
+					if member.label == label then
+						label = label .. " #" .. connection.id
+						break
+					end
+				end
+				connection.label = label
 					local cursors = {}
 					for _, member in pairs(owner.peers) do
 						if member.cursor then
@@ -845,6 +867,14 @@ function M.start(args)
 					end
 				end
 			end)
+			if full then
+				-- Tell the joiner why instead of resetting the connection.
+				peer:send({ type = "refused", reason = "Session is full (" .. owner.capacity .. " participants)" })
+				socket:shutdown(vim.schedule_wrap(function()
+					peer:stop()
+				end))
+				return
+			end
 			owner.peers[peer] = peer
 			peer:deadline(10000, "Authentication timed out")
 			peer:read()

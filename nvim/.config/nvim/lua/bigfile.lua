@@ -5,10 +5,20 @@ local policy = require("buffer_policy")
 -- =========================================
 -- 2 MiB / 50,000줄 / 한 줄 10,000바이트 초과 시 무거운 기능을 중지합니다.
 -- on_lines에서는 검사 범위만 합칩니다. 버퍼 조회/기능 중지는 textlock 밖에서 실행합니다.
-local watched_buffers = {}
+local watched_buffers, protected_options = {}, {}
 local function protect_large_file(buf)
 	if not vim.api.nvim_buf_is_loaded(buf) then
 		return
+	end
+	local saved = protected_options[buf]
+	if not saved then
+		saved = {
+			syntax = vim.bo[buf].syntax,
+			indentexpr = vim.bo[buf].indentexpr,
+			autocomplete = vim.bo[buf].autocomplete,
+			windows = {},
+		}
+		protected_options[buf] = saved
 	end
 	policy.restrict(buf)
 	if vim.bo[buf].syntax ~= "OFF" then
@@ -17,6 +27,14 @@ local function protect_large_file(buf)
 	vim.bo[buf].indentexpr = ""
 	vim.bo[buf].autocomplete = false
 	for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+		if not saved.windows[win] then
+			saved.windows[win] = {
+				foldmethod = vim.wo[win].foldmethod,
+				cursorcolumn = vim.wo[win].cursorcolumn,
+				cursorline = vim.wo[win].cursorline,
+				wrap = vim.wo[win].wrap,
+			}
+		end
 		-- Like :setlocal: limit the guard to this buffer, preserving window defaults.
 		vim.wo[win][0].foldmethod = "manual"
 		vim.wo[win][0].cursorcolumn = false
@@ -86,6 +104,22 @@ local function queue_large_file_check(buf, first, last, added)
 end
 vim.api.nvim_create_autocmd("BufReadPre", {
 	callback = function(args)
+		-- A fresh read starts a new protection decision for this buffer.
+		local saved = protected_options[args.buf]
+		if saved then
+			for _, name in ipairs({ "syntax", "indentexpr", "autocomplete" }) do
+				vim.bo[args.buf][name] = saved[name]
+			end
+			for win, options in pairs(saved.windows) do
+				if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == args.buf then
+					for name, value in pairs(options) do
+						vim.wo[win][0][name] = value
+					end
+				end
+			end
+			protected_options[args.buf] = nil
+		end
+		vim.b[args.buf].nopack_large_file = nil
 		local stat = vim.uv.fs_stat(vim.api.nvim_buf_get_name(args.buf))
 		if stat and stat.size > 2 * 1024 * 1024 then
 			policy.restrict(args.buf)
@@ -121,5 +155,11 @@ vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile", "FileType", "BufWinEn
 				watched_buffers[buf] = nil
 			end
 		end
+	end,
+})
+
+vim.api.nvim_create_autocmd("BufWipeout", {
+	callback = function(args)
+		protected_options[args.buf] = nil
 	end,
 })

@@ -275,13 +275,24 @@ local function netrw_transfer(command)
 	end
 	vim.list_extend(argv, files)
 	argv[#argv + 1] = target
-	local result = vim.system(argv, { text = true }):wait()
-	if result.code ~= 0 then
-		vim.notify(vim.trim(result.stderr ~= "" and result.stderr or result.stdout), vim.log.levels.ERROR)
+	local buf = vim.api.nvim_get_current_buf()
+	local key = "netrw-transfer:" .. buf
+	if shared.running[key] then
+		vim.notify("A file transfer is already running from this tree")
 		return
 	end
-	vim.fn["netrw#Call"]("NetrwUnMarkFile", 1)
-	shared.netrw_refresh()
+	local marked = vim.deepcopy(files)
+	-- File mutations must finish normally; cancellation must not interrupt a move.
+	shared.run_command(key, argv, { atomic = true }, function()
+		if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].filetype == "netrw" then
+			vim.api.nvim_buf_call(buf, function()
+				if vim.deep_equal(vim.fn["netrw#Expose"]("netrwmarkfilelist"), marked) then
+					vim.fn["netrw#Call"]("NetrwUnMarkFile", 1)
+				end
+				shared.netrw_refresh()
+			end)
+		end
+	end)
 end
 vim.g.netrw_banner = 0
 vim.g.netrw_liststyle = 3

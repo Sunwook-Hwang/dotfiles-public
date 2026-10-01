@@ -214,6 +214,7 @@ vim.api.nvim_create_autocmd("User", {
 	callback = redraw_netrw_git,
 })
 
+local git_status_cache = {}
 local function refresh_git_status(buf, force)
 	if not vim.api.nvim_buf_is_loaded(buf) then
 		return
@@ -221,6 +222,11 @@ local function refresh_git_status(buf, force)
 	local key = "git-status:" .. buf
 	local file = vim.api.nvim_buf_get_name(buf)
 	local root = policy.is_source(buf) and file ~= "" and shared.find_git_root(vim.fs.dirname(file))
+	local snapshot = git_status_cache[buf]
+	if not force and snapshot and snapshot.file == file and snapshot.root == root then
+		return
+	end
+	local cache = git_status_cache
 	local task = shared.running[key]
 	-- Navigation can join an identical pending read; writes/external changes must replace it.
 	if not force and task and task.file == file and task.root == root then
@@ -256,6 +262,9 @@ local function refresh_git_status(buf, force)
 			branch = "HEAD@" .. (oid or ""):sub(1, 7)
 		end
 		local status = branch and ("[" .. branch .. (xy and " " .. xy or "") .. "]") or ""
+		if git_status_cache == cache then
+			cache[buf] = { file = file, root = root }
+		end
 		if vim.b[buf].nopack_git_status ~= status then
 			vim.b[buf].nopack_git_status = status
 			vim.cmd("redrawstatus")
@@ -265,9 +274,24 @@ local function refresh_git_status(buf, force)
 		shared.running[key].file, shared.running[key].root = file, root
 	end
 end
-vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained", "ShellCmdPost", "TermLeave", "TermClose" }, {
+vim.api.nvim_create_autocmd({
+	"BufEnter",
+	"BufReadPost",
+	"BufWritePost",
+	"FileChangedShellPost",
+	"FocusGained",
+	"ShellCmdPost",
+	"TermLeave",
+	"TermClose",
+}, {
 	group = vim.api.nvim_create_augroup("nopack-git-status", { clear = true }),
 	callback = function(args)
+		-- Reading one file must not invalidate unrelated navigation snapshots.
+		if args.event == "BufReadPost" or args.event == "FileChangedShellPost" then
+			git_status_cache[args.buf] = nil
+		elseif args.event ~= "BufEnter" then
+			git_status_cache = {}
+		end
 		if args.event == "TermLeave" or args.event == "TermClose" then
 			for _, buf in ipairs(vim.api.nvim_list_bufs()) do
 				if vim.fn.bufwinid(buf) ~= -1 then
@@ -277,6 +301,21 @@ vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained", "ShellC
 		else
 			refresh_git_status(args.buf, args.event ~= "BufEnter")
 		end
+	end,
+})
+vim.api.nvim_create_autocmd("User", {
+	group = "nopack-git-status",
+	pattern = "NopackRefresh",
+	callback = function()
+		git_status_cache = {}
+		refresh_git_status(vim.api.nvim_get_current_buf(), true)
+	end,
+})
+vim.api.nvim_create_autocmd("BufWipeout", {
+	group = "nopack-git-status",
+	callback = function(args)
+		git_status_cache[args.buf] = nil
+		shared.cancel_command("git-status:" .. args.buf)
 	end,
 })
 local function git(args, callback, opts)
@@ -908,6 +947,7 @@ local function queue_git_signs(buf)
 	git_sign_timers[buf] = timer
 end
 actions.setup(function(buf)
+	git_status_cache = {}
 	shared.git_sign_rendered[buf] = nil
 	queue_git_signs(buf)
 	refresh_git_status(buf, true)

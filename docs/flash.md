@@ -647,7 +647,7 @@ deletions are rebased rather than replacing the other user's buffer wholesale.
 | --- | --- |
 | `:FlashShare [port] [bind-address]` | Host the current source buffer and advertise it; defaults to a free port on `0.0.0.0` |
 | `:FlashJoin [<host> <port> <token>]` | Join the current file's advertised session, or the given one |
-| `:FlashShareStatus` | Show owner/guest, received revision and pending local edits |
+| `:FlashShareStatus` | Show owner/guest, revision, pending edits and where each peer is |
 | `u`, `Ctrl+r` | Undo/redo your own shared edits; each buffer change is one step |
 | `:w` in the owner's shared buffer | Save synchronized text through the original source buffer |
 | `:FlashShareStop` | Disconnect; on the owner, also stop the server |
@@ -665,12 +665,19 @@ available; copy it into a normal buffer to recover unsaved work. Sessions do not
 automatically reconnect or survive Neovim exit.
 
 The module is loaded only when a share command is used or an opened file has a
-sidecar; otherwise each file read costs one `stat`. There is no file polling,
-idle timer or cursor-movement work; one-shot timers only bound connection and
+sidecar; otherwise each file read costs one `stat`. There is no file polling or
+idle timer, and cursor movement is sent only from shared buffers; one-shot timers only bound connection and
 authentication (5 and 10 seconds). Editing reads changed buffer ranges; document
 rebasing still has a cost. Documents are limited to 1 MiB, connections to eight
-including the owner, and edit/history queues are bounded. This provides text
-sharing, not remote cursor display or multi-file workspace sharing. TCP transport
+including the owner, and edit/history queues are bounded. Multi-file workspace
+sharing is not provided.
+
+Each peer's cursor is highlighted in its own color with a `user@IP` label at the
+end of that line. The IP is the address the owner's server observed, so it
+cannot be forged by the peer; peers on the owner's host show the host's address.
+The user name is reported by the peer itself. Cursors are sent only when the
+peer's edits are synchronized and follow later edits until the next update.
+Override `FlashSharePeer1`..`FlashSharePeer6` to change the colors. TCP transport
 is token-authenticated but **not encrypted**: anyone who can observe the
 network, or read the sidecar, can join and read the text. Peers' text cannot set
 options through modelines. Use a trusted internal network or

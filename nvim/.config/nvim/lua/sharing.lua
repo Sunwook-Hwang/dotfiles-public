@@ -7,6 +7,18 @@ local M = {}
 local server, client
 local group = vim.api.nvim_create_augroup("flash-sharing", { clear = true })
 local limit = 1024 * 1024
+local cursor_ns = vim.api.nvim_create_namespace("flash-share-cursors")
+-- Peers cycle through these; colorschemes may override FlashSharePeer1..6.
+for i, link in ipairs({
+	"DiagnosticVirtualTextInfo",
+	"DiagnosticVirtualTextHint",
+	"DiagnosticVirtualTextWarn",
+	"DiagnosticVirtualTextOk",
+	"DiagnosticVirtualTextError",
+	"Visual",
+}) do
+	vim.api.nvim_set_hl(0, "FlashSharePeer" .. i, { link = link, default = true })
+end
 
 local function notify(message, level)
 	vim.notify("FLASH share: " .. message, level or vim.log.levels.INFO)
@@ -136,8 +148,8 @@ local function sidecar_path(path)
 	return vim.fs.joinpath(vim.fs.dirname(path), "." .. vim.fs.basename(path) .. ".flash-share")
 end
 
-local function printable(value)
-	return (tostring(value):gsub("[%c]", "?"):sub(1, 64))
+local function printable(value, length)
+	return (tostring(value):gsub("[%c]", "?"):sub(1, length or 64))
 end
 
 local function read_sidecar(file)
@@ -264,10 +276,51 @@ local function unpublish(owner)
 end
 
 local function send_next(session)
-	if session.connected and not session.sent and session.queue[1] then
+	if not session.connected or session.sent then
+		return
+	end
+	if session.queue[1] then
 		session.sent = true
 		session.connection:send({ type = "edit", revision = session.revision, operation = session.queue[1] })
+		return
 	end
+	-- Cursors are sent only when synchronized, so the offset is in server coordinates.
+	local win = vim.api.nvim_get_current_win()
+	if session.cursor_moved and vim.api.nvim_win_get_buf(win) == session.buf then
+		session.cursor_moved = false
+		local cursor = vim.api.nvim_win_get_cursor(win)
+		local offset = vim.api.nvim_buf_get_offset(session.buf, cursor[1] - 1) + cursor[2]
+		session.connection:send({ type = "cursor", revision = session.revision, offset = offset })
+	end
+end
+
+local function schedule_send(session)
+	if not session.send_scheduled then
+		session.send_scheduled = true
+		vim.schedule(function()
+			session.send_scheduled = false
+			send_next(session)
+		end)
+	end
+end
+
+-- Draw a peer's cursor; extmarks then follow later edits on their own.
+local function show_peer(session, id, label, offset)
+	for _, pending in ipairs(session.queue) do
+		offset = op.move(offset, pending)
+	end
+	local row, col = op.position(session.text, math.min(offset, #session.text - 1))
+	local line = vim.api.nvim_buf_get_lines(session.buf, row, row + 1, true)[1]
+	local peer = session.peers[id] or {}
+	session.peers[id], peer.label = peer, label
+	local hl = "FlashSharePeer" .. ((id - 1) % 6 + 1)
+	peer.mark = vim.api.nvim_buf_set_extmark(session.buf, cursor_ns, row, col, {
+		id = peer.mark,
+		end_col = col < #line and col + 1 + vim.str_utf_end(line, col + 1) or nil,
+		hl_group = hl,
+		virt_text = { { " " .. label .. " ", hl } },
+		virt_text_pos = "eol",
+	})
 end
 
 -- Each inverse is based on the state after undoing all newer entries.
@@ -434,6 +487,14 @@ local function create_buffer(session, message)
 			end
 		end,
 	})
+	vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+		group = group,
+		buffer = buf,
+		callback = function()
+			session.cursor_moved = true
+			schedule_send(session)
+		end,
+	})
 	vim.keymap.set("n", "u", function()
 		undo(session, false)
 	end, { buffer = buf, desc = "Undo my shared edit" })
@@ -486,13 +547,7 @@ local function create_buffer(session, message)
 			end
 			record(session, operation)
 			session.text = after
-			if not session.send_scheduled then
-				session.send_scheduled = true
-				vim.schedule(function()
-					session.send_scheduled = false
-					send_next(session)
-				end)
-			end
+			schedule_send(session)
 		end,
 		on_detach = function()
 			vim.schedule(function()
@@ -508,7 +563,7 @@ end
 -- Try each advertised host in order until one completes the handshake.
 local function connect(hosts, port, token, owner)
 	assert(not client, "Already sharing; use :FlashShareStop first")
-	local session = { queue = {}, queue_bytes = 0, undo = {}, redo = {}, connected = false }
+	local session = { queue = {}, queue_bytes = 0, undo = {}, redo = {}, peers = {}, connected = false }
 	client = session
 	if owner then
 		owner.session = session
@@ -522,6 +577,11 @@ local function connect(hosts, port, token, owner)
 			session.connection:settle()
 			session.id, session.revision, session.connected = message.id, message.revision, true
 			create_buffer(session, message)
+			for _, peer in ipairs(type(message.cursors) == "table" and message.cursors or {}) do
+				show_peer(session, peer.id, printable(peer.label, 128), peer.offset)
+			end
+			session.cursor_moved = true
+			send_next(session)
 			notify("Connected. u/Ctrl+r undo only your edits; :FlashShareStop disconnects")
 		elseif message.type == "edit" then
 			assert(session.connected and message.revision == session.revision + 1, "Revision mismatch")
@@ -541,6 +601,16 @@ local function connect(hosts, port, token, owner)
 			end
 			session.revision = message.revision
 			send_next(session)
+		elseif message.type == "cursor" then
+			assert(session.connected and message.revision == session.revision, "Revision mismatch")
+			assert(type(message.id) == "number" and type(message.offset) == "number", "Invalid cursor")
+			show_peer(session, message.id, printable(message.label, 128), message.offset)
+		elseif message.type == "leave" then
+			local peer = session.peers[message.id]
+			if peer and peer.mark and vim.api.nvim_buf_is_valid(session.buf) then
+				vim.api.nvim_buf_del_extmark(session.buf, cursor_ns, peer.mark)
+			end
+			session.peers[message.id] = nil
 		else
 			error("Unknown server message")
 		end
@@ -556,6 +626,8 @@ local function connect(hosts, port, token, owner)
 		end
 		if session.buf and vim.api.nvim_buf_is_valid(session.buf) then
 			vim.b[session.buf].flash_shared = false
+			-- Positions are no longer maintained; do not leave them misleading.
+			vim.api.nvim_buf_clear_namespace(session.buf, cursor_ns, 0, -1)
 		end
 		if reason then
 			notify(reason, vim.log.levels.WARN)
@@ -591,7 +663,12 @@ local function connect(hosts, port, token, owner)
 							return
 						end
 						connection:read()
-						connection:send({ type = "hello", token = token, protocol = 1 })
+						connection:send({
+							type = "hello",
+							token = token,
+							protocol = 2,
+							user = vim.uv.os_get_passwd().username,
+						})
 					end)
 				)
 			end)
@@ -628,6 +705,9 @@ function M.start(args)
 		filetype = vim.bo[source].filetype,
 		disk = disk_content(path),
 	}
+	-- Loopback peers (the owner, same-host guests) are labelled with this host's address.
+	local hosts = advertised(args[2] or "0.0.0.0")
+	owner.ip = hosts[2] or hosts[1]
 	assert(owner.disk ~= false, "Source file on disk exceeds 2 MiB")
 	local listener = vim.uv.new_tcp()
 	owner.listener = listener
@@ -654,12 +734,24 @@ function M.start(args)
 			peer = channel(socket, function(connection, message)
 				if not connection.id then
 					assert(
-						message.type == "hello" and message.protocol == 1 and message.token == owner.token,
-						"Authentication failed"
+						message.type == "hello" and message.protocol == 2 and message.token == owner.token,
+						"Authentication failed or incompatible FLASH version"
 					)
 					connection:settle()
 					owner.next_id = owner.next_id + 1
 					connection.id = owner.next_id
+					-- The address is what the server observed, not what the peer claims.
+					local ip = (socket:getpeername() or {}).ip or "?"
+					if ip:find("^127%.") or ip == "::1" or ip:find("^::ffff:127%.") then
+						ip = owner.ip
+					end
+					connection.label = printable(message.user or "?") .. "@" .. ip
+					local cursors = {}
+					for _, member in pairs(owner.peers) do
+						if member.cursor then
+							cursors[#cursors + 1] = { id = member.id, label = member.label, offset = member.cursor }
+						end
+					end
 					connection:send({
 						type = "welcome",
 						id = connection.id,
@@ -668,7 +760,40 @@ function M.start(args)
 						file = owner.path,
 						filetype = owner.filetype,
 						session = owner.token:sub(1, 16),
+						cursors = cursors,
 					})
+					return
+				end
+				if message.type == "cursor" then
+					local revision, offset = message.revision, message.offset
+					assert(
+						type(revision) == "number"
+							and revision == math.floor(revision)
+							and type(offset) == "number"
+							and offset == math.floor(offset)
+							and offset >= 0,
+						"Invalid cursor"
+					)
+					if revision < owner.history_floor or revision > owner.revision then
+						return
+					end
+					local length = revision == owner.revision and #owner.text or owner.history[revision + 1].length
+					assert(offset <= length, "Invalid cursor")
+					for i = revision + 1, owner.revision do
+						offset = op.move(offset, owner.history[i].operation)
+					end
+					connection.cursor = offset
+					for _, member in pairs(owner.peers) do
+						if member.id and member ~= connection then
+							member:send({
+								type = "cursor",
+								id = connection.id,
+								label = connection.label,
+								revision = owner.revision,
+								offset = offset,
+							})
+						end
+					end
 					return
 				end
 				assert(message.type == "edit", "Unknown client message")
@@ -698,6 +823,9 @@ function M.start(args)
 				end
 				owner.text = after
 				for _, member in pairs(owner.peers) do
+					if member.cursor then
+						member.cursor = op.move(member.cursor, operation)
+					end
 					if member.id then
 						member:send({
 							type = "edit",
@@ -709,6 +837,13 @@ function M.start(args)
 				end
 			end, function()
 				owner.peers[peer] = nil
+				if peer.id then
+					for _, member in pairs(owner.peers) do
+						if member.id then
+							member:send({ type = "leave", id = peer.id })
+						end
+					end
+				end
 			end)
 			owner.peers[peer] = peer
 			peer:deadline(10000, "Authentication timed out")
@@ -829,13 +964,14 @@ function M.status()
 		notify(server and "Server running; local client disconnected" or "Not sharing")
 		return
 	end
-	notify(
-		(server and "Owner" or "Guest")
-			.. ", revision "
-			.. (client.revision or 0)
-			.. ", pending edits "
-			.. #client.queue
-	)
+	local lines = {
+		(server and "Owner" or "Guest") .. ", revision " .. (client.revision or 0) .. ", pending edits " .. #client.queue,
+	}
+	for _, peer in pairs(client.peers) do
+		local row, col = unpack(vim.api.nvim_buf_get_extmark_by_id(client.buf, cursor_ns, peer.mark, {}))
+		lines[#lines + 1] = ("  %s at line %d, column %d"):format(peer.label, row + 1, col + 1)
+	end
+	notify(table.concat(lines, "\n"))
 end
 
 vim.api.nvim_create_autocmd("VimLeavePre", { group = group, callback = M.stop })

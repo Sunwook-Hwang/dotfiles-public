@@ -125,12 +125,15 @@ local function show_line_numbers(win)
 		return
 	end
 	local buf = vim.api.nvim_win_get_buf(win)
-	if policy.is_source(buf) or vim.bo[buf].filetype == "netrw" then
-		if not vim.wo[win].number then
-			vim.wo[win][0].number = true
+	local source = policy.is_source(buf)
+	if source or vim.bo[buf].filetype == "netrw" then
+		local number = not source or default_options.number
+		local relative = source and default_options.relativenumber or false
+		if vim.wo[win].number ~= number then
+			vim.wo[win][0].number = number
 		end
-		if vim.wo[win].relativenumber then
-			vim.wo[win][0].relativenumber = false
+		if vim.wo[win].relativenumber ~= relative then
+			vim.wo[win][0].relativenumber = relative
 		end
 		if vim.wo[win].statuscolumn ~= "" then
 			vim.wo[win][0].statuscolumn = ""

@@ -10,6 +10,8 @@ It uses no plugin manager and no external Lua plugins, and it performs no plugin
 or parser downloads. Built-in replacements provide a dashboard, fuzzy pickers,
 a file tree, a Space-key guide, Sticky Scroll, Git signs and inline blame, LSP,
 completion, formatting, sessions, an undo browser, and a reusable terminal.
+Opt-in [single-buffer collaboration](docs/flash.md#live-buffer-sharing) uses
+Neovim's native TCP APIs without a plugin or a separate server executable.
 
 Optional language servers, formatters, and command-line search tools are used
 only when already installed. See the feature guide in

@@ -609,6 +609,59 @@ shows attached tag files. Full indexing is limited to 120 seconds/64 MiB and
 file updates to 10 seconds/16 MiB. Ctags indexes saved names and positions;
 it cannot replace semantic type analysis or track unsaved changes accurately.
 
+## Live buffer sharing
+
+FLASH can share one editable text buffer across independent Neovim processes,
+including different nodes that store the source on NFS. No plugin or external
+server executable is used. NFS stores the file; a direct TCP connection carries
+unsaved edits. NFS access alone is insufficient: the nodes must also be able to
+connect to the chosen port.
+
+On node A, open the source file and start a session:
+
+```vim
+:FlashShare 8765 0.0.0.0
+```
+
+The notification (also in `:messages`) contains a random token. On node B:
+
+```vim
+:FlashJoin <node-A-IP> 8765 <token>
+```
+
+Both users edit the newly opened shared buffer. Do not continue editing the
+original NFS buffer independently. Concurrent insertions and overlapping
+deletions are rebased rather than replacing the other user's buffer wholesale.
+
+| Command / key | Action |
+| --- | --- |
+| `:FlashShare [port] [bind-address]` | Host the current source buffer; defaults to a free port on `127.0.0.1` |
+| `:FlashJoin <host> <port> <token>` | Join the host's current shared text without opening/writing NFS |
+| `:FlashShareStatus` | Show owner/guest, received revision and pending local edits |
+| `u`, `Ctrl+r` | Undo/redo your own shared edits; each buffer change is one step |
+| `:w` in the owner's shared buffer | Save synchronized text through the original source buffer |
+| `:FlashShareStop` | Disconnect; on the owner, also stop the server |
+
+Shared buffers are isolated `acwrite` buffers with their own in-memory undo
+history. The original buffer and its persistent undo remain intact. Source-only
+LSP, outline, formatting and project analysis do not attach to the shared buffer;
+normal filetype syntax and native editing remain available. Use `u`/`Ctrl+r`, not
+the ordinary undo browser or `:undo`, inside a shared buffer.
+
+Only the owner saves. Guest writes, writes to other paths and appends are refused.
+Saving is refused while the owner has pending edits, or if the original buffer or
+disk contents changed outside the session. A disconnect keeps the shared text
+available; copy it into a normal buffer to recover unsaved work. Sessions do not
+automatically reconnect or survive Neovim exit.
+
+The feature is loaded only when a share command is used. There is no file polling,
+idle timer or cursor-movement work. Editing reads changed buffer ranges; document
+rebasing still has a cost. Documents are limited to 1 MiB, connections to eight
+including the owner, and edit/history queues are bounded. This provides text
+sharing, not remote cursor display or multi-file workspace sharing. TCP transport
+is token-authenticated but **not encrypted**; use a trusted internal network or
+an SSH tunnel, and do not expose the listener to the public Internet.
+
 ## Configuration structure
 
 The [entry point](../nvim/.config/nvim/init.lua) loads adjacent
@@ -626,6 +679,7 @@ It resolves symlinks and keeps the runtime isolated from pack modules/plugins.
 | `lsp`, `tags`, `completion`, `format`, `diagnostics` | Language tools and editing assistance |
 | `outline`, `breadcrumb_symbols`, `breadcrumbs`, `context` | Cached symbols, outline, context navigation |
 | `dashboard`, `terminal`, `session` | Auxiliary UI and session lifecycle |
+| `sharing`, `share_operation` | Opt-in collaboration transport, rebasing and private undo |
 | `statusline`, `indent`, `syntax`, `whichkey` | Native display and key guide |
 
 Feature-private state stays local; shared interfaces live in `state.lua`, with

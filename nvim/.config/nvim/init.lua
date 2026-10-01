@@ -50,3 +50,20 @@ require("syntax")
 require("context")
 require("breadcrumbs")
 require("whichkey")
+
+-- Collaboration is opt-in; do not load its transport or algorithms during startup.
+for command, action in pairs({
+	FlashShare = "start",
+	FlashJoin = "join",
+	FlashShareStop = "stop",
+	FlashShareStatus = "status",
+}) do
+	vim.api.nvim_create_user_command(command, function(args)
+		local ok, err = pcall(function()
+			require("sharing")[action](args.fargs)
+		end)
+		if not ok then
+			vim.notify(tostring(err), vim.log.levels.ERROR)
+		end
+	end, { nargs = "*", desc = "Native single-buffer collaboration: " .. action })
+end

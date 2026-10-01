@@ -738,13 +738,17 @@ function! s:TabWindows() abort
   return empty(info) ? [] : info[0].windows
 endfunction
 
-function! s:RunNetrw(command, root) abort
+function! s:OpenExplorer(root, width, relative) abort
   let saved_error = v:errmsg
   let saved_lazyredraw = &lazyredraw
   set lazyredraw
   let existing = map(getbufinfo(), 'v:val.bufnr')
   try
-    execute 'silent ' . a:command . ' ' . fnameescape(a:root)
+    execute 'silent topleft vertical ' . a:width . 'new'
+    execute 'silent Explore ' . fnameescape(a:root)
+    if a:relative !=# '' && &filetype ==# 'netrw'
+      call s:RevealTreeFile(a:relative)
+    endif
   finally
     " Only discard empty hidden buffers created by this netrw operation.
     " Existing unnamed buffers (including user drafts) must remain untouched.
@@ -940,13 +944,18 @@ function! s:NetrwTarget() abort
   endtry
 endfunction
 
-function! s:NetrwTransferred(win, output, limited) abort
-  if win_id2win(a:win) > 0 && getbufvar(winbufnr(a:win), '&filetype') ==# 'netrw'
-    call s:NetrwInWindow(a:win, 1)
+function! s:NetrwTransferred(win, buf, files, output, limited) abort
+  if win_id2win(a:win) > 0 && winbufnr(a:win) == a:buf && getbufvar(a:buf, '&filetype') ==# 'netrw'
+    let marked = netrw#Expose('netrwmarkfilelist')
+    call s:NetrwInWindow(a:win, type(marked) == v:t_list && marked ==# a:files)
   endif
 endfunction
 
 function! s:NetrwTransfer(command) abort
+  if has_key(s:running, 'netrw-transfer')
+    call s:Warn('A file copy or move is already running')
+    return
+  endif
   let files = netrw#Expose('netrwmarkfilelist')
   let target = netrw#Expose('netrwmftgt')
   if type(files) != v:t_list || empty(files) || type(target) != v:t_string || !isdirectory(target)
@@ -954,7 +963,7 @@ function! s:NetrwTransfer(command) abort
     return
   endif
   call s:RunCommand('netrw-transfer', [a:command] + (a:command ==# 'cp' ? ['-R'] : []) + files + [target],
-        \ {'timeout': 120000}, function('<SID>NetrwTransferred', [win_getid()]))
+        \ {'timeout': 120000}, function('<SID>NetrwTransferred', [win_getid(), bufnr('%'), copy(files)]))
 endfunction
 
 function! s:SidebarWidth() abort
@@ -1226,20 +1235,8 @@ function! s:ToggleExplorer() abort
   let file = s:IsSource(bufnr('%')) ? expand('%:p') : ''
   let root = s:ProjectRoot().root
   let width = max([20, min([40, &columns / 4])])
-  execute 'topleft vertical ' . width . 'split'
-  call s:RunNetrw('Explore', root)
-  if file !=# '' && stridx(file, root . '/') == 0
-    for winid in s:TabWindows()
-      if getbufvar(winbufnr(winid), '&filetype') ==# 'netrw'
-        let savewin = win_getid()
-        if win_gotoid(winid)
-          call s:RevealTreeFile(strpart(file, len(root) + 1))
-        endif
-        call win_gotoid(savewin)
-        break
-      endif
-    endfor
-  endif
+  let relative = file !=# '' && stridx(file, root . '/') == 0 ? strpart(file, len(root) + 1) : ''
+  call s:OpenExplorer(root, width, relative)
 endfunction
 
 nnoremap <silent><nowait> <leader>e :call <SID>ToggleExplorer()<CR>
@@ -4057,18 +4054,47 @@ augroup END
 " Only the detector owns thresholds; listeners inspect changed ranges after textlock.
 let s:large_watchers = {}
 function! s:MarkLargeFile(path) abort
+  " A fresh read must reassess protection, restoring only options we disabled.
+  if exists('b:nopack_large_options')
+    let saved = remove(b:, 'nopack_large_options')
+    for [name, value] in items(saved) | call setbufvar(bufnr('%'), '&' . name, value) | endfor
+  endif
+  unlet! b:nopack_large_file
+  for winid in win_findbuf(bufnr('%'))
+    call win_execute(winid, 'call <SID>ReleaseLargeWindow()')
+  endfor
   if getfsize(a:path) > 2 * 1024 * 1024 | call s:RestrictBuffer(bufnr('%')) | endif
 endfunction
 function! s:ReleaseLargeWindow() abort
-  if exists('w:nopack_large_window') && w:nopack_large_window.buf != bufnr('%')
+  if exists('w:nopack_large_window') && (w:nopack_large_window.buf != bufnr('%') || s:BufferAllows(bufnr('%')))
     let saved = remove(w:, 'nopack_large_window')
     for [name, value] in items(saved.options) | call setwinvar(win_getid(), '&' . name, value) | endfor
   endif
 endfunction
+function! s:InheritLargeWindow() abort
+  " :split copies disabled options, so copy their restoration state as well.
+  let saved = getwinvar(win_getid(winnr('#')), 'nopack_large_window', {})
+  if get(saved, 'buf', -1) == bufnr('%') && get(b:, 'nopack_large_file', 0)
+    let w:nopack_large_window = deepcopy(saved)
+  endif
+endfunction
+function! s:ProtectLargeBuffer(buf) abort
+  let saved = getbufvar(a:buf, 'nopack_large_options', {})
+  for name in ['syntax', 'indentexpr'] + (exists('+autocomplete') ? ['autocomplete'] : [])
+    let value = getbufvar(a:buf, '&' . name)
+    " FileType can set runtime options after the initial size check.
+    if !has_key(saved, name) || (name ==# 'syntax' && value !=# 'OFF') || (name ==# 'indentexpr' && value !=# '')
+      let saved[name] = value
+    endif
+  endfor
+  call setbufvar(a:buf, 'nopack_large_options', saved)
+  if getbufvar(a:buf, '&syntax') !=# 'OFF' | call setbufvar(a:buf, '&syntax', 'OFF') | endif
+  call setbufvar(a:buf, '&indentexpr', '')
+  if exists('+autocomplete') | call setbufvar(a:buf, '&autocomplete', 0) | endif
+endfunction
 function! s:ApplyLargeFileSettings() abort
   if s:BufferAllows(bufnr('%')) || !s:IsSource(bufnr('%')) | return | endif
-  if &l:syntax !=# 'OFF' | setlocal syntax=OFF | endif
-  setlocal indentexpr=
+  call s:ProtectLargeBuffer(bufnr('%'))
   if !exists('w:nopack_large_window')
     let options = {}
     for name in ['foldmethod', 'cursorline', 'cursorcolumn', 'wrap']
@@ -4125,15 +4151,12 @@ function! s:ForgetLargeFile(buf) abort
 endfunction
 function! s:RestrictEditing(buf) abort
   call s:ForgetLargeFile(a:buf)
-  if getbufvar(a:buf, '&syntax') !=# 'OFF' | call setbufvar(a:buf, '&syntax', 'OFF') | endif
-  call setbufvar(a:buf, '&indentexpr', '')
+  call s:ProtectLargeBuffer(a:buf)
   for winid in win_findbuf(a:buf)
     call s:ClearCursorWord(winid)
     call win_execute(winid, 'call <SID>ApplyLargeFileSettings() | call <SID>UpdateIndentGuides()')
   endfor
-  if exists('+autocomplete')
-    call setbufvar(a:buf, '&autocomplete', 0)
-  elseif a:buf == bufnr('%')
+  if !exists('+autocomplete') && a:buf == bufnr('%')
     call s:CancelCompletion()
   endif
   call s:CancelTask('format:' . a:buf)
@@ -4210,6 +4233,7 @@ augroup NopackBufferPolicy
 augroup END
 augroup NopackLargeFiles
   autocmd!
+  autocmd WinNew * call <SID>InheritLargeWindow()
   autocmd BufReadPre * call <SID>MarkLargeFile(expand('<afile>:p'))
   autocmd BufReadPost * call <SID>ForgetLargeFile(str2nr(expand('<abuf>'))) | call <SID>WatchLargeFile(str2nr(expand('<abuf>')))
   autocmd BufNewFile,FileType,BufWinEnter * call <SID>WatchLargeFile(str2nr(expand('<abuf>')))

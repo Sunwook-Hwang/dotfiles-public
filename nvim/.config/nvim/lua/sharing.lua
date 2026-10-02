@@ -220,6 +220,42 @@ local function advertised(bind)
 	return hosts
 end
 
+-- Credentials must never be staged. Protect discovery files locally, once at startup.
+local function exclude_sidecar(file, temp)
+	local directory = vim.fs.dirname(file)
+	if not vim.fs.find(".git", { path = directory, upward = true })[1] then
+		return
+	end
+	assert(vim.fn.executable("git") == 1, "Git is required to exclude the session token")
+	local function git(args)
+		return vim.system(vim.list_extend({ "git", "-C", directory }, args), { text = true }):wait(2000)
+	end
+	local result = git({ "rev-parse", "--git-path", "info/exclude" })
+	assert(result.code == 0, "Cannot locate Git's local exclude file")
+	local path = vim.trim(result.stdout)
+	if path:sub(1, 1) ~= "/" then
+		path = vim.fs.joinpath(directory, path)
+	end
+	local lines = vim.fn.filereadable(path) == 1 and vim.fn.readfile(path) or {}
+	local missing = {}
+	for _, pattern in ipairs({ ".*.flash-share", ".*.flash-share.*" }) do
+		if not vim.tbl_contains(lines, pattern) then
+			missing[#missing + 1] = pattern
+		end
+	end
+	if #missing > 0 then
+		vim.fn.mkdir(vim.fs.dirname(path), "p")
+		-- Start a new line even when an existing exclude file has no final newline.
+		assert(vim.fn.writefile(vim.list_extend({ "" }, missing), path, "a") == 0, "Cannot exclude session tokens")
+	end
+	for _, candidate in ipairs({ file, temp }) do
+		assert(
+			git({ "check-ignore", "-q", "--", candidate }).code == 0,
+			"Session file is tracked or not safely ignored"
+		)
+	end
+end
+
 local function publish(owner, bind)
 	local stat = assert(vim.uv.fs_stat(owner.path), "Save the source file before sharing")
 	local perm = stat.mode % 512
@@ -228,12 +264,13 @@ local function publish(owner, bind)
 	local file = sidecar_path(owner.path)
 	local existing = read_sidecar(file)
 	if existing then
-		assert(
-			stale(existing) and existing.uid == vim.uv.getuid(),
-			existing.user .. "@" .. existing.host .. " is already sharing this file; use :FlashJoin"
-		)
+		if not (stale(existing) and existing.uid == vim.uv.getuid()) then
+			return false, existing.user .. "@" .. existing.host .. " is already sharing this file; use :FlashJoin"
+		end
 		vim.uv.fs_unlink(file)
 	end
+	local temp = file .. "." .. vim.fn.sha256(vim.uv.random(16)):sub(1, 16)
+	exclude_sidecar(file, temp)
 	local info = vim.json.encode({
 		protocol = 1,
 		port = owner.port,
@@ -245,7 +282,6 @@ local function publish(owner, bind)
 	})
 	-- Write privately under a random name, then link: creation is exclusive and
 	-- readers never see a partial file. O_EXCL does not follow planted symlinks.
-	local temp = file .. "." .. vim.fn.sha256(vim.uv.random(16)):sub(1, 16)
 	local fd = assert(vim.uv.fs_open(temp, "wx", 384))
 	local ok, err = pcall(function()
 		if readable_by_group and stat.gid ~= vim.uv.getgid() then
@@ -254,7 +290,7 @@ local function publish(owner, bind)
 			end
 		end
 		assert(vim.uv.fs_fchmod(fd, mode))
-		assert(vim.uv.fs_write(fd, info, 0))
+		assert(vim.uv.fs_write(fd, info, 0) == #info, "Incomplete session file write")
 	end)
 	vim.uv.fs_close(fd)
 	if ok then
@@ -264,8 +300,12 @@ local function publish(owner, bind)
 		ok = ok or (linked and linked.nlink == 2)
 	end
 	vim.uv.fs_unlink(temp)
+	if not ok and read_sidecar(file) then
+		return false, "Another session advertised this file; use :FlashJoin"
+	end
 	assert(ok, "Cannot create " .. file .. ": " .. tostring(err))
 	owner.sidecar = file
+	return true
 end
 
 local function unpublish(owner)
@@ -290,7 +330,10 @@ local function send_next(session)
 		session.cursor_moved = false
 		local cursor = vim.api.nvim_win_get_cursor(win)
 		local offset = vim.api.nvim_buf_get_offset(session.buf, cursor[1] - 1) + cursor[2]
-		session.connection:send({ type = "cursor", revision = session.revision, offset = offset })
+		if offset ~= session.reported_cursor then
+			session.reported_cursor = offset
+			session.connection:send({ type = "cursor", revision = session.revision, offset = offset })
+		end
 	end
 end
 
@@ -568,13 +611,41 @@ local function create_buffer(session, message)
 			end)
 		end,
 	})
-	vim.api.nvim_set_current_buf(buf)
+	local target = session.target
+	if
+		vim.api.nvim_win_is_valid(target.win)
+		and vim.api.nvim_win_get_buf(target.win) == target.buf
+		and vim.api.nvim_buf_get_changedtick(target.buf) == target.tick
+		and vim.api.nvim_buf_get_name(target.buf) == target.name
+	then
+		vim.api.nvim_win_set_buf(target.win, buf)
+	else
+		notify("Original window changed; shared buffer is available with :buffer " .. buf)
+	end
 end
 
 -- Try each advertised host in order until one completes the handshake.
 local function connect(hosts, port, token, owner)
 	assert(not client, "Already sharing; use :FlashShareStop first")
-	local session = { queue = {}, queue_bytes = 0, undo = {}, redo = {}, peers = {}, connected = false }
+	local focus_editor = require("state").focus_editor
+	if not owner and not policy.is_editor(0) and focus_editor then
+		focus_editor()
+	end
+	local buf = vim.api.nvim_get_current_buf()
+	local session = {
+		queue = {},
+		queue_bytes = 0,
+		undo = {},
+		redo = {},
+		peers = {},
+		connected = false,
+		target = owner and owner.target or {
+			win = vim.api.nvim_get_current_win(),
+			buf = buf,
+			tick = vim.api.nvim_buf_get_changedtick(buf),
+			name = vim.api.nvim_buf_get_name(buf),
+		},
+	}
 	client = session
 	if owner then
 		owner.session = session
@@ -596,6 +667,9 @@ local function connect(hosts, port, token, owner)
 			notify("Connected. u/Ctrl+r undo only your edits; :FlashShareStop disconnects")
 		elseif message.type == "edit" then
 			assert(session.connected and message.revision == session.revision + 1, "Revision mismatch")
+			if session.reported_cursor then
+				session.reported_cursor = op.move(session.reported_cursor, message.operation)
+			end
 			if message.id == session.id then
 				assert(session.sent and session.queue[1], "Unexpected acknowledgement")
 				session.queue_bytes = session.queue_bytes - op.size(table.remove(session.queue, 1))
@@ -714,6 +788,12 @@ function M.start(args)
 		peers = {},
 		next_id = 0,
 		token = vim.fn.sha256(vim.uv.random(32)),
+		target = {
+			win = vim.api.nvim_get_current_win(),
+			buf = source,
+			tick = vim.api.nvim_buf_get_changedtick(source),
+			name = path,
+		},
 		source = source,
 		source_tick = vim.api.nvim_buf_get_changedtick(source),
 		path = path,
@@ -760,14 +840,14 @@ function M.start(args)
 						ip = owner.ip
 					end
 					local label = printable(message.user or "?") .. "@" .. ip
-				-- Same user on one host (or the owner's host) needs a distinguishing suffix.
-				for _, member in pairs(owner.peers) do
-					if member.label == label then
-						label = label .. " #" .. connection.id
-						break
+					-- Same user on one host (or the owner's host) needs a distinguishing suffix.
+					for _, member in pairs(owner.peers) do
+						if member.label == label then
+							label = label .. " #" .. connection.id
+							break
+						end
 					end
-				end
-				connection.label = label
+					connection.label = label
 					local cursors = {}
 					for _, member in pairs(owner.peers) do
 						if member.cursor then
@@ -885,10 +965,16 @@ function M.start(args)
 		error(err)
 	end
 	owner.port = listener:getsockname().port
-	ok, err = pcall(publish, owner, address)
-	if not ok then
+	local published, reason
+	ok, published, reason = pcall(publish, owner, address)
+	if ok and published == false then
 		M.stop()
-		error(err, 0)
+		error(reason, 0)
+	elseif not ok then
+		notify(
+			"Automatic discovery unavailable: " .. tostring(published) .. "; manual joining still works",
+			vim.log.levels.WARN
+		)
 	end
 	connect(
 		{ address == "0.0.0.0" and "127.0.0.1" or address == "::" and "::1" or address },
@@ -899,7 +985,8 @@ function M.start(args)
 	notify(
 		"Port "
 			.. owner.port
-			.. ". Others opening this file are offered to join. Manual: :FlashJoin <host> "
+			.. (owner.sidecar and ". Others opening this file are offered to join. Manual: " or ". Manual: ")
+			.. ":FlashJoin <host> "
 			.. owner.port
 			.. " "
 			.. owner.token
@@ -908,6 +995,9 @@ end
 
 -- Join the session advertised beside a source file. `ask` prompts first.
 function M.discover(buf, ask)
+	if ask and (vim.api.nvim_get_current_buf() ~= buf or not policy.is_editor(0)) then
+		return
+	end
 	local path = vim.api.nvim_buf_get_name(buf)
 	local file = sidecar_path(path)
 	local info = read_sidecar(file)
@@ -995,7 +1085,11 @@ function M.status()
 		return
 	end
 	local lines = {
-		(server and "Owner" or "Guest") .. ", revision " .. (client.revision or 0) .. ", pending edits " .. #client.queue,
+		(server and "Owner" or "Guest")
+			.. ", revision "
+			.. (client.revision or 0)
+			.. ", pending edits "
+			.. #client.queue,
 	}
 	for _, peer in pairs(client.peers) do
 		local row, col = unpack(vim.api.nvim_buf_get_extmark_by_id(client.buf, cursor_ns, peer.mark, {}))

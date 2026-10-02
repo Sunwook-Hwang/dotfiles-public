@@ -77,11 +77,13 @@ vim.api.nvim_create_autocmd("BufReadPost", {
 		if vim.g.flash_share_discovery == false or vim.bo[args.buf].buftype ~= "" or path == "" then
 			return
 		end
-		if not vim.uv.fs_lstat(vim.fs.joinpath(vim.fs.dirname(path), "." .. vim.fs.basename(path) .. ".flash-share")) then
+		if
+			not vim.uv.fs_lstat(vim.fs.joinpath(vim.fs.dirname(path), "." .. vim.fs.basename(path) .. ".flash-share"))
+		then
 			return
 		end
 		vim.schedule(function()
-			if not vim.api.nvim_buf_is_valid(args.buf) then
+			if vim.api.nvim_get_current_buf() ~= args.buf or not require("buffer_policy").is_editor(0) then
 				return
 			end
 			local ok, err = pcall(function()

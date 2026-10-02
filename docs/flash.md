@@ -624,7 +624,7 @@ On node A, open the source file and start a session:
 ```
 
 This also writes `.<name>.flash-share` beside the file with the host, port and
-random token. When anyone opens that file later, FLASH asks whether to join; no
+random token. When that file is opened in the active editor, FLASH asks whether to join; no
 IP or token has to be exchanged. `:FlashJoin` without arguments joins the
 current file's session, for example after declining or if the file was opened
 before sharing started. The full manual command is also in `:messages`:
@@ -638,6 +638,13 @@ source, so only people who can already change the file can join. It is removed
 by `:FlashShareStop` or on exit. After a crash, it is cleaned up when someone on
 the same host opens the file again; otherwise delete it by hand. Set
 `vim.g.flash_share_discovery = false` to skip the per-open check.
+
+In Git repositories, discovery files and their temporary files are excluded through
+local Git `info/exclude`, without changing the project's tracked settings. If safe
+exclusion or sidecar creation fails, sharing continues through the manual command.
+An already active advertised session still prevents a second owner. Background
+previews do not prompt to join. If the target window or text changes during connection,
+the shared buffer stays available through `:buffer` rather than replacing that editor.
 
 Both users edit the newly opened shared buffer. Do not continue editing the
 original NFS buffer independently. Concurrent insertions and overlapping

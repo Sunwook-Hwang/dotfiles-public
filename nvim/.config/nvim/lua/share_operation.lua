@@ -39,7 +39,22 @@ local function append(op, part)
 	end
 end
 
+-- The final newline is a sentinel: no operation deletes it or inserts after it.
+-- Neovim reports deleting the last line as removing "line\n"; merged with a
+-- concurrent join of the previous newline, that would leave no final newline.
+-- Move such edits before the sentinel with the same result; callers verify it.
 function M.splice(length, start, removed, inserted)
+	if start + removed == length and length > 0 then
+		if inserted ~= "" then
+			if removed == 0 then
+				start, inserted = length - 1, "\n" .. inserted:sub(1, -2)
+			else
+				removed, inserted = removed - 1, inserted:sub(1, -2)
+			end
+		elseif removed > 0 and start > 0 then
+			start = start - 1
+		end
+	end
 	local op = {}
 	append(op, start)
 	append(op, inserted)
@@ -61,6 +76,8 @@ function M.validate(op, length)
 		end
 	end
 	assert(consumed == length and inserted <= 1024 * 1024, "Invalid operation size")
+	-- Ending in a retain keeps the sentinel; transforms and inverses preserve this.
+	assert(length == 0 or (type(op[#op]) == "number" and op[#op] > 0), "Operation must keep the final newline")
 end
 
 function M.apply(text, op)

@@ -4,6 +4,10 @@ macOS-focused dotfiles for zsh, git, Herdr, tmux, Neovim, and Vim.
 
 ## Package-free Native Neovim
 
+FLASH was built for servers with restricted network access and limited performance.
+Bring just the Neovim configuration directory and start editing immediately,
+without downloading plugins or parsers.
+
 This repository includes [`nvim/init.lua`](nvim/.config/nvim/init.lua),
 a **package-free Native Neovim configuration** for Neovim 0.12+.
 It uses no plugin manager and no external Lua plugins, and it performs no plugin

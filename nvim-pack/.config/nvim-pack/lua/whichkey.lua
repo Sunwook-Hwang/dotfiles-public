@@ -44,10 +44,10 @@ require("which-key").setup({
 		{ "<leader>b", group = "[B]uffer" },
 		{ "<leader>T", group = "[T]oggle" },
 		{ "<leader>l", group = "[L]sp & Diagnostic" },
-		{ "<leader>C", group = "Peerpad" },
+		{ "<leader>P", group = "Peerpad" },
 		{ "<leader>g", group = "[G]it" },
 		{ "<leader>p", group = "[P]roject" },
-		{ "<leader>P", group = "[P]rofiler" },
+		{ "<leader>D", group = "Profiler" },
 		-- { "<leader>d", group = "[D]ebug" },
 	},
 })

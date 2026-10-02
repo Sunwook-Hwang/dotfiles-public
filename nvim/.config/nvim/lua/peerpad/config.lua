@@ -8,18 +8,3 @@ share.start = function(args)
 	return start(args)
 end
 share.setup({ keymaps = true, discovery = vim.g.flash_share_discovery ~= false })
-
--- Preserve FLASH command names; all actions use the same public API.
-for command, action in pairs({
-	FlashShare = "start",
-	FlashJoin = "join",
-	FlashShareStop = "stop",
-	FlashShareStatus = "status",
-}) do
-	vim.api.nvim_create_user_command(command, function(args)
-		local ok, err = pcall(share[action], args.fargs)
-		if not ok then
-			vim.notify(tostring(err), vim.log.levels.ERROR)
-		end
-	end, { nargs = "*", desc = "Native single-buffer collaboration: " .. action })
-end

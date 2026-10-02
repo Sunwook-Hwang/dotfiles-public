@@ -623,22 +623,22 @@ connect to the chosen port.
 On node A, open the source file and start a session:
 
 ```vim
-:FlashShare
+:Peerpad
 ```
 
 This also writes `.<name>.flash-share` beside the file with the host, port and
 random token. When that file is opened in the active editor, FLASH asks whether to join; no
-IP or token has to be exchanged. `:FlashJoin` without arguments joins the
+IP or token has to be exchanged. `:PeerpadJoin` without arguments joins the
 current file's session, for example after declining or if the file was opened
 before sharing started. The full manual command is also in `:messages`:
 
 ```vim
-:FlashJoin <node-A-IP> <port> <token>
+:PeerpadJoin <node-A-IP> <port> <token>
 ```
 
 The sidecar is readable by the classes (owner/group/other) that may write the
 source, so only people who can already change the file can join. It is removed
-by `:FlashShareStop` or on exit. After a crash, it is cleaned up when someone on
+by `:PeerpadStop` or on exit. After a crash, it is cleaned up when someone on
 the same host opens the file again; otherwise delete it by hand. Set
 `vim.g.flash_share_discovery = false` before configuration loads to skip the per-open
 check. During a session, set `require("peerpad").config.discovery = false` instead.
@@ -656,16 +656,16 @@ deletions are rebased rather than replacing the other user's buffer wholesale.
 
 | Command / key | Action |
 | --- | --- |
-| `<leader>Cs` | Start sharing |
-| `<leader>Cj` | Join the current file's session |
-| `<leader>Cq` | Stop sharing |
-| `<leader>Ci` | Show session status |
-| `:FlashShare [port] [bind-address]` | Host the current source buffer and advertise it; defaults to a free port on `0.0.0.0` |
-| `:FlashJoin [<host> <port> <token>]` | Join the current file's advertised session, or the given one |
-| `:FlashShareStatus` | Show owner/guest, revision, pending edits and where each peer is |
+| `<leader>Ps` | Start sharing |
+| `<leader>Pj` | Join the current file's session |
+| `<leader>Pq` | Stop sharing |
+| `<leader>Pi` | Show session status |
+| `:Peerpad [port] [bind-address]` | Host the current source buffer and advertise it; defaults to a free port on `0.0.0.0` |
+| `:PeerpadJoin [<host> <port> <token>]` | Join the current file's advertised session, or the given one |
+| `:PeerpadStatus` | Show owner/guest, revision, pending edits and where each peer is |
 | `u`, `Ctrl+r` | Undo/redo your own shared edits; each buffer change is one step |
 | `:w` in the owner's shared buffer | Save synchronized text through the original source buffer |
-| `:FlashShareStop` | Disconnect; on the owner, also stop the server |
+| `:PeerpadStop` | Disconnect; on the owner, also stop the server |
 
 Shared buffers are isolated `acwrite` buffers with their own in-memory undo
 history. The original buffer and its persistent undo remain intact. Source-only
@@ -689,7 +689,7 @@ idle timer, and cursor movement is sent only from shared buffers; one-shot timer
 authentication (5 and 10 seconds). Editing reads changed buffer ranges; document
 rebasing still has a cost. Documents are limited to 1 MiB and edit/history queues are bounded.
 Sessions accept eight participants including the owner; set
-`vim.g.flash_share_max_peers` (2-64) before `:FlashShare` to change it. Joining
+`vim.g.flash_share_max_peers` (2-64) before `:Peerpad` to change it. Joining
 a full session reports that instead of a reset connection. Multi-file workspace
 sharing is not provided.
 
@@ -712,8 +712,8 @@ an SSH tunnel, and do not expose the listener to the public Internet.
 ### Updating peerpad independently
 
 `nvim/.config/nvim/lua/peerpad/` contains the same four modules as the
-standalone `peerpad.nvim` repository. FLASH command aliases
-and buffer eligibility stay in `lua/peerpad/config.lua`. Common commands, shortcuts
+standalone `peerpad.nvim` repository. FLASH buffer eligibility
+stays in `lua/peerpad/config.lua`. Common commands, shortcuts
 and discovery are registered once by `peerpad.setup()`.
 From the dotfiles checkout, copy only the modules after updating the sibling repository:
 
@@ -722,8 +722,8 @@ cp -R ../peerpad.nvim/lua/peerpad/. nvim/.config/nvim/lua/peerpad/
 ```
 
 No plugin installation or changes to the rest of FLASH are required. Restart Neovim
-after updating. `:LiveShare`, `:LiveShareJoin`, `:LiveShareStop` and
-`:LiveShareStatus` are also available; the existing `:FlashShare` commands still work.
+after updating. FLASH and Pack use the same `:Peerpad`, `:PeerpadJoin`,
+`:PeerpadStop` and `:PeerpadStatus` commands.
 
 ## Configuration structure
 

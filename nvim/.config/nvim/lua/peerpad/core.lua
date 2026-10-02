@@ -21,7 +21,7 @@ for i, link in ipairs({
 end
 
 local function notify(message, level)
-	vim.notify("Live share: " .. message, level or vim.log.levels.INFO)
+	vim.notify("Peerpad: " .. message, level or vim.log.levels.INFO)
 end
 
 local function close(handle)
@@ -265,7 +265,7 @@ local function publish(owner, bind)
 	local existing = read_sidecar(file)
 	if existing then
 		if not (stale(existing) and existing.uid == vim.uv.getuid()) then
-			return false, existing.user .. "@" .. existing.host .. " is already sharing this file; use :LiveShareJoin"
+			return false, existing.user .. "@" .. existing.host .. " is already sharing this file; use :PeerpadJoin"
 		end
 		vim.uv.fs_unlink(file)
 	end
@@ -301,7 +301,7 @@ local function publish(owner, bind)
 	end
 	vim.uv.fs_unlink(temp)
 	if not ok and read_sidecar(file) then
-		return false, "Another session advertised this file; use :LiveShareJoin"
+		return false, "Another session advertised this file; use :PeerpadJoin"
 	end
 	assert(ok, "Cannot create " .. file .. ": " .. tostring(err))
 	owner.sidecar = file
@@ -664,7 +664,7 @@ end
 
 -- Try each advertised host in order until one completes the handshake.
 local function connect(hosts, port, token, owner)
-	assert(not client, "Already sharing; use :LiveShareStop first")
+	assert(not client, "Already sharing; use :PeerpadStop first")
 	local focus_editor = policy.focus_editor
 	if not owner and not policy.is_editor(0) and focus_editor then
 		focus_editor()
@@ -702,7 +702,7 @@ local function connect(hosts, port, token, owner)
 			end
 			session.cursor_moved = true
 			send_next(session)
-			notify("Connected. u/Ctrl+r undo only your edits; :LiveShareStop disconnects")
+			notify("Connected. u/Ctrl+r undo only your edits; :PeerpadStop disconnects")
 		elseif message.type == "edit" then
 			assert(session.connected and message.revision == session.revision + 1, "Revision mismatch")
 			if session.reported_cursor then
@@ -801,7 +801,7 @@ local function connect(hosts, port, token, owner)
 end
 
 function M.start(args)
-	assert(not server and not client, "Already sharing; use :LiveShareStop first")
+	assert(not server and not client, "Already sharing; use :PeerpadStop first")
 	local source = vim.api.nvim_get_current_buf()
 	assert(policy.allows(source) and vim.bo[source].modifiable, "Share a normal, editable source buffer")
 	assert(vim.o.encoding == "utf-8", "UTF-8 is required")
@@ -812,7 +812,7 @@ function M.start(args)
 	op.valid_text(text)
 	local port = args[1] and tonumber(args[1]) or 0
 	assert(port and port >= 0 and port <= 65535 and port == math.floor(port), "Invalid port")
-	assert(#args <= 2, "Usage: LiveShare [port] [bind-address]")
+	assert(#args <= 2, "Usage: Peerpad [port] [bind-address]")
 	local owner = {
 		text = text,
 		revision = 0,
@@ -1020,7 +1020,7 @@ function M.start(args)
 		"Port "
 			.. owner.port
 			.. (owner.sidecar and ". Others opening this file are offered to join. Manual: " or ". Manual: ")
-			.. ":LiveShareJoin <host> "
+			.. ":PeerpadJoin <host> "
 			.. owner.port
 			.. " "
 			.. owner.token
@@ -1039,7 +1039,7 @@ function M.discover(buf, ask)
 		if ask then
 			return
 		end
-		error("No live share for this file; use :LiveShareJoin <host> <port> <token>", 0)
+		error("No live share for this file; use :PeerpadJoin <host> <port> <token>", 0)
 	end
 	if server and server.token == info.token then
 		return
@@ -1053,7 +1053,7 @@ function M.discover(buf, ask)
 		return
 	end
 	if client then
-		notify(who .. " is sharing this file; :LiveShareStop, then :LiveShareJoin", vim.log.levels.WARN)
+		notify(who .. " is sharing this file; :PeerpadStop, then :PeerpadJoin", vim.log.levels.WARN)
 		return
 	end
 	local question = who .. " is live-sharing " .. vim.fs.basename(path) .. ". Join?"
@@ -1088,7 +1088,7 @@ function M.join(args)
 		M.discover(vim.api.nvim_get_current_buf(), false)
 		return
 	end
-	assert(#args == 3, "Usage: LiveShareJoin [<host> <port> <token>]")
+	assert(#args == 3, "Usage: PeerpadJoin [<host> <port> <token>]")
 	local port = tonumber(args[2])
 	assert(port and port > 0 and port <= 65535 and port == math.floor(port), "Invalid port")
 	connect({ args[1] }, port, args[3])

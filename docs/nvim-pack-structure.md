@@ -98,9 +98,9 @@ after changes.
 
 Pack installs [peerpad.nvim](https://github.com/Sunwook-Hwang/peerpad.nvim)
 through `vim.pack`; `init.lua` calls its setup directly. It interoperates with FLASH's native live sharing.
-`<leader>Cs` starts sharing, `<leader>Cj` joins, `<leader>Cq` disconnects, and
-`<leader>Ci` shows session information. The commands are `:LiveShare`,
-`:LiveShareJoin`, `:LiveShareStop`, and `:LiveShareStatus`.
+`<leader>Ps` starts sharing, `<leader>Pj` joins, `<leader>Pq` disconnects, and
+`<leader>Pi` shows session information. The commands are `:Peerpad`,
+`:PeerpadJoin`, `:PeerpadStop`, and `:PeerpadStatus`.
 Transport loads only when needed; discovery checks once per source-file read.
 For disconnected servers, copy this package along with the other Pack plugins.
 
@@ -113,15 +113,15 @@ Snacks Scope uses indentation without Treesitter. `[i` / `]i` jump to scope
 edges; `ii` / `ai` select the inner / full scope in visual or operator-pending
 mode (for example, `vii` or `dai`). Scope highlighting remains disabled.
 
-The Lua profiler starts disabled. `Space Pp` starts/stops recording and opens
-results when stopped; `Space PP` reopens results; `Space Ph` toggles profiling
+The Lua profiler starts disabled. `<leader>Dp` starts/stops recording and opens
+results when stopped; `<leader>DP` reopens results; `<leader>Dh` toggles profiling
 highlights. Recording adds overhead and captures only supported Lua calls,
 including Lua autocmd callbacks registered while recording.
 
 Scope는 들여쓰기로 범위를 탐색하며 Treesitter를 사용하지 않습니다.
 `[i` / `]i`로 범위 양 끝으로 이동하고, `vii` / `vai`로 내부 / 전체 범위를 선택합니다.
-Profiler는 기본 OFF입니다. `Space Pp`로 측정을 시작·종료하고,
-`Space PP`로 결과를 다시 열며, `Space Ph`로 측정 결과 강조를 토글합니다.
+Profiler는 기본 OFF입니다. `<leader>Dp`로 측정을 시작·종료하고,
+`<leader>DP`로 결과를 다시 열며, `<leader>Dh`로 측정 결과 강조를 토글합니다.
 측정 중에는 실행 부담이 추가되며 모든 호출을 기록하는 것은 아닙니다.
 
 ## 한국어

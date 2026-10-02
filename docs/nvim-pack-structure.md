@@ -17,7 +17,7 @@ from these configuration files and must also be available on a network-isolated 
 | `keymaps.lua`       | Editing, window movement/resizing, cursor word highlight          |
 | `bigfile.lua`       | Snacks bigfile configuration and supplemental growth checks       |
 | `plugins.lua`       | `vim.pack` package registration                                   |
-| `collaboration.lua` | live-share.nvim setup, discovery and leader shortcuts             |
+| `collaboration.lua` | collabo.nvim setup, discovery and leader shortcuts             |
 | `context.lua`       | Native sticky context and its update lifecycle                    |
 | `ui.lua`            | Snacks setup: dashboard, indent, picker styling, terminal layout  |
 | `git.lua`           | Gitsigns, hunk operations, inline blame                           |
@@ -97,10 +97,10 @@ after changes.
 
 ## Live sharing
 
-Pack installs [live-share.nvim](https://github.com/Sunwook-Hwang/live-share.nvim)
+Pack installs [collabo.nvim](https://github.com/Sunwook-Hwang/collabo.nvim)
 through `vim.pack`. It interoperates with FLASH's native live sharing.
-`<leader>Ls` starts sharing, `<leader>Lj` joins, `<leader>Lq` disconnects, and
-`<leader>Li` shows session information. The commands are `:LiveShare`,
+`<leader>Cs` starts sharing, `<leader>Cj` joins, `<leader>Cq` disconnects, and
+`<leader>Ci` shows session information. The commands are `:LiveShare`,
 `:LiveShareJoin`, `:LiveShareStop`, and `:LiveShareStatus`.
 Transport loads only when needed; discovery checks once per source-file read.
 For disconnected servers, copy this package along with the other Pack plugins.

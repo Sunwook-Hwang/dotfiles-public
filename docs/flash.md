@@ -655,10 +655,10 @@ deletions are rebased rather than replacing the other user's buffer wholesale.
 
 | Command / key | Action |
 | --- | --- |
-| `<leader>Ls` | Start sharing |
-| `<leader>Lj` | Join the current file's session |
-| `<leader>Lq` | Stop sharing |
-| `<leader>Li` | Show session status |
+| `<leader>Cs` | Start sharing |
+| `<leader>Cj` | Join the current file's session |
+| `<leader>Cq` | Stop sharing |
+| `<leader>Ci` | Show session status |
 | `:FlashShare [port] [bind-address]` | Host the current source buffer and advertise it; defaults to a free port on `0.0.0.0` |
 | `:FlashJoin [<host> <port> <token>]` | Join the current file's advertised session, or the given one |
 | `:FlashShareStatus` | Show owner/guest, revision, pending edits and where each peer is |
@@ -708,15 +708,15 @@ network, or read the sidecar, can join and read the text. Peers' text cannot set
 options through modelines. Use a trusted internal network or
 an SSH tunnel, and do not expose the listener to the public Internet.
 
-### Updating live-share independently
+### Updating collabo independently
 
-`nvim/.config/nvim/lua/live-share/` contains the same four modules as the
-standalone `live-share.nvim` repository. FLASH-specific commands, keymaps,
+`nvim/.config/nvim/lua/collabo/` contains the same four modules as the
+standalone `collabo.nvim` repository. FLASH-specific commands, keymaps,
 discovery and buffer eligibility stay in `lua/collaboration.lua`.
 From the dotfiles checkout, copy only the modules after updating the sibling repository:
 
 ```sh
-cp -R ../live-share.nvim/lua/live-share/. nvim/.config/nvim/lua/live-share/
+cp -R ../collabo.nvim/lua/collabo/. nvim/.config/nvim/lua/collabo/
 ```
 
 No plugin installation or changes to the rest of FLASH are required. Restart Neovim
@@ -740,7 +740,7 @@ It resolves symlinks and keeps the runtime isolated from pack modules/plugins.
 | `lsp/`, `tags`, `completion`, `format`, `diagnostics` | Language tools and editing assistance |
 | `outline`, `breadcrumb_symbols`, `breadcrumbs`, `context` | Cached symbols, outline, context navigation |
 | `dashboard`, `terminal`, `session` | Auxiliary UI and session lifecycle |
-| `collaboration`, `live-share/` | Opt-in collaboration transport, rebasing and private undo |
+| `collaboration`, `collabo/` | Opt-in collaboration transport, rebasing and private undo |
 | `statusline`, `indent`, `syntax`, `whichkey` | Native display and key guide |
 
 LSP code lives in `lua/lsp/`: `servers.lua` lists commands and filetypes,

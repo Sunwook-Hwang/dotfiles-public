@@ -14,7 +14,7 @@ do
 		g = "Git",
 		p = "Project",
 		n = "File tree",
-		L = "Live share",
+		C = "Collabo",
 	}
 	local active
 	local function mappings(buf)

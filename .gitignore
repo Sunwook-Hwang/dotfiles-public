@@ -18,6 +18,6 @@ lvim/.config/lvim/session/*
 
 /tests/
 
-# Native live-share credentials and their atomic-write temporary files
+# Native collabo credentials and their atomic-write temporary files
 .*.flash-share
 .*.flash-share.*

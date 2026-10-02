@@ -44,7 +44,7 @@ require("which-key").setup({
 		{ "<leader>b", group = "[B]uffer" },
 		{ "<leader>T", group = "[T]oggle" },
 		{ "<leader>l", group = "[L]sp & Diagnostic" },
-		{ "<leader>L", group = "[L]ive share" },
+		{ "<leader>C", group = "[C]ollabo" },
 		{ "<leader>g", group = "[G]it" },
 		{ "<leader>p", group = "[P]roject" },
 		{ "<leader>P", group = "[P]rofiler" },

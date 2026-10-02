@@ -623,10 +623,10 @@ Git 프로젝트에서는 안내 파일과 임시 파일을 로컬 Git `info/exc
 
 | 명령 / 키 | 동작 |
 | --- | --- |
-| `<leader>Ls` | 공유 시작 |
-| `<leader>Lj` | 현재 파일의 공유 세션 참여 |
-| `<leader>Lq` | 공유 종료 |
-| `<leader>Li` | 공유 상태 확인 |
+| `<leader>Cs` | 공유 시작 |
+| `<leader>Cj` | 현재 파일의 공유 세션 참여 |
+| `<leader>Cq` | 공유 종료 |
+| `<leader>Ci` | 공유 상태 확인 |
 | `:FlashShare [포트] [바인드주소]` | 현재 소스 버퍼를 공유하고 알림 파일 생성; 기본은 `0.0.0.0`의 빈 포트 |
 | `:FlashJoin [<호스트> <포트> <토큰>]` | 현재 파일의 공유 세션 또는 지정한 세션에 참여 |
 | `:FlashShareStatus` | 주최자·참가자, 변경 번호, 대기 중인 편집 수, 참가자별 커서 위치 확인 |
@@ -671,13 +671,13 @@ SSH 터널에서 사용하고 공용 인터넷에 포트를 노출하지 마세�
 
 ### 라이브쉐어만 갱신하기
 
-`nvim/.config/nvim/lua/live-share/`에는 별도 `live-share.nvim` 저장소와 동일한
+`nvim/.config/nvim/lua/collabo/`에는 별도 `collabo.nvim` 저장소와 동일한
 모듈 4개가 있습니다. FLASH 전용 명령어·키맵·자동 참여 안내·버퍼 사용 정책은
 `lua/collaboration.lua`에 둡니다. 같은 상위 디렉터리의 별도 저장소를 수정한 뒤,
 dotfiles 디렉터리에서 아래처럼 모듈만 복사하면 됩니다.
 
 ```sh
-cp -R ../live-share.nvim/lua/live-share/. nvim/.config/nvim/lua/live-share/
+cp -R ../collabo.nvim/lua/collabo/. nvim/.config/nvim/lua/collabo/
 ```
 
 플러그인 설치나 다른 FLASH 코드 수정은 필요 없습니다. 갱신 후 Neovim을 재시작하세요.
@@ -701,7 +701,7 @@ runtime을 분리합니다.
 | `lsp/`, `tags`, `completion`, `format`, `diagnostics` | 언어 도구와 편집 지원 |
 | `outline`, `breadcrumb_symbols`, `breadcrumbs`, `context` | 심볼 캐시, 아웃라인, 문맥 탐색 |
 | `dashboard`, `terminal`, `session` | 보조 UI와 세션 수명 관리 |
-| `collaboration`, `live-share/` | 선택적으로 켜는 공동 편집 연결, 연산 병합, 사용자별 undo |
+| `collaboration`, `collabo/` | 선택적으로 켜는 공동 편집 연결, 연산 병합, 사용자별 undo |
 | `statusline`, `indent`, `syntax`, `whichkey` | 네이티브 표시와 키 안내 |
 
 LSP 코드는 `lua/lsp/`에 모았습니다. `servers.lua`는 명령어·파일타입 목록,

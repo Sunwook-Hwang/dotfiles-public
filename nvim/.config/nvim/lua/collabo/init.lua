@@ -1,21 +1,21 @@
 -- Transport and edit algorithms load only when starting/joining a session.
 local M = { config = { discovery = true, max_peers = 8, keymaps = false } }
 local shortcuts = {
-	{ "<leader>Ls", "LiveShare", "Live share: start sharing" },
-	{ "<leader>Lj", "LiveShareJoin", "Live share: join current file" },
-	{ "<leader>Lq", "LiveShareStop", "Live share: disconnect" },
-	{ "<leader>Li", "LiveShareStatus", "Live share: session information" },
+	{ "<leader>Cs", "LiveShare", "Live share: start sharing" },
+	{ "<leader>Cj", "LiveShareJoin", "Live share: join current file" },
+	{ "<leader>Cq", "LiveShareStop", "Live share: disconnect" },
+	{ "<leader>Ci", "LiveShareStatus", "Live share: session information" },
 }
 local registered = {}
 local actions = { LiveShare = "start", LiveShareJoin = "join", LiveShareStop = "stop", LiveShareStatus = "status" }
 for _, action in pairs(actions) do
 	M[action] = function(args)
-		return require("live-share.core")[action](args or {})
+		return require("collabo.core")[action](args or {})
 	end
 end
 function M.setup(opts)
 	if vim.fn.has("nvim-0.12") == 0 then
-		error("live-share.nvim requires Neovim 0.12 or newer")
+		error("collabo.nvim requires Neovim 0.12 or newer")
 	end
 	opts = opts or {}
 	local config = vim.tbl_extend("force", M.config, opts)
@@ -53,7 +53,7 @@ function M.setup(opts)
 		end
 	end
 	vim.api.nvim_create_autocmd("BufReadPost", {
-		group = vim.api.nvim_create_augroup("live-share-discovery", { clear = true }),
+		group = vim.api.nvim_create_augroup("collabo-discovery", { clear = true }),
 		callback = function(args)
 			local path = vim.api.nvim_buf_get_name(args.buf)
 			if not M.config.discovery or vim.bo[args.buf].buftype ~= "" or path == "" then
@@ -64,10 +64,10 @@ function M.setup(opts)
 				return
 			end
 			vim.schedule(function()
-				if vim.api.nvim_get_current_buf() ~= args.buf or not require("live-share.buffer").is_editor(0) then
+				if vim.api.nvim_get_current_buf() ~= args.buf or not require("collabo.buffer").is_editor(0) then
 					return
 				end
-				local ok, err = pcall(require("live-share.core").discover, args.buf, true)
+				local ok, err = pcall(require("collabo.core").discover, args.buf, true)
 				if not ok then
 					vim.notify(tostring(err), vim.log.levels.ERROR)
 				end

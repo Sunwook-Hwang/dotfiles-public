@@ -30,7 +30,7 @@ See the Vim guide in [English](docs/vim-nopack-features.md) or
 macOS:
 
 ```sh
-git clone --depth 1 https://github.com/Sunwook-Hwang/dotfiles ~/dotfiles
+git clone --depth 1 https://github.com/Sunwook-Hwang/dotfiles.git ~/dotfiles
 cd ~/dotfiles
 ./mac_setup.sh
 ```
@@ -38,7 +38,7 @@ cd ~/dotfiles
 Linux:
 
 ```sh
-git clone --depth 1 https://github.com/Sunwook-Hwang/dotfiles ~/dotfiles
+git clone --depth 1 https://github.com/Sunwook-Hwang/dotfiles.git ~/dotfiles
 cd ~/dotfiles
 ./linux_setup.sh
 ```

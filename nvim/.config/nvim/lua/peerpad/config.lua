@@ -1,6 +1,6 @@
--- Common commands, shortcuts and discovery belong to collab.nvim.
+-- Common commands, shortcuts and discovery belong to peerpad.nvim.
 local policy = require("buffer_policy")
-local share = require("collab")
+local share = require("peerpad")
 local start = share.start
 share.start = function(args)
 	assert(policy.allows(0) and vim.bo.modifiable, "Share a normal, editable source buffer")

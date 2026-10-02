@@ -641,7 +641,7 @@ source, so only people who can already change the file can join. It is removed
 by `:FlashShareStop` or on exit. After a crash, it is cleaned up when someone on
 the same host opens the file again; otherwise delete it by hand. Set
 `vim.g.flash_share_discovery = false` before configuration loads to skip the per-open
-check. During a session, set `require("collab").config.discovery = false` instead.
+check. During a session, set `require("peerpad").config.discovery = false` instead.
 
 In Git repositories, discovery files and their temporary files are excluded through
 local Git `info/exclude`, without changing the project's tracked settings. If safe
@@ -709,16 +709,16 @@ network, or read the sidecar, can join and read the text. Peers' text cannot set
 options through modelines. Use a trusted internal network or
 an SSH tunnel, and do not expose the listener to the public Internet.
 
-### Updating collab independently
+### Updating peerpad independently
 
-`nvim/.config/nvim/lua/collab/` contains the same four modules as the
-standalone `collab.nvim` repository. FLASH command aliases
-and buffer eligibility stay in `lua/collab/config.lua`. Common commands, shortcuts
-and discovery are registered once by `collab.setup()`.
+`nvim/.config/nvim/lua/peerpad/` contains the same four modules as the
+standalone `peerpad.nvim` repository. FLASH command aliases
+and buffer eligibility stay in `lua/peerpad/config.lua`. Common commands, shortcuts
+and discovery are registered once by `peerpad.setup()`.
 From the dotfiles checkout, copy only the modules after updating the sibling repository:
 
 ```sh
-cp -R ../collab.nvim/lua/collab/. nvim/.config/nvim/lua/collab/
+cp -R ../peerpad.nvim/lua/peerpad/. nvim/.config/nvim/lua/peerpad/
 ```
 
 No plugin installation or changes to the rest of FLASH are required. Restart Neovim
@@ -742,7 +742,7 @@ It resolves symlinks and keeps the runtime isolated from pack modules/plugins.
 | `lsp/`, `tags`, `completion`, `format`, `diagnostics` | Language tools and editing assistance |
 | `outline`, `breadcrumb_symbols`, `breadcrumbs`, `context` | Cached symbols, outline, context navigation |
 | `dashboard`, `terminal`, `session` | Auxiliary UI and session lifecycle |
-| `collab/` | Collaboration setup (`config.lua`), transport, rebasing and private undo |
+| `peerpad/` | Collaboration setup (`config.lua`), transport, rebasing and private undo |
 | `statusline`, `indent`, `syntax`, `whichkey` | Native display and key guide |
 
 LSP code lives in `lua/lsp/`: `servers.lua` lists commands and filetypes,

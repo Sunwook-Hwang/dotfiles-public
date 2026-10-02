@@ -51,5 +51,5 @@ require("context")
 require("breadcrumbs")
 require("whichkey")
 
--- FLASH integration; reusable collab code lives in lua/collab/.
-require("collab.config")
+-- FLASH integration; reusable peerpad code lives in lua/peerpad/.
+require("peerpad.config")

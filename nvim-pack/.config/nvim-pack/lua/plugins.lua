@@ -19,7 +19,7 @@ local packages = {
 	-- git & navigation
 	{ src = "https://github.com/lewis6991/gitsigns.nvim" },
 	{ src = "https://github.com/stevearc/aerial.nvim" },
-	{ src = "https://github.com/Sunwook-Hwang/collab.nvim" },
+	{ src = "https://github.com/Sunwook-Hwang/peerpad.nvim" },
 
 	-- formatting & tool management
 	{ src = "https://github.com/stevearc/conform.nvim" },

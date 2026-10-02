@@ -610,7 +610,7 @@ FLASH는 플러그인이나 별도 서버 실행 파일 없이 서로 다른 Neo
 수정할 수 있는 사람만 참여합니다. `:FlashShareStop`이나 종료 시 삭제됩니다. 비정상 종료로
 남은 파일은 같은 호스트에서 다시 열 때 정리되고, 그 밖의 경우에는 직접 지워야 합니다.
 파일을 열 때마다 하는 확인을 끄려면 설정 로드 전에 `vim.g.flash_share_discovery = false`로
-설정합니다. 실행 중에는 `require("collab").config.discovery = false`로 끕니다.
+설정합니다. 실행 중에는 `require("peerpad").config.discovery = false`로 끕니다.
 
 Git 프로젝트에서는 안내 파일과 임시 파일을 로컬 Git `info/exclude`에 제외합니다.
 프로젝트의 추적 중인 설정은 바꾸지 않습니다. 안전한 제외 또는 안내 파일 생성이
@@ -672,14 +672,14 @@ SSH 터널에서 사용하고 공용 인터넷에 포트를 노출하지 마세�
 
 ### 라이브쉐어만 갱신하기
 
-`nvim/.config/nvim/lua/collab/`에는 별도 `collab.nvim` 저장소와 동일한
+`nvim/.config/nvim/lua/peerpad/`에는 별도 `peerpad.nvim` 저장소와 동일한
 모듈 4개가 있습니다. FLASH 명령어 별칭과 버퍼 사용 정책은
-`lua/collab/config.lua`에 둡니다. 공통 명령·단축키·자동 탐색은 `collab.setup()`에서
+`lua/peerpad/config.lua`에 둡니다. 공통 명령·단축키·자동 탐색은 `peerpad.setup()`에서
 한 번만 등록합니다. 같은 상위 디렉터리의 별도 저장소를 수정한 뒤,
 dotfiles 디렉터리에서 아래처럼 모듈만 복사하면 됩니다.
 
 ```sh
-cp -R ../collab.nvim/lua/collab/. nvim/.config/nvim/lua/collab/
+cp -R ../peerpad.nvim/lua/peerpad/. nvim/.config/nvim/lua/peerpad/
 ```
 
 플러그인 설치나 다른 FLASH 코드 수정은 필요 없습니다. 갱신 후 Neovim을 재시작하세요.
@@ -703,7 +703,7 @@ runtime을 분리합니다.
 | `lsp/`, `tags`, `completion`, `format`, `diagnostics` | 언어 도구와 편집 지원 |
 | `outline`, `breadcrumb_symbols`, `breadcrumbs`, `context` | 심볼 캐시, 아웃라인, 문맥 탐색 |
 | `dashboard`, `terminal`, `session` | 보조 UI와 세션 수명 관리 |
-| `collab/` | 공동 편집 설정(`config.lua`), 연결, 연산 병합, 사용자별 undo |
+| `peerpad/` | 공동 편집 설정(`config.lua`), 연결, 연산 병합, 사용자별 undo |
 | `statusline`, `indent`, `syntax`, `whichkey` | 네이티브 표시와 키 안내 |
 
 LSP 코드는 `lua/lsp/`에 모았습니다. `servers.lua`는 명령어·파일타입 목록,

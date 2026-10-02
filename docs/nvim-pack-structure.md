@@ -96,7 +96,7 @@ after changes.
 
 ## Live sharing
 
-Pack installs [collab.nvim](https://github.com/Sunwook-Hwang/collab.nvim)
+Pack installs [peerpad.nvim](https://github.com/Sunwook-Hwang/peerpad.nvim)
 through `vim.pack`; `init.lua` calls its setup directly. It interoperates with FLASH's native live sharing.
 `<leader>Cs` starts sharing, `<leader>Cj` joins, `<leader>Cq` disconnects, and
 `<leader>Ci` shows session information. The commands are `:LiveShare`,

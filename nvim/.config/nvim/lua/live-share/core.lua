@@ -87,7 +87,7 @@ local function channel(socket, receive, disconnected)
 				return
 			end
 			if err or not data then
-				self:stop(err or "Disconnected; local text was retained")
+				self:stop(err or "Connection closed by peer")
 				return
 			end
 			self.input = self.input .. data
@@ -338,6 +338,9 @@ local function send_next(session)
 end
 
 local function schedule_send(session)
+	if not session.connected then
+		return
+	end
 	if not session.send_scheduled then
 		session.send_scheduled = true
 		vim.schedule(function()
@@ -508,7 +511,7 @@ end
 
 local function create_buffer(session, message)
 	local buf = vim.api.nvim_create_buf(true, false)
-	session.buf, session.text = buf, message.text
+	session.buf, session.text, session.file = buf, message.text, message.file
 	vim.api.nvim_buf_set_name(
 		buf,
 		"live-share://" .. message.session .. "/" .. session.id .. "/" .. vim.fs.basename(message.file)
@@ -526,7 +529,9 @@ local function create_buffer(session, message)
 		group = group,
 		buffer = buf,
 		callback = function(args)
-			if args.event == "BufWriteCmd" and vim.api.nvim_buf_get_name(buf) == name then
+			if not session.connected then
+				notify("Disconnected snapshot: copy its text into a normal buffer to save", vim.log.levels.WARN)
+			elseif args.event == "BufWriteCmd" and vim.api.nvim_buf_get_name(buf) == name then
 				write_shared(session)
 			else
 				notify(
@@ -624,6 +629,39 @@ local function create_buffer(session, message)
 	end
 end
 
+-- Reclaim only redundant shared text. Never overwrite or reload a source buffer.
+local function finish_buffer(session)
+	local buf, source = session.buf, session.target.buf
+	if not buf or not vim.api.nvim_buf_is_valid(buf) then
+		return ""
+	end
+	vim.b[buf].live_shared = false
+	vim.api.nvim_buf_clear_namespace(buf, cursor_ns, 0, -1)
+	if
+		vim.api.nvim_buf_is_loaded(source)
+		and policy.is_source(source)
+		and vim.api.nvim_buf_get_name(source) == session.file
+		and #session.queue == 0
+		and vim.deep_equal(
+			vim.api.nvim_buf_get_lines(buf, 0, -1, false),
+			vim.api.nvim_buf_get_lines(source, 0, -1, false)
+		)
+	then
+		for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+			vim.api.nvim_win_call(win, function()
+				local view = vim.fn.winsaveview()
+				vim.api.nvim_win_set_buf(win, source)
+				vim.fn.winrestview(view)
+			end)
+		end
+		vim.api.nvim_buf_delete(buf, { force = true })
+		return "; returned to source buffer"
+	end
+	local name = vim.api.nvim_buf_get_name(buf)
+	vim.api.nvim_buf_set_name(buf, vim.fs.dirname(name) .. "/[disconnected] " .. vim.fs.basename(session.file))
+	return "; disconnected snapshot retained"
+end
+
 -- Try each advertised host in order until one completes the handshake.
 local function connect(hosts, port, token, owner)
 	assert(not client, "Already sharing; use :LiveShareStop first")
@@ -713,13 +751,9 @@ local function connect(hosts, port, token, owner)
 		if client == session then
 			client = nil
 		end
-		if session.buf and vim.api.nvim_buf_is_valid(session.buf) then
-			vim.b[session.buf].live_shared = false
-			-- Positions are no longer maintained; do not leave them misleading.
-			vim.api.nvim_buf_clear_namespace(session.buf, cursor_ns, 0, -1)
-		end
-		if reason then
-			notify(reason, vim.log.levels.WARN)
+		local outcome = finish_buffer(session)
+		if not session.silent then
+			notify((reason or "Disconnected") .. outcome, reason and vim.log.levels.WARN or vim.log.levels.INFO)
 		end
 	end
 	function attempt(index)
@@ -1060,10 +1094,11 @@ function M.join(args)
 	connect({ args[1] }, port, args[3])
 end
 
-function M.stop()
+local function stop(silent)
 	local owner, session = server, client
 	server, client = nil, nil
 	if session then
+		session.silent = silent
 		session.connection:stop()
 	end
 	if owner then
@@ -1075,8 +1110,16 @@ function M.stop()
 	end
 	-- Shared scratch text stays available; never overwrite or destroy a source buffer.
 	if owner and owner.session and owner.session ~= session then
+		owner.session.silent = silent
 		owner.session.connection:stop()
 	end
+	if owner and not session and not silent then
+		notify("Sharing stopped")
+	end
+end
+
+function M.stop()
+	stop(false)
 end
 
 function M.status()
@@ -1098,5 +1141,10 @@ function M.status()
 	notify(table.concat(lines, "\n"))
 end
 
-vim.api.nvim_create_autocmd("VimLeavePre", { group = group, callback = M.stop })
+vim.api.nvim_create_autocmd("VimLeavePre", {
+	group = group,
+	callback = function()
+		stop(true)
+	end,
+})
 return M

@@ -674,9 +674,13 @@ the ordinary undo browser or `:undo`, inside a shared buffer.
 
 Only the owner saves. Guest writes, writes to other paths and appends are refused.
 Saving is refused while the owner has pending edits, or if the original buffer or
-disk contents changed outside the session. A disconnect keeps the shared text
-available; copy it into a normal buffer to recover unsaved work. Sessions do not
-automatically reconnect or survive Neovim exit.
+disk contents changed outside the session. Disconnecting shows a notification.
+If the shared text matches the loaded original and no edits are pending, its
+windows return to the original without changing the split layout, and the redundant
+shared buffer is removed. Otherwise a `[disconnected]` snapshot is retained;
+copy its text into a normal buffer to recover unsaved work. The source is never
+overwritten or reloaded during disconnect. Sessions do not automatically reconnect
+or survive Neovim exit.
 
 The module is loaded only when a share command is used or an opened file has a
 sidecar; otherwise each file read costs one `stat`. There is no file polling or

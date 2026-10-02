@@ -51,5 +51,5 @@ require("context")
 require("breadcrumbs")
 require("whichkey")
 
--- FLASH integration; reusable collabo code lives in lua/collabo/.
+-- FLASH integration; reusable collab code lives in lua/collab/.
 require("collaboration")

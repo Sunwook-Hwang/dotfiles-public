@@ -671,13 +671,13 @@ SSH 터널에서 사용하고 공용 인터넷에 포트를 노출하지 마세�
 
 ### 라이브쉐어만 갱신하기
 
-`nvim/.config/nvim/lua/collabo/`에는 별도 `collabo.nvim` 저장소와 동일한
+`nvim/.config/nvim/lua/collab/`에는 별도 `collab.nvim` 저장소와 동일한
 모듈 4개가 있습니다. FLASH 전용 명령어·키맵·자동 참여 안내·버퍼 사용 정책은
 `lua/collaboration.lua`에 둡니다. 같은 상위 디렉터리의 별도 저장소를 수정한 뒤,
 dotfiles 디렉터리에서 아래처럼 모듈만 복사하면 됩니다.
 
 ```sh
-cp -R ../collabo.nvim/lua/collabo/. nvim/.config/nvim/lua/collabo/
+cp -R ../collab.nvim/lua/collab/. nvim/.config/nvim/lua/collab/
 ```
 
 플러그인 설치나 다른 FLASH 코드 수정은 필요 없습니다. 갱신 후 Neovim을 재시작하세요.
@@ -701,7 +701,7 @@ runtime을 분리합니다.
 | `lsp/`, `tags`, `completion`, `format`, `diagnostics` | 언어 도구와 편집 지원 |
 | `outline`, `breadcrumb_symbols`, `breadcrumbs`, `context` | 심볼 캐시, 아웃라인, 문맥 탐색 |
 | `dashboard`, `terminal`, `session` | 보조 UI와 세션 수명 관리 |
-| `collaboration`, `collabo/` | 선택적으로 켜는 공동 편집 연결, 연산 병합, 사용자별 undo |
+| `collaboration`, `collab/` | 선택적으로 켜는 공동 편집 연결, 연산 병합, 사용자별 undo |
 | `statusline`, `indent`, `syntax`, `whichkey` | 네이티브 표시와 키 안내 |
 
 LSP 코드는 `lua/lsp/`에 모았습니다. `servers.lua`는 명령어·파일타입 목록,

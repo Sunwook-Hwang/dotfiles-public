@@ -2,9 +2,9 @@
 local policy = require("buffer_policy")
 
 local function transport()
-	local share = require("collabo")
+	local share = require("collab")
 	share.config.max_peers = math.max(2, math.min(tonumber(vim.g.flash_share_max_peers) or 8, 64))
-	return require("collabo.core")
+	return require("collab.core")
 end
 
 for command, action in pairs({
@@ -30,7 +30,7 @@ for command, action in pairs({
 	end, { nargs = "*", desc = "Native single-buffer collaboration: " .. action })
 end
 
--- Same leader shortcuts as the standalone collabo.nvim package.
+-- Same leader shortcuts as the standalone collab.nvim package.
 for _, shortcut in ipairs({
 	{ "<leader>Cs", "FlashShare", "Live share: start sharing" },
 	{ "<leader>Cj", "FlashJoin", "Live share: join current file" },
@@ -42,7 +42,7 @@ for _, shortcut in ipairs({
 	end
 end
 
--- Offer to join when an opened file has a collabo sidecar (see lua/collabo/core.lua).
+-- Offer to join when an opened file has a collab sidecar (see lua/collab/core.lua).
 -- One stat per file read; the module loads only when a sidecar exists.
 vim.api.nvim_create_autocmd("BufReadPost", {
 	group = vim.api.nvim_create_augroup("flash-share-discovery", { clear = true }),

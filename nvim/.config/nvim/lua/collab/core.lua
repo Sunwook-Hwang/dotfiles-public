@@ -1,13 +1,13 @@
 -- Explicit, single-buffer collaboration. No polling or external server process.
 -- An authenticated TCP session orders edits; text operations rebase concurrent changes.
 -- A sidecar next to the source (usually on NFS) advertises the session to later openers.
-local op = require("collabo.operation")
-local policy = require("collabo.buffer")
+local op = require("collab.operation")
+local policy = require("collab.buffer")
 local M = {}
 local server, client
-local group = vim.api.nvim_create_augroup("collabo-transport", { clear = true })
+local group = vim.api.nvim_create_augroup("collab-transport", { clear = true })
 local limit = 1024 * 1024
-local cursor_ns = vim.api.nvim_create_namespace("collabo-cursors")
+local cursor_ns = vim.api.nvim_create_namespace("collab-cursors")
 -- Peers cycle through these; colorschemes may override LiveSharePeer1..6.
 for i, link in ipairs({
 	"DiagnosticVirtualTextInfo",
@@ -514,7 +514,7 @@ local function create_buffer(session, message)
 	session.buf, session.text, session.file = buf, message.text, message.file
 	vim.api.nvim_buf_set_name(
 		buf,
-		"collabo://" .. message.session .. "/" .. session.id .. "/" .. vim.fs.basename(message.file)
+		"collab://" .. message.session .. "/" .. session.id .. "/" .. vim.fs.basename(message.file)
 	)
 	vim.bo[buf].buftype, vim.bo[buf].bufhidden, vim.bo[buf].swapfile = "acwrite", "hide", false
 	vim.bo[buf].undofile, vim.bo[buf].undolevels = false, -1
@@ -835,7 +835,7 @@ function M.start(args)
 		disk = disk_content(path),
 	}
 	-- Participants including the owner; unauthenticated connections count until they time out.
-	owner.capacity = math.max(2, math.min(require("collabo").config.max_peers, 64))
+	owner.capacity = math.max(2, math.min(require("collab").config.max_peers, 64))
 	-- Loopback peers (the owner, same-host guests) are labelled with this host's address.
 	local hosts = advertised(args[2] or "0.0.0.0")
 	owner.ip = hosts[2] or hosts[1]
@@ -863,7 +863,7 @@ function M.start(args)
 				if not connection.id then
 					assert(
 						message.type == "hello" and message.protocol == 2 and message.token == owner.token,
-						"Authentication failed or incompatible collabo protocol"
+						"Authentication failed or incompatible collab protocol"
 					)
 					connection:settle()
 					owner.next_id = owner.next_id + 1

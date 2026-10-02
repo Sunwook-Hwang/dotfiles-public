@@ -18,14 +18,31 @@ echo "Stowing dotfiles into $TARGET"
 
 function backup_conflicts {
   local folder="$1"
-  local path relative target_path backup_path
+  local path relative target_path backup_path remaining prefix
 
   while IFS= read -r path; do
     [[ -e "$path" || -L "$path" ]] || continue
     relative="${path#"$folder"/}"
+    remaining="$relative"
+    prefix=""
+    # Back up foreign directory links themselves, never files through those links.
+    while [[ "$remaining" == */* ]]; do
+      prefix="${prefix:+$prefix/}${remaining%%/*}"
+      remaining="${remaining#*/}"
+      target_path="$TARGET/$prefix"
+      if [[ -L "$target_path" || ( -e "$target_path" && ! -d "$target_path" ) ]]; then
+        [[ -L "$target_path" && "$target_path" -ef "$CURDIR/$folder/$prefix" ]] && continue 2
+        backup_path="$BACKUP_DIR/$prefix"
+        mkdir -p "$(dirname "$backup_path")"
+        echo "Backing up existing $target_path -> $backup_path"
+        mv "$target_path" "$backup_path"
+        continue 2
+      fi
+    done
     target_path="$TARGET/$relative"
 
     if [[ -e "$target_path" || -L "$target_path" ]]; then
+      [[ -L "$target_path" && "$target_path" -ef "$CURDIR/$path" ]] && continue
       backup_path="$BACKUP_DIR/$relative"
       mkdir -p "$(dirname "$backup_path")"
       echo "Backing up existing $target_path -> $backup_path"
@@ -46,8 +63,8 @@ done
 for folder in claude codex ghostty git herdr nvim nvim-pack neovide-terminal vim zsh csh tmux tools; do
   [[ -d "$folder" ]] || continue
   echo "Linking $folder"
-  stow "${STOW_IGNORE_ARGS[@]}" -D -t "$TARGET" "$folder"
   backup_conflicts "$folder"
+  stow "${STOW_IGNORE_ARGS[@]}" -D -t "$TARGET" "$folder"
   stow "${STOW_IGNORE_ARGS[@]}" -t "$TARGET" "$folder"
 done
 

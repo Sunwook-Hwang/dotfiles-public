@@ -52,4 +52,4 @@ require("breadcrumbs")
 require("whichkey")
 
 -- FLASH integration; reusable collab code lives in lua/collab/.
-require("collaboration")
+require("collab.config")

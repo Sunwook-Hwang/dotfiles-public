@@ -640,7 +640,8 @@ The sidecar is readable by the classes (owner/group/other) that may write the
 source, so only people who can already change the file can join. It is removed
 by `:FlashShareStop` or on exit. After a crash, it is cleaned up when someone on
 the same host opens the file again; otherwise delete it by hand. Set
-`vim.g.flash_share_discovery = false` to skip the per-open check.
+`vim.g.flash_share_discovery = false` before configuration loads to skip the per-open
+check. During a session, set `require("collab").config.discovery = false` instead.
 
 In Git repositories, discovery files and their temporary files are excluded through
 local Git `info/exclude`, without changing the project's tracked settings. If safe
@@ -711,8 +712,9 @@ an SSH tunnel, and do not expose the listener to the public Internet.
 ### Updating collab independently
 
 `nvim/.config/nvim/lua/collab/` contains the same four modules as the
-standalone `collab.nvim` repository. FLASH-specific commands, keymaps,
-discovery and buffer eligibility stay in `lua/collaboration.lua`.
+standalone `collab.nvim` repository. FLASH command aliases
+and buffer eligibility stay in `lua/collab/config.lua`. Common commands, shortcuts
+and discovery are registered once by `collab.setup()`.
 From the dotfiles checkout, copy only the modules after updating the sibling repository:
 
 ```sh
@@ -740,7 +742,7 @@ It resolves symlinks and keeps the runtime isolated from pack modules/plugins.
 | `lsp/`, `tags`, `completion`, `format`, `diagnostics` | Language tools and editing assistance |
 | `outline`, `breadcrumb_symbols`, `breadcrumbs`, `context` | Cached symbols, outline, context navigation |
 | `dashboard`, `terminal`, `session` | Auxiliary UI and session lifecycle |
-| `collaboration`, `collab/` | Opt-in collaboration transport, rebasing and private undo |
+| `collab/` | Collaboration setup (`config.lua`), transport, rebasing and private undo |
 | `statusline`, `indent`, `syntax`, `whichkey` | Native display and key guide |
 
 LSP code lives in `lua/lsp/`: `servers.lua` lists commands and filetypes,

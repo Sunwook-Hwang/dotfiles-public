@@ -50,3 +50,60 @@ require("syntax")
 require("context")
 require("breadcrumbs")
 require("whichkey")
+
+-- Collaboration is opt-in; do not load its transport or algorithms during startup.
+for command, action in pairs({
+	FlashShare = "start",
+	FlashJoin = "join",
+	FlashShareStop = "stop",
+	FlashShareStatus = "status",
+}) do
+	vim.api.nvim_create_user_command(command, function(args)
+		local ok, err = pcall(function()
+			require("sharing")[action](args.fargs)
+		end)
+		if not ok then
+			vim.notify(tostring(err), vim.log.levels.ERROR)
+		end
+	end, { nargs = "*", desc = "Native single-buffer collaboration: " .. action })
+end
+
+-- Same leader shortcuts as the standalone live-share.nvim package.
+for _, shortcut in ipairs({
+	{ "<leader>Ls", "FlashShare", "Live share: start sharing" },
+	{ "<leader>Lj", "FlashJoin", "Live share: join current file" },
+	{ "<leader>Lq", "FlashShareStop", "Live share: disconnect" },
+	{ "<leader>Li", "FlashShareStatus", "Live share: session information" },
+}) do
+	if vim.fn.maparg(shortcut[1], "n") == "" then
+		vim.keymap.set("n", shortcut[1], "<Cmd>" .. shortcut[2] .. "<CR>", { silent = true, desc = shortcut[3] })
+	end
+end
+
+-- Offer to join when an opened file has a live-share sidecar (see lua/sharing.lua).
+-- One stat per file read; the module loads only when a sidecar exists.
+vim.api.nvim_create_autocmd("BufReadPost", {
+	group = vim.api.nvim_create_augroup("flash-share-discovery", { clear = true }),
+	callback = function(args)
+		local path = vim.api.nvim_buf_get_name(args.buf)
+		if vim.g.flash_share_discovery == false or vim.bo[args.buf].buftype ~= "" or path == "" then
+			return
+		end
+		if
+			not vim.uv.fs_lstat(vim.fs.joinpath(vim.fs.dirname(path), "." .. vim.fs.basename(path) .. ".flash-share"))
+		then
+			return
+		end
+		vim.schedule(function()
+			if vim.api.nvim_get_current_buf() ~= args.buf or not require("buffer_policy").is_editor(0) then
+				return
+			end
+			local ok, err = pcall(function()
+				require("sharing").discover(args.buf, true)
+			end)
+			if not ok then
+				vim.notify(tostring(err), vim.log.levels.ERROR)
+			end
+		end)
+	end,
+})

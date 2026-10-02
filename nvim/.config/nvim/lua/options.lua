@@ -209,4 +209,4 @@ vim.api.nvim_create_autocmd({ "WinEnter", "BufEnter", "BufWinEnter", "FileType",
 -- =========================================
 -- ================ LEADER =================
 -- =========================================
-vim.g.mapleader = " "
+vim.g.mapleader = vim.g.mapleader or " " -- default only; preserve a leader set before loading FLASH

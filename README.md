@@ -8,8 +8,10 @@ This repository includes [`nvim/init.lua`](nvim/.config/nvim/init.lua),
 a **package-free Native Neovim configuration** for Neovim 0.12+.
 It uses no plugin manager and no external Lua plugins, and it performs no plugin
 or parser downloads. Built-in replacements provide a dashboard, fuzzy pickers,
-a file tree, a Space-key guide, Sticky Scroll, Git signs and inline blame, LSP,
+a file tree, a leader-key guide, Sticky Scroll, Git signs and inline blame, LSP,
 completion, formatting, sessions, an undo browser, and a reusable terminal.
+Opt-in [single-buffer collaboration](docs/flash.md#live-buffer-sharing) uses
+Neovim's native TCP APIs without a plugin or a separate server executable.
 
 Optional language servers, formatters, and command-line search tools are used
 only when already installed. See the feature guide in
@@ -171,15 +173,15 @@ clean/reinstall; a fresh install defaults to nopack.
 | Completion      | Native LSP completion on server-defined triggers; buffer words and ctags fallback without LSP                                   |
 | Completion keys | `Ctrl-Space` requests candidates, `Ctrl-n/p` selects, `Enter` accepts; `Tab` / `Shift-Tab` navigates snippets or candidates     |
 | Definition      | `gd` uses LSP first, then saved-file ctags definitions                                                                          |
-| LSP             | Native client; `Space ls` restarts current-buffer clients, `Space lv` selects the Python environment                            |
-| Formatting      | `Space lf` runs installed formatters asynchronously or falls back to LSP; no format-on-save                                     |
-| Search          | `Space f` finds files, `Space Enter` finds Git-tracked files, `Space st` searches text live, `Space t` searches the cursor word |
-| Code outline    | `Space o` opens LSP symbols or a ctags fallback; `Enter` jumps, `r` refreshes, `q` closes                                       |
-| File tree       | `Space e` opens an editable project-root tree and reveals the current file; indentation guides, Git signs, hidden/ignored toggles, and nested path creation |
-| Git             | Unstaged line signs, branch/file status, and side-by-side index/HEAD diff with `Space gd/gD`                                    |
+| LSP             | Native client; `<leader>ls` restarts current-buffer clients, `<leader>lv` selects the Python environment                            |
+| Formatting      | `<leader>lf` runs installed formatters asynchronously or falls back to LSP; no format-on-save                                     |
+| Search          | `<leader>f` finds files, `<leader><CR>` finds Git-tracked files, `<leader>st` searches text live, `<leader>t` searches the cursor word |
+| Code outline    | `<leader>o` opens LSP symbols or a ctags fallback; `Enter` jumps, `r` refreshes, `q` closes                                       |
+| File tree       | `<leader>e` opens an editable project-root tree and reveals the current file; indentation guides, Git signs, hidden/ignored toggles, and nested path creation |
+| Git             | Unstaged line signs, branch/file status, and side-by-side index/HEAD diff with `<leader>gd/gD`                                    |
 | Terminal        | `Ctrl-t` toggles a reusable bottom split; `Esc Esc` exits Terminal mode                                                         |
 | Auto pairs      | Brackets `() [] {}`, single/double quotes, and backticks; skip existing closers and delete empty pairs                          |
-| Undo            | `Space u` previews saved undo states before applying one                                                                        |
+| Undo            | `<leader>u` previews saved undo states before applying one                                                                        |
 | Highlighting    | Bundled Treesitter parsers when available, otherwise syntax highlighting; native indent guides                                  |
 
 LSP and formatter launchers are searched on `PATH` first, then in an existing `stdpath("data")/mason/bin` directory without loading
@@ -190,7 +192,7 @@ Exuberant Ctags. Search uses installed `find`, `git`, and `rg` or `grep`.
 Large files disable expensive editing features. Ctags cache merging runs in a
 worker thread, and Git/tree/tabline caches avoid repeated work during editing.
 The built-in picker and outline provide a smaller feature set than Telescope
-and Aerial; a native Space-key guide replaces Which-key, while DAP is not included.
+and Aerial; a native leader-key guide replaces Which-key, while DAP is not included.
 
 See the FLASH guide in [English](docs/flash.md) or [한국어](docs/flash.ko.md)
 for features, keymaps, tool setup, server transfer, ctags, and configuration structure.

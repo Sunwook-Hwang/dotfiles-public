@@ -4,7 +4,7 @@ local shared = require("state")
 -- =========================================
 -- ============ SEARCH: FILES ============
 -- =========================================
--- Space f: 프로젝트 파일, Space sn: 설정 파일, Space sr: 최근 파일.
+-- <leader>f: 프로젝트 파일, <leader>sn: 설정 파일, <leader>sr: 최근 파일.
 -- find 결과를 비동기로 수집한 뒤 내장 matchfuzzy로 좁힙니다. Git 파일 키는 GIT에 있습니다.
 function shared.file_items(files, root)
 	local items = {}
@@ -96,7 +96,7 @@ end, "Recent files")
 -- =========================================
 -- ======= SEARCH: EDITOR METADATA =======
 -- =========================================
--- Space sc/sh/sk/sp: 명령·도움말·키맵·테마. 테마 미리보기 취소 시 원래 테마를 복구합니다.
+-- <leader>sc/sh/sk/sp: 명령·도움말·키맵·테마. 테마 미리보기 취소 시 원래 테마를 복구합니다.
 local function command_picker(title, kind, action)
 	local items = {}
 	for _, name in ipairs(vim.fn.getcompletion("", kind)) do
@@ -167,8 +167,8 @@ end, "Search keymaps")
 -- =========================================
 -- ======= SEARCH: TEXT / LIVE GREP ======
 -- =========================================
--- Space st: 입력마다 정규식 검색; Space t: 커서 단어를 고정 검색 후 결과 필터.
--- Space s/: 열린 파일의 디스크 내용만 검색. rg 우선, 없으면 grep 사용.
+-- <leader>st: 입력마다 정규식 검색; <leader>t: 커서 단어를 고정 검색 후 결과 필터.
+-- <leader>s/: 열린 파일의 디스크 내용만 검색. rg 우선, 없으면 grep 사용.
 -- 새 입력은 이전 작업을 취소하여 오래된 검색 결과가 뒤늦게 표시되지 않게 합니다.
 local function search(text, paths, root, fixed, callback)
 	if not text or text == "" then

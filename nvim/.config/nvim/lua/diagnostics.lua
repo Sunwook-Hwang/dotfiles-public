@@ -22,7 +22,7 @@ local handlers = {
 -- =========================================
 -- ============= DIAGNOSTICS =============
 -- =========================================
--- Space ld/lD/sd: 현재 줄/버퍼 목록/전체 목록. [d/]d: 이동, Space lt: 표시 토글.
+-- <leader>ld/lD/sd: 현재 줄/버퍼 목록/전체 목록. [d/]d: 이동, <leader>lt: 표시 토글.
 shared.map("n", "<leader>ld", policy.guard(vim.diagnostic.open_float), "Line diagnostics")
 shared.map(
 	"n",

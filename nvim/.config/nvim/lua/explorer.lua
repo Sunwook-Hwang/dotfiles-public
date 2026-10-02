@@ -1420,6 +1420,9 @@ vim.api.nvim_create_autocmd("BufEnter", {
 		if vim.bo[args.buf].buftype == "" and name ~= "" and vim.fn.isdirectory(name) == 1 then
 			vim.bo[args.buf].buflisted = false
 			vim.bo[args.buf].buftype = "nofile"
+			if vim.g.SessionLoad then
+				return -- Session restoration owns cleanup; do not open or scan a tree.
+			end
 			M.open(name)
 			-- BufEnter listeners still receive the original ID; dispose after dispatch.
 			vim.schedule(function()

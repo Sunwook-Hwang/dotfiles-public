@@ -17,6 +17,7 @@ from these configuration files and must also be available on a network-isolated 
 | `keymaps.lua`       | Editing, window movement/resizing, cursor word highlight          |
 | `bigfile.lua`       | Snacks bigfile configuration and supplemental growth checks       |
 | `plugins.lua`       | `vim.pack` package registration                                   |
+| `collaboration.lua` | live-share.nvim setup, discovery and leader shortcuts             |
 | `context.lua`       | Native sticky context and its update lifecycle                    |
 | `ui.lua`            | Snacks setup: dashboard, indent, picker styling, terminal layout  |
 | `git.lua`           | Gitsigns, hunk operations, inline blame                           |
@@ -93,6 +94,19 @@ feature module. File splitting does not itself change refresh frequency, introdu
 lazy loading, or improve performance. Avoid re-sourcing individual modules during
 a running session: their setup code registers mappings and events. Restart Neovim
 after changes.
+
+## Live sharing
+
+Pack installs [live-share.nvim](https://github.com/Sunwook-Hwang/live-share.nvim)
+through `vim.pack`. It interoperates with FLASH's native live sharing.
+`<leader>Ls` starts sharing, `<leader>Lj` joins, `<leader>Lq` disconnects, and
+`<leader>Li` shows session information. The commands are `:LiveShare`,
+`:LiveShareJoin`, `:LiveShareStop`, and `:LiveShareStatus`.
+Transport loads only when needed; discovery checks once per source-file read.
+For disconnected servers, copy this package along with the other Pack plugins.
+
+pvi에서도 FLASH와 같은 리더키 단축키로 공유·참여·종료·상태 확인을 사용합니다.
+NFS로 같은 파일을 보더라도 참여자 사이 TCP 연결은 필요하며, 원본 저장은 호스트만 합니다.
 
 ## Scope and profiling
 

@@ -124,6 +124,29 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
 		cancel_python_selection()
 	end,
 })
+-- Complete buffer detachment before attaching a replacement. A late exit from
+-- the old client must not tear down the replacement's semantic-token watchers.
+local function restart_client(client)
+	if client:is_stopped() then
+		return
+	end
+	local buffers = vim.tbl_keys(client.attached_buffers)
+	local config = vim.deepcopy(client.config)
+	for _, buf in ipairs(buffers) do
+		vim.lsp.buf_detach_client(buf, client.id)
+	end
+	client:stop(true)
+	local id = vim.lsp.start(config, { attach = false })
+	if id then
+		for _, buf in ipairs(buffers) do
+			if policy.allows(buf) then
+				vim.lsp.buf_attach_client(buf, id)
+			end
+		end
+	end
+	return id
+end
+
 local function apply_python_path(client, path)
 	client.settings = vim.deepcopy(client.settings)
 	if client.name == "ty" then
@@ -186,17 +209,7 @@ shared.map("n", "<leader>lv", function()
 				if changed then
 					if client.name == "ty" then
 						-- Restart ty so versions without didChangeConfiguration also reload imports.
-						local buffers = vim.tbl_keys(client.attached_buffers)
-						local config = vim.deepcopy(client.config)
-						client:stop(true)
-						local id = vim.lsp.start(config, { attach = false })
-						if id then
-							for _, buf in ipairs(buffers) do
-								if policy.allows(buf) then
-									vim.lsp.buf_attach_client(buf, id)
-								end
-							end
-						end
+						local id = restart_client(client)
 						restarting = id ~= nil
 					else
 						apply_python_path(client, path)
@@ -476,19 +489,7 @@ do
 				-- Batch :wall into one restart per affected ty instance. Reattach
 				-- its loaded buffers without reloading files or changing their text.
 				for _, client in pairs(clients) do
-					if not client:is_stopped() then
-						local attached = vim.tbl_keys(client.attached_buffers)
-						local config = vim.deepcopy(client.config)
-						client:stop(true)
-						local id = vim.lsp.start(config, { attach = false })
-						if id then
-							for _, buf in ipairs(attached) do
-								if policy.allows(buf) then
-									vim.lsp.buf_attach_client(buf, id)
-								end
-							end
-						end
-					end
+					restart_client(client)
 				end
 				vim.api.nvim_exec_autocmds("User", {
 					pattern = "NopackFilesCreated",

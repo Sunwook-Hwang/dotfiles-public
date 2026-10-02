@@ -118,7 +118,7 @@ local function undo_picker()
 	end
 end
 shared.map("n", "<leader>u", undo_picker, "Preview undo states (Enter to apply)")
--- Space Th: show other occurrences only while resting on a word.
+-- <leader>Th: show other occurrences only while resting on a word.
 do
 	local enabled = false
 	local function clear(win)
@@ -187,14 +187,14 @@ do
 		end
 	end, "Toggle cursor word highlight")
 end
--- Space Ti: 내장 들여쓰기 가이드와 탭·후행 공백 표시 토글.
+-- <leader>Ti: 내장 들여쓰기 가이드와 탭·후행 공백 표시 토글.
 shared.map("n", "<leader>Ti", "<Cmd>set list!<CR>", "Toggle indent guides / whitespace markers")
 shared.map("n", "<leader>Tl", function()
 	shared.language_status_visible = not shared.language_status_visible
 	vim.cmd("redrawstatus")
 end, "Toggle LSP / formatter status")
 
--- Space TS: animate native Ctrl-d/u views, including wrapped lines and folds.
+-- <leader>TS: animate native Ctrl-d/u views, including wrapped lines and folds.
 do
 	local enabled, animation = false, nil
 	local keys_ns = vim.api.nvim_create_namespace("nopack-smooth-scroll")

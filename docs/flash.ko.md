@@ -1,5 +1,8 @@
 # FLASH — 네이티브 Neovim 가이드
 
+`<leader>`는 사용자가 설정한 리더 키입니다. 기본은 Space이며 `lua/options.lua`에서 변경할 수 있습니다. FLASH 로드 전에 지정한 `vim.g.mapleader`도 유지합니다.
+
+
 [English](flash.md) | [한국어](flash.ko.md)
 
 `nvim/.config/nvim/init.lua`는 **패키지가 전혀 필요 없는 순수 Native Neovim 설정**입니다.
@@ -46,7 +49,7 @@ NVIM_APPNAME=nvim nvim
 | `n`       | 새 파일                     |
 | `c`       | 현재 Neovim 설정 열기       |
 | `q`       | 종료                        |
-| `Space A` | 편집 중 dashboard 다시 열기 |
+| `<leader>A` | 편집 중 dashboard 다시 열기 |
 
 파일을 인자로 넘겨 실행하면 dashboard를 건너뛰고 바로 파일을 엽니다.
 
@@ -69,8 +72,8 @@ LSP·포매터 상태, 파일타입과 고정 폭 위치 정보를 표시합니�
 - LSP가 없으면 사용 가능한 ctags를 `[CTAGS: Universal]` 또는 `[CTAGS: Exuberant]`로 표시하고, 둘 다 없으면 강조 배경의 `[LSP X]`를 표시합니다.
 - 사용할 포매터가 없으면 `[FORMAT X]`를 표시합니다.
 - `[FORMAT: 이름]`은 현재 버퍼에서 실제 사용할 외부 도구 또는 LSP 이름입니다.
-- `Space Tl`로 LSP와 포매터 상태 영역을 함께 숨기거나 다시 표시합니다.
-- `Space Td`로 LSP 심볼 기반 상태줄 문맥(`경로 > 클래스 > 함수`)을 토글합니다. 심볼 클릭 시 선언 줄로 이동합니다. 심볼 지원이 없으면 경로만 표시하며 코드 원문이나 들여쓰기로 추정하지 않습니다.
+- `<leader>Tl`로 LSP와 포매터 상태 영역을 함께 숨기거나 다시 표시합니다.
+- `<leader>Td`로 LSP 심볼 기반 상태줄 문맥(`경로 > 클래스 > 함수`)을 토글합니다. 심볼 클릭 시 선언 줄로 이동합니다. 심볼 지원이 없으면 경로만 표시하며 코드 원문이나 들여쓰기로 추정하지 않습니다.
 
 ### 버퍼·들여쓰기·Sticky Scroll
 
@@ -79,10 +82,10 @@ LSP·포매터 상태, 파일타입과 고정 폭 위치 정보를 표시합니�
 - 들여쓰기 선은 파일의 `shiftwidth`에 맞춰 `┊`로 표시합니다.
 - Sticky Scroll은 기본 꺼짐이며, 켜면 함수·조건·반복문의 상위 문맥을 최대 8줄까지 고정합니다.
 - Sticky 영역은 실제 줄 번호, 들여쓰기 위치, syntax highlight와 구분선을 유지합니다.
-- `Space Ti`로 들여쓰기/공백 표시, `Space Ts`로 Sticky Scroll을 토글합니다.
+- `<leader>Ti`로 들여쓰기/공백 표시, `<leader>Ts`로 Sticky Scroll을 토글합니다.
 
 `Ctrl-d` / `Ctrl-u`는 줄바꿈·접기를 포함해 반 페이지를 약 120ms 동안 부드럽게
-이동합니다. 기본값은 꺼짐이며 `Space TS`(대문자 `S`)로 토글합니다.
+이동합니다. 기본값은 꺼짐이며 `<leader>TS`(대문자 `S`)로 토글합니다.
 Diff·floating/특수 버퍼·큰 파일·스크롤/커서 연동 창·매크로 기록/실행 중에는
 기본 스크롤을 즉시 실행합니다.
 
@@ -91,32 +94,32 @@ Sticky Scroll은 들여쓰기와 기본 syntax를 이용한 휴리스틱입니�
 
 ## 단축키 찾기
 
-Normal 모드에서 `Space`를 누르면 현재 사용 가능한 Space 단축키를 하단에 표시합니다.
+Normal 모드에서 리더 키를 누르면 현재 사용 가능한 리더 단축키를 하단에 표시합니다.
 LSP나 탐색기처럼 버퍼에만 붙는 매핑도 현재 상태에 맞춰 반영합니다.
 
 - 다음 키를 누르면 안내창을 닫고 해당 단축키를 실행합니다.
 - `Esc`, `Ctrl-c` 또는 등록되지 않은 키로 취소합니다.
-- 빠르게 완성한 Space 단축키는 안내창을 거치지 않고 바로 실행합니다.
+- 빠르게 완성한 리더 단축키는 안내창을 거치지 않고 바로 실행합니다.
 - Visual·Insert·Terminal 모드에는 개입하지 않습니다.
 
 ## 파일과 버퍼
 
 | 키                     | 동작                                      |
 | ---------------------- | ----------------------------------------- |
-| `Space f`              | 프로젝트 파일 fuzzy picker                |
-| `Space Enter`          | Git 추적 파일 picker                      |
-| `Space e`              | 편집 가능한 파일 탐색기 토글 |
-| `Space sb`             | 열린 버퍼 picker                          |
-| `Space sr`             | 최근 파일 picker                          |
-| `Space sn`             | Neovim 설정 파일 picker                   |
+| `<leader>f`              | 프로젝트 파일 fuzzy picker                |
+| `<leader><CR>`          | Git 추적 파일 picker                      |
+| `<leader>e`              | 편집 가능한 파일 탐색기 토글 |
+| `<leader>sb`             | 열린 버퍼 picker                          |
+| `<leader>sr`             | 최근 파일 picker                          |
+| `<leader>sn`             | Neovim 설정 파일 picker                   |
 | `Shift-h/l`, `[b`/`]b` | 이전/다음 버퍼                            |
-| `Space bj/bk`          | tabline에서 현재 버퍼 순서 이동           |
-| `Space bD/bL`          | 디렉터리/파일타입 기준 버퍼 정렬          |
-| `Space bp`             | 버퍼 선택                                 |
-| `Space bw`             | 미저장 변경을 보호하며 현재 버퍼 닫기     |
-| `Space c`              | 현재 버퍼 강제 닫기                       |
-| `Space bm`, `Space be` | 현재 버퍼 외의 안전한 버퍼 닫기           |
-| `Space bh/bl`          | 현재 버퍼 왼쪽/오른쪽의 안전한 버퍼 닫기  |
+| `<leader>bj/bk`          | tabline에서 현재 버퍼 순서 이동           |
+| `<leader>bD/bL`          | 디렉터리/파일타입 기준 버퍼 정렬          |
+| `<leader>bp`             | 버퍼 선택                                 |
+| `<leader>bw`             | 미저장 변경을 보호하며 현재 버퍼 닫기     |
+| `<leader>c`              | 현재 버퍼 강제 닫기                       |
+| `<leader>bm`, `<leader>be` | 현재 버퍼 외의 안전한 버퍼 닫기           |
+| `<leader>bh/bl`          | 현재 버퍼 왼쪽/오른쪽의 안전한 버퍼 닫기  |
 
 위 버퍼 닫기 단축키는 버퍼가 여러 개 남아 있으면 분할 창과 크기를 유지합니다.
 버퍼가 하나만 남으면 현재 탭에서 그 버퍼를 표시하는 중복 편집창을 하나로 합칩니다.
@@ -136,7 +139,7 @@ Python 표준 라이브러리는 `os.py`와 `importlib/__init__.py`가 함께 �
 
 ### 편집 가능한 파일 탐색기
 
-`Space e`는 프로젝트 루트에서 현재 파일까지 펼친 트리를 줄 번호 없이 왼쪽에 표시합니다. Oil 플러그인이나 외부
+`<leader>e`는 프로젝트 루트에서 현재 파일까지 펼친 트리를 줄 번호 없이 왼쪽에 표시합니다. Oil 플러그인이나 외부
 패키지 없이, Oil처럼 목록을 Vim 명령으로 편집한 뒤 `:w`와 확인으로 반영합니다.
 
 | 키 | 동작 |
@@ -211,14 +214,14 @@ Git 무시 여부는 비동기 일괄 조회 후 새로고침까지 재사용합
 
 | 키         | 동작                                |
 | ---------- | ----------------------------------- |
-| `Space st` | 프로젝트 live 정규식 검색           |
-| `Space t`  | 커서 단어 검색 후 결과 필터         |
-| `Space s/` | 열린 파일의 저장된 디스크 내용 검색 |
-| `Space sc` | 명령 검색                           |
-| `Space sh` | 도움말 검색                         |
-| `Space sk` | 현재 키맵 검색                      |
-| `Space sp` | colorscheme 미리보기와 선택         |
-| `Space sd` | 전체 진단 검색                      |
+| `<leader>st` | 프로젝트 live 정규식 검색           |
+| `<leader>t`  | 커서 단어 검색 후 결과 필터         |
+| `<leader>s/` | 열린 파일의 저장된 디스크 내용 검색 |
+| `<leader>sc` | 명령 검색                           |
+| `<leader>sh` | 도움말 검색                         |
+| `<leader>sk` | 현재 키맵 검색                      |
+| `<leader>sp` | colorscheme 미리보기와 선택         |
+| `<leader>sd` | 전체 진단 검색                      |
 
 Picker에서는 `Ctrl-n/p` 또는 `Tab/Shift-Tab`으로 선택하고 `Enter`로 적용합니다.
 `Esc`는 취소하고 `Ctrl-q`는 결과를 quickfix로 보냅니다. 검색은 `rg`를 우선하고 없으면
@@ -231,12 +234,12 @@ Git 기능은 네트워크 명령을 실행하지 않습니다. 현재 버퍼의
 
 | 키            | 동작                                                               |
 | ------------- | ------------------------------------------------------------------ |
-| `Space gg`    | 90% × 90% 플로팅 lazygit; 없으면 네이티브 Git 상태 창                                |
-| `Space sg`    | 최근 커밋 목록                                                     |
-| `Space gd`    | 편집 가능한 현재 파일과 index 좌우 diff; 어느 창에서든 `:q`로 닫기 |
-| `Space gD`    | 편집 가능한 현재 파일과 HEAD 좌우 diff; 어느 창에서든 `:q`로 닫기  |
-| `Space gn/gp` | 다음/이전 변경 hunk로 이동; 끝에서 순환                            |
-| `Space gb`    | 현재 줄 inline blame 토글                                          |
+| `<leader>gg`    | 90% × 90% 플로팅 lazygit; 없으면 네이티브 Git 상태 창                                |
+| `<leader>sg`    | 최근 커밋 목록                                                     |
+| `<leader>gd`    | 편집 가능한 현재 파일과 index 좌우 diff; 어느 창에서든 `:q`로 닫기 |
+| `<leader>gD`    | 편집 가능한 현재 파일과 HEAD 좌우 diff; 어느 창에서든 `:q`로 닫기  |
+| `<leader>gn/gp` | 다음/이전 변경 hunk로 이동; 끝에서 순환                            |
+| `<leader>gb`    | 현재 줄 inline blame 토글                                          |
 
 Inline blame은 저장된 파일의 작성자, 날짜와 커밋 메시지를 현재 줄 끝에 표시합니다.
 커서 이동 후 150ms 동안 입력이 없을 때 갱신하고, 미저장 편집 중에는 잘못된 줄 attribution을
@@ -246,12 +249,12 @@ Inline blame은 저장된 파일의 작성자, 날짜와 커밋 메시지를 현
 
 | 키 | 동작 |
 | --- | --- |
-| `Space gs/gr` | 현재 hunk 또는 Visual 선택 줄 스테이징/되돌리기 |
-| `Space gS/gR` | 버퍼 전체 스테이징/되돌리기 |
-| `Space gU` | 이 버퍼에서 마지막으로 수행한 스테이징 취소 |
-| `Space gv` | hunk 인라인 미리보기; 커서 이동·편집 시 닫기 |
-| `Space gt` | 삭제된 줄 표시 토글 |
-| `Space gB` | 커밋 정보를 포함한 상세 blame |
+| `<leader>gs/gr` | 현재 hunk 또는 Visual 선택 줄 스테이징/되돌리기 |
+| `<leader>gS/gR` | 버퍼 전체 스테이징/되돌리기 |
+| `<leader>gU` | 이 버퍼에서 마지막으로 수행한 스테이징 취소 |
+| `<leader>gv` | hunk 인라인 미리보기; 커서 이동·편집 시 닫기 |
+| `<leader>gt` | 삭제된 줄 표시 토글 |
+| `<leader>gB` | 커밋 정보를 포함한 상세 blame |
 | `ih` | hunk 텍스트 객체; `vih`, `dih` 등에서 사용 |
 
 스테이징은 미저장 편집도 포함합니다. 되돌리기는 index를 기준으로 버퍼를 수정하며
@@ -299,13 +302,13 @@ Tailwind·ESLint는 프로젝트 설정이나 dependency가 있을 때만 연결
 | `gd`               | LSP 정의, 실패하면 ctags 정의    |
 | `gr`, `gD`, `K`    | 참조, 선언, hover 문서           |
 | `gR`, `gi`, `gt`   | 참조/구현/타입 정의 결과 picker  |
-| `Space la/lr`      | 코드 액션/이름 변경              |
-| `Space ls`         | 현재 버퍼 LSP 재시작             |
-| `Space lv`         | Python 분석 환경 선택            |
+| `<leader>la/lr`      | 코드 액션/이름 변경              |
+| `<leader>ls`         | 현재 버퍼 LSP 재시작             |
+| `<leader>lv`         | Python 분석 환경 선택            |
 | `[d`, `]d`         | 이전/다음 진단                   |
-| `Space ld/lD/sd`   | 현재 줄/버퍼/전체 진단 보기      |
-| `Space lt`         | 진단 표시 토글                   |
-| `Space o`          | LSP 또는 ctags 코드 아웃라인     |
+| `<leader>ld/lD/sd`   | 현재 줄/버퍼/전체 진단 보기      |
+| `<leader>lt`         | 진단 표시 토글                   |
+| `<leader>o`          | LSP 또는 ctags 코드 아웃라인     |
 
 분석 가능한 버퍼에서는 입력 중 자동으로 완성 후보를 표시합니다. LSP가 있으면
 식별자 입력과 서버의 트리거 문자에 반응하며, `Ctrl-Space`로 직접 요청할 수도 있습니다.
@@ -322,7 +325,7 @@ LSP가 없으면 현재·열린 버퍼 단어와 ctags 심볼을 내장 완성�
 
 ## 포맷팅
 
-`Space lf`는 저장하지 않은 현재 버퍼를 비동기로 포맷합니다. 외부 도구 결과를
+`<leader>lf`는 저장하지 않은 현재 버퍼를 비동기로 포맷합니다. 외부 도구 결과를
 `vim.text.diff()`로 비교해 변경 구간만 적용하고 한 번의 undo로 되돌릴 수 있게 합니다.
 실행 중 버퍼가 바뀌거나 닫히면 늦게 도착한 결과를 버립니다.
 
@@ -352,11 +355,11 @@ Pack과 Nopack은 `${XDG_STATE_HOME:-$HOME/.local/state}/nvim/undo`에 저장된
 
 | 키                 | 동작                                                     |
 | ------------------ | -------------------------------------------------------- |
-| `Space u`          | undo 상태 목록과 코드 미리보기; `Enter`로 선택 상태 적용 |
-| `Space pr`         | 현재 프로젝트 세션 복원                                  |
-| `Space pl`         | 마지막 세션 복원                                         |
-| `Space pS`         | 저장된 세션 선택                                         |
-| `Space pd`         | 현재 실행에서 세션 저장 중지                             |
+| `<leader>u`          | undo 상태 목록과 코드 미리보기; `Enter`로 선택 상태 적용 |
+| `<leader>pr`         | 현재 프로젝트 세션 복원                                  |
+| `<leader>pl`         | 마지막 세션 복원                                         |
+| `<leader>pS`         | 저장된 세션 선택                                         |
+| `<leader>pd`         | 현재 실행에서 세션 저장 중지                             |
 | `Ctrl-t`           | 같은 shell terminal을 아래 split에서 토글                |
 | Terminal `Esc Esc` | Terminal 모드 종료                                       |
 
@@ -366,7 +369,7 @@ Pack과 Nopack은 `${XDG_STATE_HOME:-$HOME/.local/state}/nvim/sessions`에서 �
 남겨둡니다. 미저장 파일 내용의 백업은 아니며, 같은 프로젝트는 마지막 저장이 우선합니다.
 
 이름 있는 소스 버퍼가 있으면 **Neovim 종료 시 세션을 자동 저장**합니다.
-`Space pd`는 현재 실행에서의 저장을 중지하며 기존 세션 파일을 삭제하지 않습니다.
+`<leader>pd`는 현재 실행에서의 저장을 중지하며 기존 세션 파일을 삭제하지 않습니다.
 
 터미널을 띄운 채 `Ctrl-h/j/k/l`로 편집창과 오갈 수 있고, 터미널 입력 모드에서도
 Shift 방향키로 창 크기를 조절합니다. `Esc Esc` 또는 `Ctrl-\` 다음 `Ctrl-n`으로
@@ -384,10 +387,10 @@ Neovim 자체를 종료한 뒤까지 작업을 유지하는 기능은 아닙니�
 | `gcc` | 현재 줄 주석 토글 |
 | Visual `gc` | 선택한 줄 주석 토글; 예: `V`로 여러 줄 선택 후 `gc` |
 | Visual `>` / `<` | 선택 영역 들여쓰기 / 내어쓰기 후 선택 유지 |
-| `Space a` | 파일 전체 선택 |
-| `Space Th` | 커서 단어의 다른 출현 위치 강조 토글; 기본 꺼짐 |
-| `Space Sa` | 파일 전체 범위로 커서 단어 또는 Visual 선택 문자열의 치환 명령 준비 |
-| `Space Sf` | 현재 줄부터 마지막 줄까지 같은 치환 명령 준비 |
+| `<leader>a` | 파일 전체 선택 |
+| `<leader>Th` | 커서 단어의 다른 출현 위치 강조 토글; 기본 꺼짐 |
+| `<leader>Sa` | 파일 전체 범위로 커서 단어 또는 Visual 선택 문자열의 치환 명령 준비 |
+| `<leader>Sf` | 현재 줄부터 마지막 줄까지 같은 치환 명령 준비 |
 | Normal `Esc` | 검색 강조 해제 |
 | Normal `+` / `-` | 숫자 증가 / 감소 |
 | `jk` | Insert 모드 종료 |
@@ -396,7 +399,7 @@ Neovim 자체를 종료한 뒤까지 작업을 유지하는 기능은 아닙니�
 | `Ctrl-h/j/k/l` | Normal·Terminal 모드에서 창 이동 |
 | Insert `Alt-방향키` | Insert 모드를 나가면서 해당 방향 창으로 이동 |
 | Shift 방향키 | Normal·Terminal 모드에서 창 크기를 5칸씩 조절 |
-| `Space w` | 현재 탭의 모든 창에 diff 적용; 해제는 `:windo diffoff` |
+| `<leader>w` | 현재 탭의 모든 창에 diff 적용; 해제는 `:windo diffoff` |
 | Visual `p` / `P` | 복사한 내용을 유지하면서 선택 영역 교체 |
 | Normal `x` | 문자를 삭제하되 복사 레지스터는 덮어쓰지 않음 |
 
@@ -533,7 +536,7 @@ python3 -m venv "$HOME/.local/opt/nvim-tools/python"
 
 ### Python 환경 선택과 문제 해결
 
-`Space lv`에서 `.venv`, `venv`, 활성 virtualenv/Conda, PATH Python, 검색된 Conda 환경
+`<leader>lv`에서 `.venv`, `venv`, 활성 virtualenv/Conda, PATH Python, 검색된 Conda 환경
 또는 직접 입력한 환경 폴더·Python 실행 파일을 선택합니다. `Automatic`은 선택을 해제합니다.
 선택은 현재 실행 동안 프로젝트 분석에 적용되며 셸이나 포매터 PATH를 바꾸지 않습니다.
 환경이 바뀌면 ty는 해당 프로젝트 클라이언트를 재시작하고, Pyright에는 Python 경로 설정을
@@ -620,6 +623,10 @@ Git 프로젝트에서는 안내 파일과 임시 파일을 로컬 Git `info/exc
 
 | 명령 / 키 | 동작 |
 | --- | --- |
+| `<leader>Ls` | 공유 시작 |
+| `<leader>Lj` | 현재 파일의 공유 세션 참여 |
+| `<leader>Lq` | 공유 종료 |
+| `<leader>Li` | 공유 상태 확인 |
 | `:FlashShare [포트] [바인드주소]` | 현재 소스 버퍼를 공유하고 알림 파일 생성; 기본은 `0.0.0.0`의 빈 포트 |
 | `:FlashJoin [<호스트> <포트> <토큰>]` | 현재 파일의 공유 세션 또는 지정한 세션에 참여 |
 | `:FlashShareStatus` | 주최자·참가자, 변경 번호, 대기 중인 편집 수, 참가자별 커서 위치 확인 |

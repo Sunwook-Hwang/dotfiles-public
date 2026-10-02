@@ -4,7 +4,7 @@ local shared = require("state")
 -- =========================================
 -- ====== FILE TREE: TOGGLE / REVEAL =====
 -- =========================================
--- Space e: 프로젝트 루트에서 열고 현재 파일까지 폴더를 펼칩니다.
+-- <leader>e: 프로젝트 루트에서 열고 현재 파일까지 폴더를 펼칩니다.
 -- 프로젝트 탐색 함수는 PROJECT ROOT에서 정의되며 키 실행 시 호출됩니다.
 
 local explorer = require("explorer")

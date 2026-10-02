@@ -7,8 +7,8 @@ local actions = require("git_actions")
 -- ====== GIT: FILES / STATUS / DIFF =====
 -- =========================================
 -- 설치된 git으로 현재 프로젝트를 조회합니다. 네트워크 명령은 실행하지 않습니다.
--- Space Enter: 추적 파일 picker; sg/gg: 로그/상태; gd/gD: index/HEAD 좌우 diff.
--- Space gn/gp: diff 이동; gb: 현재 줄 inline blame 토글.
+-- <leader><CR>: 추적 파일 picker; sg/gg: 로그/상태; gd/gD: index/HEAD 좌우 diff.
+-- <leader>gn/gp: diff 이동; gb: 현재 줄 inline blame 토글.
 -- 상태줄: 브랜치와 현재 파일의 index/worktree 상태(XY). 미저장 편집은 기존 %m으로 표시.
 -- 화면을 그릴 때는 버퍼 캐시만 읽고, 파일 진입·저장·터미널 복귀 시 비동기로 갱신합니다.
 -- Explorer Git signs: XY is index/worktree status; ** aggregates mixed children.

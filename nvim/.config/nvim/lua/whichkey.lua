@@ -1,9 +1,10 @@
 -- =========================================
--- ========= SPACE KEY GUIDE ============
+-- ========= LEADER KEY GUIDE ============
 -- =========================================
 -- Normal mode only: inspect real mappings, then replay the selected shortcut.
 -- Complete shortcuts already in typeahead use Neovim's normal mapping path.
 do
+	local leader = vim.keycode("<leader>")
 	local groups = {
 		s = "Search",
 		S = "Substitute",
@@ -13,6 +14,7 @@ do
 		g = "Git",
 		p = "Project",
 		n = "File tree",
+		L = "Live share",
 	}
 	local active
 	local function mappings(buf)
@@ -20,7 +22,7 @@ do
 		for _, list in ipairs({ vim.api.nvim_get_keymap("n"), vim.api.nvim_buf_get_keymap(buf, "n") }) do
 			for _, item in ipairs(list) do
 				local lhs = item.lhsraw or vim.api.nvim_replace_termcodes(item.lhs, true, true, true)
-				if lhs:sub(1, 1) == " " and #lhs > 1 then
+				if lhs:sub(1, #leader) == leader and #lhs > #leader then
 					found[lhs] = item
 				end
 			end
@@ -30,7 +32,7 @@ do
 	local function guide()
 		local source_win, source_buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
 		local count, register = vim.v.count, vim.v.register
-		local prefix, popup = " ", nil
+		local prefix, popup = leader, nil
 		local cancelled = false
 		local function close()
 			local win = popup
@@ -48,7 +50,7 @@ do
 					if rest == key then
 						next_keys[key] = item.desc or item.lhs
 					elseif not next_keys[key] then
-						next_keys[key] = "+ " .. (groups[prefix:sub(2) .. key] or key)
+						next_keys[key] = "+ " .. (groups[prefix:sub(#leader + 1) .. key] or key)
 					end
 				end
 			end
@@ -93,7 +95,7 @@ do
 				border = "rounded",
 				focusable = false,
 				zindex = 80,
-				title = " " .. vim.fn.keytrans(prefix):gsub("<Space>", "Space ") .. " · Esc: cancel ",
+				title = " <leader>" .. vim.fn.keytrans(prefix:sub(#leader + 1)) .. " · Esc: cancel ",
 			}
 			if not popup or not vim.api.nvim_win_is_valid(popup) then
 				local buf = vim.api.nvim_create_buf(false, true)
@@ -150,8 +152,8 @@ do
 			vim.notify(err, vim.log.levels.ERROR)
 		end
 	end
-	vim.keymap.set("n", "<Space>", guide, { nowait = true, silent = true, desc = "Space key guide" })
-	local group = vim.api.nvim_create_augroup("nopack-space-guide", { clear = true })
+	vim.keymap.set("n", "<leader>", guide, { nowait = true, silent = true, desc = "Leader key guide" })
+	local group = vim.api.nvim_create_augroup("nopack-leader-guide", { clear = true })
 	vim.api.nvim_create_autocmd({ "BufLeave", "WinLeave", "TabLeave" }, {
 		group = group,
 		callback = function()

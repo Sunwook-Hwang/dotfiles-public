@@ -78,7 +78,7 @@ local servers = {
 -- =========================================
 -- ====== PYTHON: INTERPRETER PICKER ======
 -- =========================================
--- Space lv: 현재 프로젝트의 Python LSP 분석 환경 선택. 재실행 전까지 프로젝트별로 기억합니다.
+-- <leader>lv: 현재 프로젝트의 Python LSP 분석 환경 선택. 재실행 전까지 프로젝트별로 기억합니다.
 -- 가상환경을 생성하거나 셸/포맷터 PATH를 바꾸지 않습니다. symlink 경로는 그대로 보존합니다.
 local python_paths = {}
 local python_selection
@@ -304,7 +304,7 @@ end, "Select Python environment for this project")
 -- ========== LSP: BUFFER KEYS ==========
 -- =========================================
 -- 서버 연결 시 파일 버퍼 전용 키를 설정합니다. 자동완성은 completion 모듈에서 관리합니다.
--- gd/gr/gD/K: 직접 이동·조회; gR/gi/gt: picker; Space la/lr/Tr: 액션·이름 변경·심볼.
+-- gd/gr/gD/K: 직접 이동·조회; gR/gi/gt: picker; <leader>la/lr/Tr: 액션·이름 변경·심볼.
 local function attach(client, buf)
 	if not policy.allows(buf) then
 		vim.schedule(function()
@@ -359,7 +359,7 @@ end
 -- ======== LSP: RESOLVE / ENABLE ========
 -- =========================================
 -- 실행 파일 탐색 후 vim.lsp.config/enable로 해당 언어 파일에 연결합니다.
--- 큰 파일은 연결하지 않습니다. Space ls는 현재 버퍼의 클라이언트만 재시작합니다.
+-- 큰 파일은 연결하지 않습니다. <leader>ls는 현재 버퍼의 클라이언트만 재시작합니다.
 -- Auxiliary servers need project evidence; primary language servers also support standalone files.
 local function project_uses_server(server, dir)
 	if not server.markers or vim.fs.root(dir, server.markers) then

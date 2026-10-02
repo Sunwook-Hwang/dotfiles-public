@@ -68,6 +68,18 @@ for command, action in pairs({
 	end, { nargs = "*", desc = "Native single-buffer collaboration: " .. action })
 end
 
+-- Same leader shortcuts as the standalone live-share.nvim package.
+for _, shortcut in ipairs({
+	{ "<leader>Ls", "FlashShare", "Live share: start sharing" },
+	{ "<leader>Lj", "FlashJoin", "Live share: join current file" },
+	{ "<leader>Lq", "FlashShareStop", "Live share: disconnect" },
+	{ "<leader>Li", "FlashShareStatus", "Live share: session information" },
+}) do
+	if vim.fn.maparg(shortcut[1], "n") == "" then
+		vim.keymap.set("n", shortcut[1], "<Cmd>" .. shortcut[2] .. "<CR>", { silent = true, desc = shortcut[3] })
+	end
+end
+
 -- Offer to join when an opened file has a live-share sidecar (see lua/sharing.lua).
 -- One stat per file read; the module loads only when a sidecar exists.
 vim.api.nvim_create_autocmd("BufReadPost", {

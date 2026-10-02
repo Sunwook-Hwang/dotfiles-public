@@ -66,9 +66,10 @@ end
 shared.map("n", "<leader>pr", function()
 	restore_session(session_path())
 end, "Restore directory session")
-shared.map("n", "<leader>pl", function()
+function shared.restore_last_session()
 	restore_session(sessions()[1])
-end, "Restore last session")
+end
+shared.map("n", "<leader>pl", shared.restore_last_session, "Restore last session")
 shared.map("n", "<leader>pd", function()
 	save_session = false
 end, "Stop saving session")

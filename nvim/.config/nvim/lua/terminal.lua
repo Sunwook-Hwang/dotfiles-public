@@ -3,7 +3,7 @@ local shared = require("state")
 -- =========================================
 -- ============ SPLIT TERMINAL ===========
 -- =========================================
--- Ctrl-t: Space gg와 같은 크기의 하단 split에 같은 셸 작업을 다시 엽니다.
+-- Ctrl-t: <leader>gg와 같은 크기의 하단 split에 같은 셸 작업을 다시 엽니다.
 -- 터미널 버퍼는 일반 버퍼 순환에서 제외하고, 종료된 셸만 정리합니다.
 local terminal
 local function terminal_running(buf)

@@ -5,8 +5,8 @@ local shared = require("state")
 -- ========== BUFFERS / TABLINE ==========
 -- =========================================
 -- Barbar 대체: 표시 순서를 이동·번호 선택·좌우 닫기에서 함께 사용합니다.
--- Shift-h/l, [b/]b: 이동; Alt-1..9: 선택; Space bj/bk: 재배열; bD/bL: 정렬.
--- Space c: 강제 닫기; bw: 미저장 보호; bm/be/bh/bl: 다른·왼쪽·오른쪽 버퍼 정리.
+-- Shift-h/l, [b/]b: 이동; Alt-1..9: 선택; <leader>bj/bk: 재배열; bD/bL: 정렬.
+-- <leader>c: 강제 닫기; bw: 미저장 보호; bm/be/bh/bl: 다른·왼쪽·오른쪽 버퍼 정리.
 local buffer_order = {}
 local tabline_cache
 function shared.buffers()
@@ -87,7 +87,7 @@ vim.api.nvim_create_autocmd("OptionSet", {
 -- =========================================
 -- ======= BUFFER PICKER / KEYMAPS =======
 -- =========================================
--- Space bp/sb는 pickers 모듈의 공통 picker를 사용합니다.
+-- <leader>bp/sb는 pickers 모듈의 공통 picker를 사용합니다.
 local function pick_buffer()
 	local items = {}
 	for _, b in ipairs(shared.buffers()) do

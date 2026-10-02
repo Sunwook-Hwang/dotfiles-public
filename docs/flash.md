@@ -1,5 +1,8 @@
 # FLASH — Native Neovim Guide
 
+`<leader>` means your configured leader key. The default is Space; change it in `lua/options.lua` or set `vim.g.mapleader` before loading FLASH. An existing value is preserved.
+
+
 [English](flash.md) | [한국어](flash.ko.md)
 
 `nvim/.config/nvim/init.lua` is a **package-free, native Neovim configuration** organized
@@ -17,7 +20,7 @@ Contents:
 
 - [Starting Neovim and the dashboard](#starting-neovim-and-the-dashboard)
 - [Interface](#interface)
-- [Native Space-key guide](#native-space-key-guide)
+- [Native leader-key guide](#native-leader-key-guide)
 - [Files and buffers](#files-and-buffers)
 - [Search and picker UI](#search-and-picker-ui)
 - [Git](#git)
@@ -49,7 +52,7 @@ keys and press `Enter`. The cursor stays on selectable rows.
 | `n`       | Create a new file                    |
 | `c`       | Open the active Neovim configuration |
 | `q`       | Quit                                 |
-| `Space A` | Reopen the dashboard while editing   |
+| `<leader>A` | Reopen the dashboard while editing   |
 
 Passing a file argument skips the dashboard and opens that file directly.
 
@@ -73,8 +76,8 @@ fixed-width cursor position.
 - Without LSP, supported ctags is shown as `[CTAGS: Universal]` or `[CTAGS: Exuberant]`; otherwise `[LSP X]` has a highlighted background.
 - `[FORMAT X]` means no formatter is currently available.
 - `[FORMAT: name]` names the external formatter or LSP used for this buffer.
-- `Space Tl` toggles both the LSP and formatter status sections.
-- `Space Td` toggles native statusline breadcrumbs (`path > class > function`) from cached LSP symbols; click a symbol to jump to its declaration. Without symbol support, only the path is shown. No code-text or indentation guesses are used.
+- `<leader>Tl` toggles both the LSP and formatter status sections.
+- `<leader>Td` toggles native statusline breadcrumbs (`path > class > function`) from cached LSP symbols; click a symbol to jump to its declaration. Without symbol support, only the path is shown. No code-text or indentation guesses are used.
 
 ### Buffers, indent guides, and Sticky Scroll
 
@@ -83,10 +86,10 @@ fixed-width cursor position.
 - Indent guides use `┊` and follow the file's `shiftwidth`.
 - Sticky Scroll is off by default and keeps up to eight enclosing function, conditional, and loop lines when enabled.
 - Sticky rows preserve real line numbers, indentation, syntax highlighting, and a separator.
-- `Space Ti` toggles indent/whitespace markers; `Space Ts` toggles Sticky Scroll.
+- `<leader>Ti` toggles indent/whitespace markers; `<leader>Ts` toggles Sticky Scroll.
 
 `Ctrl-d` / `Ctrl-u` animate half-page scrolling in roughly 120 ms, including
-wrapped lines and folds. `Space TS` (uppercase `S`) toggles the animation; it is
+wrapped lines and folds. `<leader>TS` (uppercase `S`) toggles the animation; it is
 disabled by default. Diff, floating/special buffers, large files, bound windows,
 and macro recording/playback use native scrolling immediately.
 
@@ -94,10 +97,10 @@ Sticky Scroll is a syntax-and-indentation heuristic. It scans at most 1,000
 lines or 256 KiB above the viewport. Unusual language syntax and complex
 multiline declarations can still be missed.
 
-## Native Space-key guide
+## Native leader-key guide
 
-Pressing `Space` in Normal mode opens a native guide for the available Space
-key mappings. Buffer-local LSP and explorer mappings appear only when applicable.
+Pressing your leader key in Normal mode opens a native guide for the available
+leader mappings. Buffer-local LSP and explorer mappings appear only when applicable.
 
 - Continue typing to close the guide and run the selected mapping.
 - `Esc`, `Ctrl-c`, or an unmapped key cancels it.
@@ -108,20 +111,20 @@ key mappings. Buffer-local LSP and explorer mappings appear only when applicable
 
 | Key                    | Action                                                    |
 | ---------------------- | --------------------------------------------------------- |
-| `Space f`              | Fuzzy-find project files                                  |
-| `Space Enter`          | Find Git-tracked files                                    |
-| `Space e`              | Toggle the editable file explorer       |
-| `Space sb`             | Select an open buffer                                     |
-| `Space sr`             | Select a recent file                                      |
-| `Space sn`             | Find Neovim configuration files                           |
+| `<leader>f`              | Fuzzy-find project files                                  |
+| `<leader><CR>`          | Find Git-tracked files                                    |
+| `<leader>e`              | Toggle the editable file explorer       |
+| `<leader>sb`             | Select an open buffer                                     |
+| `<leader>sr`             | Select a recent file                                      |
+| `<leader>sn`             | Find Neovim configuration files                           |
 | `Shift-h/l`, `[b`/`]b` | Previous/next buffer                                      |
-| `Space bj/bk`          | Move the current buffer in the tabline                    |
-| `Space bD/bL`          | Sort buffers by directory/filetype                        |
-| `Space bp`             | Select a buffer                                           |
-| `Space bw`             | Close the current buffer while protecting unsaved changes |
-| `Space c`              | Force-close the current buffer                            |
-| `Space bm`, `Space be` | Close other safe buffers                                  |
-| `Space bh/bl`          | Close safe buffers to the left/right                      |
+| `<leader>bj/bk`          | Move the current buffer in the tabline                    |
+| `<leader>bD/bL`          | Sort buffers by directory/filetype                        |
+| `<leader>bp`             | Select a buffer                                           |
+| `<leader>bw`             | Close the current buffer while protecting unsaved changes |
+| `<leader>c`              | Force-close the current buffer                            |
+| `<leader>bm`, `<leader>be` | Close other safe buffers                                  |
+| `<leader>bh/bl`          | Close safe buffers to the left/right                      |
 
 These buffer-close mappings preserve split windows and their sizes while multiple
 buffers remain. When only one buffer remains, its duplicate editor panes in the
@@ -144,7 +147,7 @@ parent repository.
 
 ### Editable file explorer
 
-`Space e` opens a native expandable tree without line numbers on the left, starting at the project
+`<leader>e` opens a native expandable tree without line numbers on the left, starting at the project
 root and expanding the path to the current file. No Oil plugin or other package is needed. Like Oil, edit the
 listing with normal Vim commands, then use `:w` and confirm the operations.
 
@@ -224,14 +227,14 @@ A shared native picker provides an input box, result list, and preview without T
 
 | Key        | Action                                          |
 | ---------- | ----------------------------------------------- |
-| `Space st` | Live project regex search                       |
-| `Space t`  | Search for the cursor word, then filter results |
-| `Space s/` | Search the saved on-disk contents of open files |
-| `Space sc` | Find commands                                   |
-| `Space sh` | Find help tags                                  |
-| `Space sk` | Find current keymaps                            |
-| `Space sp` | Preview and select a colorscheme                |
-| `Space sd` | Find all diagnostics                            |
+| `<leader>st` | Live project regex search                       |
+| `<leader>t`  | Search for the cursor word, then filter results |
+| `<leader>s/` | Search the saved on-disk contents of open files |
+| `<leader>sc` | Find commands                                   |
+| `<leader>sh` | Find help tags                                  |
+| `<leader>sk` | Find current keymaps                            |
+| `<leader>sp` | Preview and select a colorscheme                |
+| `<leader>sd` | Find all diagnostics                            |
 
 In a picker, use `Ctrl-n/p` or `Tab/Shift-Tab` to select, `Enter` to apply,
 `Esc` to cancel, and `Ctrl-q` to export results to quickfix. Search prefers `rg`
@@ -244,12 +247,12 @@ index and shown as `+`, `~`, and `-` signs in the margin.
 
 | Key           | Action                                                                      |
 | ------------- | --------------------------------------------------------------------------- |
-| `Space gg`    | Open lazygit in a 90% × 90% float; otherwise show native Git status                                |
-| `Space sg`    | Browse recent commits                                                       |
-| `Space gd`    | Editable current file beside the index; `:q` in either pane closes the diff |
-| `Space gD`    | Editable current file beside HEAD; `:q` in either pane closes the diff      |
-| `Space gn/gp` | Move to the next/previous change hunk, wrapping at the ends                 |
-| `Space gb`    | Toggle inline blame for the current line                                    |
+| `<leader>gg`    | Open lazygit in a 90% × 90% float; otherwise show native Git status                                |
+| `<leader>sg`    | Browse recent commits                                                       |
+| `<leader>gd`    | Editable current file beside the index; `:q` in either pane closes the diff |
+| `<leader>gD`    | Editable current file beside HEAD; `:q` in either pane closes the diff      |
+| `<leader>gn/gp` | Move to the next/previous change hunk, wrapping at the ends                 |
+| `<leader>gb`    | Toggle inline blame for the current line                                    |
 
 Inline blame shows the author, date, and commit subject at the end of the current
 line after 150 ms of inactivity. It hides during unsaved edits to avoid incorrect
@@ -259,12 +262,12 @@ Additional editing actions use the same keys as pack:
 
 | Key | Action |
 | --- | --- |
-| `Space gs/gr` | Stage/reset the cursor hunk or selected Visual lines |
-| `Space gS/gR` | Stage/reset the whole buffer |
-| `Space gU` | Undo the last staging action in this buffer |
-| `Space gv` | Inline hunk preview; clear on cursor movement or editing |
-| `Space gt` | Toggle deleted lines |
-| `Space gB` | Full blame with commit details |
+| `<leader>gs/gr` | Stage/reset the cursor hunk or selected Visual lines |
+| `<leader>gS/gR` | Stage/reset the whole buffer |
+| `<leader>gU` | Undo the last staging action in this buffer |
+| `<leader>gv` | Inline hunk preview; clear on cursor movement or editing |
+| `<leader>gt` | Toggle deleted lines |
+| `<leader>gB` | Full blame with commit details |
 | `ih` | Hunk text object, including `vih` and `dih` |
 
 Staging includes unsaved edits; reset changes the buffer against the index without
@@ -314,13 +317,13 @@ language is not attached automatically.
 | `gd`               | LSP definition, then ctags fallback                     |
 | `gr`, `gD`, `K`    | References, declaration, hover documentation            |
 | `gR`, `gi`, `gt`   | References/implementation/type-definition picker        |
-| `Space la/lr`      | Code action/rename                                      |
-| `Space ls`         | Restart LSP clients attached to this buffer             |
-| `Space lv`         | Select a Python analysis environment                    |
+| `<leader>la/lr`      | Code action/rename                                      |
+| `<leader>ls`         | Restart LSP clients attached to this buffer             |
+| `<leader>lv`         | Select a Python analysis environment                    |
 | `[d`, `]d`         | Previous/next diagnostic                                |
-| `Space ld/lD/sd`   | Line/buffer/all diagnostics                             |
-| `Space lt`         | Toggle diagnostic display                               |
-| `Space o`          | LSP or ctags code outline                               |
+| `<leader>ld/lD/sd`   | Line/buffer/all diagnostics                             |
+| `<leader>lt`         | Toggle diagnostic display                               |
+| `<leader>o`          | LSP or ctags code outline                               |
 
 Completion opens automatically while typing in analysis-eligible buffers. With
 LSP, identifier input and server trigger characters request candidates;
@@ -337,7 +340,7 @@ symbol and moves focus to the editor.
 
 ## Formatting
 
-`Space lf` formats the unsaved current buffer asynchronously. External output is
+`<leader>lf` formats the unsaved current buffer asynchronously. External output is
 compared with `vim.text.diff()` and only changed ranges are applied, as one undo
 step. Results are discarded if the buffer changes or closes while formatting.
 
@@ -368,11 +371,11 @@ available when switching modes; live editing sessions do not merge their undo tr
 
 | Key                | Action                                             |
 | ------------------ | -------------------------------------------------- |
-| `Space u`          | Preview undo states and apply the selected state   |
-| `Space pr`         | Restore the current project session                |
-| `Space pl`         | Restore the last session                           |
-| `Space pS`         | Select a saved session                             |
-| `Space pd`         | Stop saving the session for this run               |
+| `<leader>u`          | Preview undo states and apply the selected state   |
+| `<leader>pr`         | Restore the current project session                |
+| `<leader>pl`         | Restore the last session                           |
+| `<leader>pS`         | Select a saved session                             |
+| `<leader>pd`         | Stop saving the session for this run               |
 | `Ctrl-t`           | Toggle a reusable shell terminal in a bottom split |
 | Terminal `Esc Esc` | Leave Terminal mode                                |
 
@@ -384,7 +387,7 @@ restored. Existing sessions in the old Nopack directory remain untouched. Sessio
 are not backups of unsaved file contents. The last editor to save a project wins.
 
 Sessions are **saved automatically when Neovim exits** if a named source buffer
-exists. `Space pd` disables saving for this run without deleting existing sessions.
+exists. `<leader>pd` disables saving for this run without deleting existing sessions.
 
 Keep the terminal open while moving between windows with `Ctrl-h/j/k/l`;
 Shift-arrow resizing also works in Terminal input mode. Press `Esc Esc` or
@@ -404,10 +407,10 @@ if commenting does not work.
 | `gcc` | Toggle the current line's comment |
 | Visual `gc` | Toggle comments on selected lines; e.g. select lines with `V`, then `gc` |
 | Visual `>` / `<` | Indent / unindent the selection and keep it selected |
-| `Space a` | Select the entire file |
-| `Space Th` | Toggle highlighting other occurrences of the cursor word; off by default |
-| `Space Sa` | Prepare substitution of the cursor word or Visual selection throughout the file |
-| `Space Sf` | Prepare the same substitution from the current line to the end |
+| `<leader>a` | Select the entire file |
+| `<leader>Th` | Toggle highlighting other occurrences of the cursor word; off by default |
+| `<leader>Sa` | Prepare substitution of the cursor word or Visual selection throughout the file |
+| `<leader>Sf` | Prepare the same substitution from the current line to the end |
 | Normal `Esc` | Clear search highlighting |
 | Normal `+` / `-` | Increment / decrement a number |
 | `jk` | Leave Insert mode |
@@ -416,7 +419,7 @@ if commenting does not work.
 | `Ctrl-h/j/k/l` | Move between windows in Normal or Terminal mode |
 | Insert `Alt-arrow` | Leave Insert mode and move to the window in that direction |
 | Shift-arrow | Resize by five rows/columns in Normal or Terminal mode |
-| `Space w` | Enable diff in all windows of the current tab; clear with `:windo diffoff` |
+| `<leader>w` | Enable diff in all windows of the current tab; clear with `:windo diffoff` |
 | Visual `p` / `P` | Replace the selection while preserving the copied text |
 | Normal `x` | Delete a character without overwriting the yank register |
 
@@ -558,7 +561,7 @@ python3 -m venv "$HOME/.local/opt/nvim-tools/python"
 
 ### Python environments and troubleshooting
 
-`Space lv` selects the project's analysis environment: `.venv`, `venv`, active
+`<leader>lv` selects the project's analysis environment: `.venv`, `venv`, active
 virtualenv/Conda, PATH Python, discovered Conda environments, or a manually entered
 environment directory/Python executable. `Automatic` resets the choice. Selection
 lasts for this Neovim run and affects analysis, not the shell or formatter PATH.
@@ -652,6 +655,10 @@ deletions are rebased rather than replacing the other user's buffer wholesale.
 
 | Command / key | Action |
 | --- | --- |
+| `<leader>Ls` | Start sharing |
+| `<leader>Lj` | Join the current file's session |
+| `<leader>Lq` | Stop sharing |
+| `<leader>Li` | Show session status |
 | `:FlashShare [port] [bind-address]` | Host the current source buffer and advertise it; defaults to a free port on `0.0.0.0` |
 | `:FlashJoin [<host> <port> <token>]` | Join the current file's advertised session, or the given one |
 | `:FlashShareStatus` | Show owner/guest, revision, pending edits and where each peer is |

@@ -175,7 +175,7 @@ local function open_dashboard()
 				shared.open_picker("Recent files", { items = shared.file_items(files) })
 			end,
 		},
-		{ "l", "Restore last session", function() vim.api.nvim_feedkeys(" pl", "m", false) end },
+		{ "l", "Restore last session", shared.restore_last_session },
 		{ "p", "Select session", shared.select_session },
 		{
 			"n",

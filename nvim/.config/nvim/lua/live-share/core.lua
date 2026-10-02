@@ -1,14 +1,14 @@
--- Explicit, single-buffer collaboration. No polling, idle timers or plugins.
+-- Explicit, single-buffer collaboration. No polling or external server process.
 -- An authenticated TCP session orders edits; text operations rebase concurrent changes.
 -- A sidecar next to the source (usually on NFS) advertises the session to later openers.
-local op = require("share_operation")
-local policy = require("buffer_policy")
+local op = require("live-share.operation")
+local policy = require("live-share.buffer")
 local M = {}
 local server, client
-local group = vim.api.nvim_create_augroup("flash-sharing", { clear = true })
+local group = vim.api.nvim_create_augroup("live-share-transport", { clear = true })
 local limit = 1024 * 1024
-local cursor_ns = vim.api.nvim_create_namespace("flash-share-cursors")
--- Peers cycle through these; colorschemes may override FlashSharePeer1..6.
+local cursor_ns = vim.api.nvim_create_namespace("live-share-cursors")
+-- Peers cycle through these; colorschemes may override LiveSharePeer1..6.
 for i, link in ipairs({
 	"DiagnosticVirtualTextInfo",
 	"DiagnosticVirtualTextHint",
@@ -17,11 +17,11 @@ for i, link in ipairs({
 	"DiagnosticVirtualTextError",
 	"Visual",
 }) do
-	vim.api.nvim_set_hl(0, "FlashSharePeer" .. i, { link = link, default = true })
+	vim.api.nvim_set_hl(0, "LiveSharePeer" .. i, { link = link, default = true })
 end
 
 local function notify(message, level)
-	vim.notify("FLASH share: " .. message, level or vim.log.levels.INFO)
+	vim.notify("Live share: " .. message, level or vim.log.levels.INFO)
 end
 
 local function close(handle)
@@ -265,7 +265,7 @@ local function publish(owner, bind)
 	local existing = read_sidecar(file)
 	if existing then
 		if not (stale(existing) and existing.uid == vim.uv.getuid()) then
-			return false, existing.user .. "@" .. existing.host .. " is already sharing this file; use :FlashJoin"
+			return false, existing.user .. "@" .. existing.host .. " is already sharing this file; use :LiveShareJoin"
 		end
 		vim.uv.fs_unlink(file)
 	end
@@ -301,7 +301,7 @@ local function publish(owner, bind)
 	end
 	vim.uv.fs_unlink(temp)
 	if not ok and read_sidecar(file) then
-		return false, "Another session advertised this file; use :FlashJoin"
+		return false, "Another session advertised this file; use :LiveShareJoin"
 	end
 	assert(ok, "Cannot create " .. file .. ": " .. tostring(err))
 	owner.sidecar = file
@@ -356,7 +356,7 @@ local function show_peer(session, id, label, offset)
 	local line = vim.api.nvim_buf_get_lines(session.buf, row, row + 1, true)[1]
 	local peer = session.peers[id] or {}
 	session.peers[id], peer.label = peer, label
-	local hl = "FlashSharePeer" .. ((id - 1) % 6 + 1)
+	local hl = "LiveSharePeer" .. ((id - 1) % 6 + 1)
 	peer.mark = vim.api.nvim_buf_set_extmark(session.buf, cursor_ns, row, col, {
 		id = peer.mark,
 		end_col = col < #line and col + 1 + vim.str_utf_end(line, col + 1) or nil,
@@ -511,7 +511,7 @@ local function create_buffer(session, message)
 	session.buf, session.text = buf, message.text
 	vim.api.nvim_buf_set_name(
 		buf,
-		"flash-share://" .. message.session .. "/" .. session.id .. "/" .. vim.fs.basename(message.file)
+		"live-share://" .. message.session .. "/" .. session.id .. "/" .. vim.fs.basename(message.file)
 	)
 	vim.bo[buf].buftype, vim.bo[buf].bufhidden, vim.bo[buf].swapfile = "acwrite", "hide", false
 	vim.bo[buf].undofile, vim.bo[buf].undolevels = false, -1
@@ -520,7 +520,7 @@ local function create_buffer(session, message)
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(message.text:sub(1, -2), "\n", { plain = true }))
 	vim.bo[buf].filetype = message.filetype
 	vim.bo[buf].modified = false
-	vim.b[buf].flash_shared = true
+	vim.b[buf].live_shared = true
 	local name = vim.api.nvim_buf_get_name(buf)
 	vim.api.nvim_create_autocmd({ "BufWriteCmd", "FileWriteCmd", "FileAppendCmd" }, {
 		group = group,
@@ -626,8 +626,8 @@ end
 
 -- Try each advertised host in order until one completes the handshake.
 local function connect(hosts, port, token, owner)
-	assert(not client, "Already sharing; use :FlashShareStop first")
-	local focus_editor = require("state").focus_editor
+	assert(not client, "Already sharing; use :LiveShareStop first")
+	local focus_editor = policy.focus_editor
 	if not owner and not policy.is_editor(0) and focus_editor then
 		focus_editor()
 	end
@@ -664,7 +664,7 @@ local function connect(hosts, port, token, owner)
 			end
 			session.cursor_moved = true
 			send_next(session)
-			notify("Connected. u/Ctrl+r undo only your edits; :FlashShareStop disconnects")
+			notify("Connected. u/Ctrl+r undo only your edits; :LiveShareStop disconnects")
 		elseif message.type == "edit" then
 			assert(session.connected and message.revision == session.revision + 1, "Revision mismatch")
 			if session.reported_cursor then
@@ -714,7 +714,7 @@ local function connect(hosts, port, token, owner)
 			client = nil
 		end
 		if session.buf and vim.api.nvim_buf_is_valid(session.buf) then
-			vim.b[session.buf].flash_shared = false
+			vim.b[session.buf].live_shared = false
 			-- Positions are no longer maintained; do not leave them misleading.
 			vim.api.nvim_buf_clear_namespace(session.buf, cursor_ns, 0, -1)
 		end
@@ -767,7 +767,7 @@ local function connect(hosts, port, token, owner)
 end
 
 function M.start(args)
-	assert(not server and not client, "Already sharing; use :FlashShareStop first")
+	assert(not server and not client, "Already sharing; use :LiveShareStop first")
 	local source = vim.api.nvim_get_current_buf()
 	assert(policy.allows(source) and vim.bo[source].modifiable, "Share a normal, editable source buffer")
 	assert(vim.o.encoding == "utf-8", "UTF-8 is required")
@@ -778,7 +778,7 @@ function M.start(args)
 	op.valid_text(text)
 	local port = args[1] and tonumber(args[1]) or 0
 	assert(port and port >= 0 and port <= 65535 and port == math.floor(port), "Invalid port")
-	assert(#args <= 2, "Usage: FlashShare [port] [bind-address]")
+	assert(#args <= 2, "Usage: LiveShare [port] [bind-address]")
 	local owner = {
 		text = text,
 		revision = 0,
@@ -801,7 +801,7 @@ function M.start(args)
 		disk = disk_content(path),
 	}
 	-- Participants including the owner; unauthenticated connections count until they time out.
-	owner.capacity = math.max(2, math.min(tonumber(vim.g.flash_share_max_peers) or 8, 64))
+	owner.capacity = math.max(2, math.min(require("live-share").config.max_peers, 64))
 	-- Loopback peers (the owner, same-host guests) are labelled with this host's address.
 	local hosts = advertised(args[2] or "0.0.0.0")
 	owner.ip = hosts[2] or hosts[1]
@@ -829,7 +829,7 @@ function M.start(args)
 				if not connection.id then
 					assert(
 						message.type == "hello" and message.protocol == 2 and message.token == owner.token,
-						"Authentication failed or incompatible FLASH version"
+						"Authentication failed or incompatible live-share protocol"
 					)
 					connection:settle()
 					owner.next_id = owner.next_id + 1
@@ -986,7 +986,7 @@ function M.start(args)
 		"Port "
 			.. owner.port
 			.. (owner.sidecar and ". Others opening this file are offered to join. Manual: " or ". Manual: ")
-			.. ":FlashJoin <host> "
+			.. ":LiveShareJoin <host> "
 			.. owner.port
 			.. " "
 			.. owner.token
@@ -1005,7 +1005,7 @@ function M.discover(buf, ask)
 		if ask then
 			return
 		end
-		error("No live share for this file; use :FlashJoin <host> <port> <token>", 0)
+		error("No live share for this file; use :LiveShareJoin <host> <port> <token>", 0)
 	end
 	if server and server.token == info.token then
 		return
@@ -1019,7 +1019,7 @@ function M.discover(buf, ask)
 		return
 	end
 	if client then
-		notify(who .. " is sharing this file; :FlashShareStop, then :FlashJoin", vim.log.levels.WARN)
+		notify(who .. " is sharing this file; :LiveShareStop, then :LiveShareJoin", vim.log.levels.WARN)
 		return
 	end
 	local question = who .. " is live-sharing " .. vim.fs.basename(path) .. ". Join?"
@@ -1054,7 +1054,7 @@ function M.join(args)
 		M.discover(vim.api.nvim_get_current_buf(), false)
 		return
 	end
-	assert(#args == 3, "Usage: FlashJoin [<host> <port> <token>]")
+	assert(#args == 3, "Usage: LiveShareJoin [<host> <port> <token>]")
 	local port = tonumber(args[2])
 	assert(port and port > 0 and port <= 65535 and port == math.floor(port), "Invalid port")
 	connect({ args[1] }, port, args[3])

@@ -694,7 +694,7 @@ cannot be forged by the peer; peers on the owner's host show the host's address.
 The user name is reported by the peer itself; when two participants share a
 label, the later one gets a `#<id>` suffix. Cursors are sent only when the
 peer's edits are synchronized and follow later edits until the next update.
-Override `FlashSharePeer1`..`FlashSharePeer6` to change the colors.
+Override `LiveSharePeer1`..`LiveSharePeer6` to change the colors.
 
 The final newline of the shared text is fixed: an edit that would remove it or
 add text after it is sent as the equivalent edit before it, so concurrent edits
@@ -703,6 +703,21 @@ is token-authenticated but **not encrypted**: anyone who can observe the
 network, or read the sidecar, can join and read the text. Peers' text cannot set
 options through modelines. Use a trusted internal network or
 an SSH tunnel, and do not expose the listener to the public Internet.
+
+### Updating live-share independently
+
+`nvim/.config/nvim/lua/live-share/` contains the same four modules as the
+standalone `live-share.nvim` repository. FLASH-specific commands, keymaps,
+discovery and buffer eligibility stay in `lua/collaboration.lua`.
+From the dotfiles checkout, copy only the modules after updating the sibling repository:
+
+```sh
+cp -R ../live-share.nvim/lua/live-share/. nvim/.config/nvim/lua/live-share/
+```
+
+No plugin installation or changes to the rest of FLASH are required. Restart Neovim
+after updating. `:LiveShare`, `:LiveShareJoin`, `:LiveShareStop` and
+`:LiveShareStatus` are also available; the existing `:FlashShare` commands still work.
 
 ## Configuration structure
 
@@ -721,7 +736,7 @@ It resolves symlinks and keeps the runtime isolated from pack modules/plugins.
 | `lsp`, `tags`, `completion`, `format`, `diagnostics` | Language tools and editing assistance |
 | `outline`, `breadcrumb_symbols`, `breadcrumbs`, `context` | Cached symbols, outline, context navigation |
 | `dashboard`, `terminal`, `session` | Auxiliary UI and session lifecycle |
-| `sharing`, `share_operation` | Opt-in collaboration transport, rebasing and private undo |
+| `collaboration`, `live-share/` | Opt-in collaboration transport, rebasing and private undo |
 | `statusline`, `indent`, `syntax`, `whichkey` | Native display and key guide |
 
 Feature-private state stays local; shared interfaces live in `state.lua`, with

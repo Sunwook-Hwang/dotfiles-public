@@ -656,7 +656,7 @@ Git 프로젝트에서는 안내 파일과 임시 파일을 로컬 Git `info/exc
 IP는 주최자 서버가 실제 접속에서 확인한 주소라 참가자가 위조할 수 없으며, 주최자와
 같은 호스트의 참가자는 그 호스트 주소로 표시합니다. 사용자 이름은 참가자가 직접 보고한
 값이며, 같은 표시가 겹치면 나중 참가자에 `#<번호>`를 붙입니다. 커서는 해당 참가자의 편집이 동기화된 뒤에 전송되고, 다음 갱신 전까지 이후
-편집을 따라 움직입니다. 색은 `FlashSharePeer1`..`FlashSharePeer6`으로 바꿀 수 있습니다.
+편집을 따라 움직입니다. 색은 `LiveSharePeer1`..`LiveSharePeer6`으로 바꿀 수 있습니다.
 
 공유 텍스트의 마지막 줄바꿈은 고정됩니다. 이를 지우거나 그 뒤에 쓰는 편집은 결과가 같은
 앞쪽 편집으로 바꿔 보내므로, 파일 끝 근처의 동시 편집도 항상 올바른 텍스트로 합쳐집니다.
@@ -665,6 +665,21 @@ TCP 연결은 토큰으로 인증하지만 **암호화하지 않습니다**. 네
 알림 파일을 읽을 수 있는 사람은 참여해 텍스트를 볼 수 있습니다. 상대가 보낸 텍스트의
 modeline은 옵션을 바꾸지 못합니다. 신뢰할 수 있는 내부망이나
 SSH 터널에서 사용하고 공용 인터넷에 포트를 노출하지 마세요.
+
+### 라이브쉐어만 갱신하기
+
+`nvim/.config/nvim/lua/live-share/`에는 별도 `live-share.nvim` 저장소와 동일한
+모듈 4개가 있습니다. FLASH 전용 명령어·키맵·자동 참여 안내·버퍼 사용 정책은
+`lua/collaboration.lua`에 둡니다. 같은 상위 디렉터리의 별도 저장소를 수정한 뒤,
+dotfiles 디렉터리에서 아래처럼 모듈만 복사하면 됩니다.
+
+```sh
+cp -R ../live-share.nvim/lua/live-share/. nvim/.config/nvim/lua/live-share/
+```
+
+플러그인 설치나 다른 FLASH 코드 수정은 필요 없습니다. 갱신 후 Neovim을 재시작하세요.
+`:LiveShare`, `:LiveShareJoin`, `:LiveShareStop`, `:LiveShareStatus`도 지원하며
+기존 `:FlashShare` 계열 명령어는 그대로 사용할 수 있습니다.
 
 ## 설정 구조
 
@@ -683,7 +698,7 @@ runtime을 분리합니다.
 | `lsp`, `tags`, `completion`, `format`, `diagnostics` | 언어 도구와 편집 지원 |
 | `outline`, `breadcrumb_symbols`, `breadcrumbs`, `context` | 심볼 캐시, 아웃라인, 문맥 탐색 |
 | `dashboard`, `terminal`, `session` | 보조 UI와 세션 수명 관리 |
-| `sharing`, `share_operation` | 선택적으로 켜는 공동 편집 연결, 연산 병합, 사용자별 undo |
+| `collaboration`, `live-share/` | 선택적으로 켜는 공동 편집 연결, 연산 병합, 사용자별 undo |
 | `statusline`, `indent`, `syntax`, `whichkey` | 네이티브 표시와 키 안내 |
 
 기능 내부 상태는 local에 두고 공유 인터페이스는 `state.lua`를 거치며 구현은 담당 모듈이

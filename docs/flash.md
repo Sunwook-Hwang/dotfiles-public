@@ -733,17 +733,24 @@ It resolves symlinks and keeps the runtime isolated from pack modules/plugins.
 | `explorer`, `navigation`, `buffers` | Tree, editor targets, buffer lifecycle |
 | `pickers`, `search`, `editing` | Search UI, results, undo preview |
 | `git`, `git_actions` | Status, signs, diff, blame, staging and hunk actions |
-| `lsp`, `tags`, `completion`, `format`, `diagnostics` | Language tools and editing assistance |
+| `lsp/`, `tags`, `completion`, `format`, `diagnostics` | Language tools and editing assistance |
 | `outline`, `breadcrumb_symbols`, `breadcrumbs`, `context` | Cached symbols, outline, context navigation |
 | `dashboard`, `terminal`, `session` | Auxiliary UI and session lifecycle |
 | `collaboration`, `live-share/` | Opt-in collaboration transport, rebasing and private undo |
 | `statusline`, `indent`, `syntax`, `whichkey` | Native display and key guide |
+
+LSP code lives in `lua/lsp/`: `servers.lua` lists commands and filetypes,
+`init.lua` resolves tools and registers clients, `python.lua` owns interpreter
+selection, `keymaps.lua` owns attached-buffer mappings, `lifecycle.lua` owns
+restart/detachment and new-file recovery, and `diagnostics.lua` handles diagnostic
+responses and catches up skipped hidden-buffer updates when shown again.
+The top-level `lua/diagnostics.lua` owns diagnostic UI shortcuts.
 
 Feature-private state stays local; shared interfaces live in `state.lua`, with
 implementations owned by their feature. `buffer_policy.lua` distinguishes editable
 source buffers from analysis-eligible buffers and auxiliary windows. Async work
 checks eligibility before starting and applying results. `NopackBufferRestricted`
 notifies features to cancel requests and clean up their UI; LSP detachment belongs
-to `lsp.lua`, not the large-file detector. Project invalidation and process
+to `lsp/lifecycle.lua`, not the large-file detector. Project invalidation and process
 cancellation belong to `project.lua` and `jobs.lua`. To investigate performance,
 inspect the owning feature's events and callbacks, not just its file size.

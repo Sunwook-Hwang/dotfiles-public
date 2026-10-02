@@ -695,15 +695,21 @@ runtime을 분리합니다.
 | `explorer`, `navigation`, `buffers` | 디렉터리 편집, 편집창 선택, 버퍼 수명 관리 |
 | `pickers`, `search`, `editing` | 검색 UI, 결과, undo 미리보기 |
 | `git`, `git_actions` | 상태, sign, diff, blame, 스테이징과 hunk 작업 |
-| `lsp`, `tags`, `completion`, `format`, `diagnostics` | 언어 도구와 편집 지원 |
+| `lsp/`, `tags`, `completion`, `format`, `diagnostics` | 언어 도구와 편집 지원 |
 | `outline`, `breadcrumb_symbols`, `breadcrumbs`, `context` | 심볼 캐시, 아웃라인, 문맥 탐색 |
 | `dashboard`, `terminal`, `session` | 보조 UI와 세션 수명 관리 |
 | `collaboration`, `live-share/` | 선택적으로 켜는 공동 편집 연결, 연산 병합, 사용자별 undo |
 | `statusline`, `indent`, `syntax`, `whichkey` | 네이티브 표시와 키 안내 |
 
+LSP 코드는 `lua/lsp/`에 모았습니다. `servers.lua`는 명령어·파일타입 목록,
+`init.lua`는 실행 파일 탐색·클라이언트 등록, `python.lua`는 Python 환경 선택,
+`keymaps.lua`는 연결된 버퍼의 단축키, `lifecycle.lua`는 재시작·분리·새 파일 복구,
+`diagnostics.lua`는 진단 응답과 숨겨진 버퍼의 갱신 누락 보충을 담당합니다.
+최상위 `lua/diagnostics.lua`는 진단 UI 단축키를 담당합니다.
+
 기능 내부 상태는 local에 두고 공유 인터페이스는 `state.lua`를 거치며 구현은 담당 모듈이
 소유합니다. `buffer_policy.lua`는 편집 가능한 소스, 분석 가능한 버퍼, 보조 창을 구분합니다.
 비동기 작업은 시작 전과 결과 반영 전에 정책을 확인합니다. `NopackBufferRestricted`를
-받은 각 기능이 요청 취소·UI 정리를 담당하고, LSP 해제는 큰 파일 감지기가 아닌 `lsp.lua`가
+받은 각 기능이 요청 취소·UI 정리를 담당하고, LSP 해제는 큰 파일 감지기가 아닌 `lsp/lifecycle.lua`가
 소유합니다. 루트 무효화와 프로세스 취소는 각각 `project.lua`, `jobs.lua`가 담당합니다.
 성능 조사 시 파일 크기보다는 담당 기능의 이벤트와 콜백을 확인하세요.

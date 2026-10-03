@@ -29,6 +29,30 @@ dashboard, Sticky Scroll, sessions, and undo previews. No Lua support is needed.
 See the Vim guide in [English](docs/vim-nopack-features.md) or
 [한국어](docs/vim-nopack-features.ko.md).
 
+## Performance comparison
+
+Across three file workloads, FLASH had the lowest peak editor memory and window
+switching cost. Vim was faster at cursor movement and edits in ordinary files;
+FLASH is not the fastest in every operation.
+
+Representative results for a 2,000-line Python file (median of seven runs;
+lower is better):
+
+| Measurement | FLASH | pvi | vimrc |
+| --- | ---: | ---: | ---: |
+| Peak editor memory | **18.4 MiB** | 24.2 MiB | 43.8 MiB |
+| 600 cursor moves with redraw | 472 ms | 600 ms | **423 ms** |
+| 200 window switches with redraw | **271 ms** | 309 ms | 371 ms |
+
+The 77-run study used a Mac mini M4 with LSP disabled. These measurements compare
+the current configurations, not general editor performance or weak-server
+latency. Peak memory excludes child processes such as language servers.
+
+See the detailed comparison in [English](docs/performance/flash-pvi-vimrc.md) or
+[한국어](docs/performance/flash-pvi-vimrc.ko.md), and the
+[performance index](docs/performance/README.md) for ctags results, methodology,
+raw data, and historical experiments.
+
 ## Setup
 
 macOS:

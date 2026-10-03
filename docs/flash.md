@@ -396,6 +396,47 @@ Shift-arrow resizing also works in Terminal input mode. Press `Esc Esc` or
 the terminal with `Ctrl-t` keeps its shell running; this does not keep jobs alive
 after Neovim itself exits.
 
+## Python cells (optional Jupyter)
+
+In a Python file, separate cells with `# %%`. Place the cursor on a marker or
+inside its cell and run `<leader>Jr`. The first execution starts a local Jupyter
+kernel; subsequent cells in that buffer reuse its variables. Without markers,
+the whole file is one cell. `# %% [markdown]` cells are skipped.
+
+| Key | Command | Action |
+| --- | --- | --- |
+| `<leader>Jr` | `:FlashCell` | Run the current cell, including unsaved edits |
+| `<leader>Jo` | `:FlashCellOutput` | Reopen this file's latest result |
+| `<leader>Ji` | `:FlashKernelInterrupt` | Interrupt execution |
+| `<leader>JR` | `:FlashKernelRestart` | Restart the kernel and clear variables |
+| `<leader>Jq` | `:FlashKernelStop` | Stop this file's kernel |
+
+Install the optional tools in the Python environment you want to use:
+
+```sh
+python3 -m pip install jupyter-client ipykernel
+```
+
+FLASH selects `python3` (or `python`) from PATH on first execution. To use a
+specific virtual environment, set `vim.g.flash_jupyter_python` to its Python
+executable in `lua/options.lua`. That same Python runs the kernel; registered
+kernels from other environments do not override it. Restart the kernel after
+changing environments. Its initial working directory is the source file's folder
+(or Neovim's current directory for an unnamed buffer).
+
+Results appear below the editor without moving the cursor. Each file has a
+separate kernel and an unlisted, read-only result buffer. `q` in the result window
+closes the pane; `<leader>Jo` reopens it. Results replace the previous cell's
+output when execution finishes. Text, expression results and tracebacks are
+supported, capped at 1 MiB per execution. Another cell is rejected while the
+kernel is busy. Unloading the source buffer or exiting Neovim stops its kernel.
+
+No Python process starts during normal editing. The bridge is included under
+`python/jupyter_bridge.py`; copy that folder along with `init.lua` and `lua/`
+when transferring FLASH. A server with these Python packages already installed
+needs no Internet connection. This does not edit `.ipynb` files, render images
+or HTML, accept interactive `input()`, or save notebook outputs.
+
 ## Editing conveniences
 
 Comment toggling uses Neovim's built-in support without a plugin. It needs a
@@ -742,6 +783,7 @@ It resolves symlinks and keeps the runtime isolated from pack modules/plugins.
 | `lsp/`, `tags`, `completion`, `format`, `diagnostics` | Language tools and editing assistance |
 | `outline`, `breadcrumb_symbols`, `breadcrumbs`, `context` | Cached symbols, outline, context navigation |
 | `dashboard`, `terminal`, `session` | Auxiliary UI and session lifecycle |
+| `notebook`, `python/jupyter_bridge.py` | Optional Python cell UI and local Jupyter kernel |
 | `peerpad/` | Collaboration setup (`config.lua`), transport, rebasing and private undo |
 | `statusline`, `indent`, `syntax`, `whichkey` | Native display and key guide |
 

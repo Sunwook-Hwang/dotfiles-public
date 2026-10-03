@@ -377,6 +377,45 @@ Shift 방향키로 창 크기를 조절합니다. `Esc Esc` 또는 `Ctrl-\` 다�
 `i`를 누르면 셸 입력으로 돌아갑니다. `Ctrl-t`로 숨겨도 셸 작업은 유지되지만
 Neovim 자체를 종료한 뒤까지 작업을 유지하는 기능은 아닙니다.
 
+## Python 셀 실행 (선택 기능: Jupyter)
+
+Python 파일에서 `# %%`로 셀을 나눕니다. 구분 줄이나 셀 내부에 커서를 놓고
+`<leader>Jr`로 실행합니다. 첫 실행에만 로컬 Jupyter 커널이 시작되고, 같은
+버퍼의 다음 셀은 기존 변수를 유지합니다. 구분 줄이 없으면 파일 전체가 한
+셀입니다. `# %% [markdown]` 셀은 실행하지 않습니다.
+
+| 키 | 명령어 | 동작 |
+| --- | --- | --- |
+| `<leader>Jr` | `:FlashCell` | 저장하지 않은 내용까지 현재 셀 실행 |
+| `<leader>Jo` | `:FlashCellOutput` | 현재 파일의 마지막 결과창 열기 |
+| `<leader>Ji` | `:FlashKernelInterrupt` | 실행 중단 |
+| `<leader>JR` | `:FlashKernelRestart` | 커널 재시작·변수 초기화 |
+| `<leader>Jq` | `:FlashKernelStop` | 현재 파일의 커널 종료 |
+
+사용할 Python 환경에 선택 도구를 설치합니다.
+
+```sh
+python3 -m pip install jupyter-client ipykernel
+```
+
+첫 실행 시 PATH의 `python3`(없으면 `python`)를 선택합니다. 다른 가상환경을
+쓰려면 `lua/options.lua`에서 `vim.g.flash_jupyter_python`을 해당 Python 실행
+파일 경로로 지정하세요. 커널도 같은 Python으로 실행하며 다른 환경의 등록된
+커널이 이를 덮어쓰지 않습니다. 환경을 바꾼 뒤에는 커널을 재시작하세요.
+시작 작업 디렉터리는 소스 파일의 폴더이며 이름 없는 버퍼는 현재 디렉터리입니다.
+
+결과는 커서를 옮기지 않고 편집창 아래에 표시합니다. 파일마다 별도 커널과
+읽기 전용·미등록 결과 버퍼를 사용합니다. 결과창의 `q`로 닫고 `<leader>Jo`로
+다시 엽니다. 실행이 끝나면 이전 결과를 새 결과로 교체합니다. 텍스트 출력,
+표현식 결과, 오류 내용을 지원하며 실행당 1 MiB로 제한합니다. 실행 중에는
+다른 셀 실행을 거절합니다. 소스 버퍼를 해제하거나 Neovim을 종료하면 커널도 종료합니다.
+
+일반 편집 중에는 Python 프로세스를 시작하지 않습니다. 연결 프로그램은
+`python/jupyter_bridge.py`에 있으므로 서버로 이동할 때 `init.lua`, `lua/`와
+함께 `python/`도 복사하세요. Python 도구가 설치된 서버는 인터넷 없이 사용할
+수 있습니다. `.ipynb` 편집, 이미지·HTML 렌더링, `input()` 입력, 노트북 출력
+저장은 지원하지 않습니다.
+
 ## 편집 편의 기능
 
 주석 토글은 플러그인 없이 Neovim 내장 기능을 사용합니다. 파일타입에 맞는
@@ -687,6 +726,9 @@ FLASH와 Pack은 `:Peerpad`, `:PeerpadJoin`, `:PeerpadStop`, `:PeerpadStatus`
 명령어를 동일하게 사용합니다.
 
 ## 설정 구조
+
+`lua/notebook.lua`는 선택 기능인 Python 셀 실행과 결과창을 담당하며,
+`python/jupyter_bridge.py`는 로컬 Jupyter 커널과 통신합니다.
 
 [진입점](../nvim/.config/nvim/init.lua)이 인접한 [기능 모듈](../nvim/.config/nvim/lua/)을
 명시된 의존 순서로 불러옵니다. 심볼릭 링크의 실제 경로를 해석하며 pack 모듈·플러그인과

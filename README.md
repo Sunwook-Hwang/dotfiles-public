@@ -16,6 +16,8 @@ a file tree, a leader-key guide, Sticky Scroll, Git signs and inline blame, LSP,
 completion, formatting, sessions, an undo browser, and a reusable terminal.
 Opt-in [single-buffer collaboration](https://github.com/Sunwook-Hwang/peerpad.nvim) uses
 Neovim's native TCP APIs without a plugin or a separate server executable.
+Optional [Python cell execution](docs/flash.md#python-cells-optional-jupyter) uses
+a local Jupyter kernel with no Neovim plugins.
 
 Optional language servers, formatters, and command-line search tools are used
 only when already installed. See the feature guide in

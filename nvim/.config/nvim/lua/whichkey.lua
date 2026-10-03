@@ -15,6 +15,7 @@ do
 		p = "Project",
 		n = "File tree",
 		P = "Peerpad",
+		J = "Jupyter",
 	}
 	local active
 	local function mappings(buf)

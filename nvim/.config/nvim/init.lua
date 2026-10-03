@@ -11,6 +11,7 @@
 -- ============================================================================
 -- Neovim 0.12+; language servers and formatters are optional external tools.
 -- Keep this file and the adjacent lua/ directory together when copying the profile.
+-- Optional Jupyter cell execution also needs the adjacent python/ directory.
 if vim.fn.has("nvim-0.12") == 0 then
 	error("This nopack config requires Neovim 0.12 or newer")
 end
@@ -38,6 +39,7 @@ require("pickers")
 require("search")
 require("editing")
 require("terminal")
+require("notebook")
 require("session")
 require("dashboard")
 require("git")

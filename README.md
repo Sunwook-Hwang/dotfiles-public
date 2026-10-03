@@ -32,19 +32,35 @@ See the Vim guide in [English](docs/vim-nopack-features.md) or
 ## Performance by use case
 
 FLASH, pvi and vimrc serve different workflows, so there is no overall winner.
-The existing 77-run study separates two comparisons:
+The studies contain 91 runs across two use cases:
 
 - **FLASH and vimrc:** vimrc does not support LSP, so FLASH's LSP was disabled
   and both profiles used their actual ctags-based `gd` mappings in the same
   project. This matches the supported navigation level for this specific task;
   it does not make every editor feature equivalent.
-- **FLASH and pvi:** both support LSP. A fair comparison of their LSP workflows
-  should use the same language server, version, project and capabilities in
-  both profiles. **That comparison has not yet been measured.** The existing
-  results below disable LSP in both profiles and compare only common editing
-  costs, not their supported LSP workflows.
+- **FLASH and pvi:** both support LSP, so the added comparison uses the same ty
+  0.0.84 executable, Python 3.14.8, project, client capabilities, settings and
+  change debounce. Actual profile attachment hooks, UI and `gd` mappings remain.
+  This matches the tested LSP tasks, not all supported features or languages.
 
-Representative 2,000-line results (seven-run medians):
+Matched ty LSP results (seven runs per profile; 14 runs total):
+
+| Measurement                            |      FLASH |        pvi | FLASH change vs pvi |
+| -------------------------------------- | ---------: | ---------: | ------------------: |
+| Actual mapped gd after warmup          |    1.00 ms |    7.04 ms |              -85.8% |
+| Completion response, excluding popup   |    4.17 ms |    4.42 ms |               -5.7% |
+| Saved edit → undefined-name diagnostic |    9.03 ms |   10.82 ms |              -16.5% |
+| Saved correction → diagnostic cleared  |    8.63 ms |    8.85 ms |               -2.5% |
+| Editor + ty RSS snapshot               | 107.70 MiB | 118.39 MiB |               -9.0% |
+
+All 294 mapped definition jumps and 70 diagnostic error/clear cycles passed without
+restarting ty. Direct definition requests were close (0.14 ms vs 0.15 ms), so mapped
+gd differences include each profile's dispatch/UI path. Memory is a single RSS
+snapshot after diagnostic cycles, not a peak or unique physical-memory total.
+See the matched LSP report in [English](docs/performance/flash-pvi-lsp.md) or
+[한국어](docs/performance/flash-pvi-lsp.ko.md).
+
+Separate LSP-disabled editing baseline: 2,000-line results (seven-run medians):
 
 | Measurement                     |    FLASH |      pvi | FLASH change vs pvi |
 | ------------------------------- | -------: | -------: | ------------------: |
@@ -62,9 +78,10 @@ memory or elapsed time, not an overall speed improvement. The indexed ctags
 lookup difference is only 0.83 ms.
 
 Measurements used a Mac mini M4, not a restricted Linux server. Peak memory
-excludes child processes. Large-file results are reported separately because
-protective policies reduce functionality. Actual LSP-enabled workflows, SSH/NFS,
-and feature parity have not been measured.
+excludes child processes, while the added LSP study also reports ty RSS separately.
+Large-file results are reported separately because protective policies reduce
+functionality. SSH/NFS, weak-server LSP workloads and complete feature parity
+have not been measured.
 
 See the use-case comparison in [English](docs/performance/flash-pvi-vimrc.md) or
 [한국어](docs/performance/flash-pvi-vimrc.ko.md), and the

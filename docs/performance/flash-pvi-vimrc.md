@@ -11,11 +11,12 @@ Values are **seven-run medians (minimum–maximum)**.
 - **Ctags comparison completed:** vimrc has no LSP support, so FLASH's LSP was
   disabled. Both used the same project, ctags tool and definition-navigation task,
   preserving each profile's actual implementation.
-- **LSP workflow comparison not measured:** both FLASH and pvi support LSP.
-  This requires the same server, version, project, Python environment, server
-  capabilities and task sequence, with successful attachment, updates and
-  definition navigation verified. Server-process costs must be recorded separately
-  from editor costs. The baseline below is not a substitute for that experiment.
+- **Matched ty LSP tasks now measured separately:** FLASH and pvi use the same ty,
+  Python environment, project, client capability declarations, settings and
+  debounce in 14 additional runs. Attachment, definition navigation, completion
+  and diagnostic updates are validated in the [LSP report](flash-pvi-lsp.md).
+  This is not parity across all languages/features. This page's 63-run baseline
+  remains LSP-disabled.
 
 ## FLASH and pvi: common editing costs
 

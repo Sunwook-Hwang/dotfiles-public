@@ -2,11 +2,13 @@
 
 [English](flash-vimrc-ctags.md) | [한국어](flash-vimrc-ctags.ko.md)
 
+**🏆** marks the lowest median in each row, including ties. Percentages are relative to vimrc: `(result / baseline − 1) × 100`; negative values mean less time or memory.
+
 | Metric                            |               FLASH |               vimrc |
 | --------------------------------- | ------------------: | ------------------: |
-| First gd, including indexing (ms) | 60.76 (54.87–65.05) | 74.43 (62.81–81.75) |
-| Ready-index gd (ms)               |    1.71 (1.67–1.76) |    2.54 (2.52–2.60) |
-| Peak RSS including indexing (MiB) | 21.56 (21.42–21.78) | 50.03 (49.97–50.06) |
+| First gd, including indexing (ms) | **🏆 60.76 (54.87–65.05); -18.4%** | 74.43 (62.81–81.75); +0.0% |
+| Ready-index gd (ms)               | **🏆 1.71 (1.67–1.76); -32.7%** | 2.54 (2.52–2.60); +0.0% |
+| Peak RSS including indexing (MiB) | **🏆 21.56 (21.42–21.78); -56.9%** | 50.03 (49.97–50.06); +0.0% |
 
 Both editors use their actual mapped `gd` with LSP disabled. The generated Git
 project contains 100 Python modules, 1,000 unique functions and a 2,000-line main.py.

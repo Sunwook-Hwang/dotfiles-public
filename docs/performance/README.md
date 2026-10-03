@@ -3,9 +3,25 @@
 Experiments are kept on the `performance-comparison` branch, separate from the
 normal configuration branch. No editor configuration is changed by the benchmarks.
 
+## Compare by use case
+
+There is no overall winner across these different feature sets. The existing
+measurements are organized as:
+
+1. FLASH vs pvi: both support LSP, but only the LSP-disabled common editing
+   baseline was measured. Matched LSP workflows remain unmeasured.
+2. FLASH vs vimrc: vimrc has no LSP, so FLASH's LSP was disabled to match
+   ctags definition-navigation tasks in the same project with the same tool.
+3. Protected large files: separate policy-dependent results, not full-feature
+   performance. Vim's common editing values are retained as reference data.
+
+Percentages use the unrounded raw medians and describe individual task costs,
+not overall editor speed. The 77 launches comprise 63 common editing runs and
+14 ctags runs; none measure an LSP-enabled workflow.
+
 ## Current configuration
 
-- [FLASH vs pvi vs vimrc](flash-pvi-vimrc.md) / [한국어](flash-pvi-vimrc.ko.md)
+- [Performance by use case](flash-pvi-vimrc.md) / [한국어](flash-pvi-vimrc.ko.md)
 - [Raw results](flash-pvi-vimrc-results.json)
 - [Ctags: FLASH vs vimrc](flash-vimrc-ctags.md) / [한국어](flash-vimrc-ctags.ko.md)
 - [Ctags raw results](flash-vimrc-ctags-results.json)

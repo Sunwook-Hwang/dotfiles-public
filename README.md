@@ -29,37 +29,44 @@ dashboard, Sticky Scroll, sessions, and undo previews. No Lua support is needed.
 See the Vim guide in [English](docs/vim-nopack-features.md) or
 [한국어](docs/vim-nopack-features.ko.md).
 
-## Performance comparison
+## Performance by use case
 
-Across three file workloads, FLASH had the lowest peak editor memory and window
-switching cost. Vim was faster at cursor movement and edits in ordinary files;
-FLASH is not the fastest in every operation.
+FLASH, pvi and vimrc serve different workflows, so there is no overall winner.
+The existing 77-run study separates two comparisons:
 
-Representative results for a 2,000-line Python file (median of seven runs;
-lower is better; 🏆 marks the best result in each row):
+- **FLASH and vimrc:** vimrc does not support LSP, so FLASH's LSP was disabled
+  and both profiles used their actual ctags-based `gd` mappings in the same
+  project. This matches the supported navigation level for this specific task;
+  it does not make every editor feature equivalent.
+- **FLASH and pvi:** both support LSP. A fair comparison of their LSP workflows
+  should use the same language server, version, project and capabilities in
+  both profiles. **That comparison has not yet been measured.** The existing
+  results below disable LSP in both profiles and compare only common editing
+  costs, not their supported LSP workflows.
 
-| Measurement | FLASH | pvi | vimrc |
-| --- | ---: | ---: | ---: |
-| Peak editor memory | **🏆 18.4 MiB** | 24.2 MiB | 43.8 MiB |
-| 600 cursor moves with redraw | 472 ms | 600 ms | **🏆 423 ms** |
-| 200 window switches with redraw | **🏆 271 ms** | 309 ms | 371 ms |
+Representative 2,000-line results (seven-run medians):
 
-Relative to pvi, using the unrounded medians:
+| Measurement                     |    FLASH |      pvi | FLASH change vs pvi |
+| ------------------------------- | -------: | -------: | ------------------: |
+| Peak editor memory              | 18.4 MiB | 24.2 MiB |              −24.0% |
+| 600 cursor moves with redraw    |   472 ms |   600 ms |              −21.4% |
+| 200 window switches with redraw |   271 ms |   309 ms |              −12.3% |
 
-| Measurement | FLASH | pvi (baseline) | vimrc |
-| --- | ---: | ---: | ---: |
-| Peak editor memory | **🏆 −23.9%** | 0% | +81.0% |
-| Cursor movement time | −21.4% | 0% | **🏆 −29.6%** |
-| Window switching time | **🏆 −12.3%** | 0% | +20.3% |
+| Ctags task                                  |    FLASH |    vimrc | FLASH change vs vimrc |
+| ------------------------------------------- | -------: | -------: | --------------------: |
+| First definition lookup, including indexing | 60.76 ms | 74.43 ms |                −18.4% |
+| Indexed definition lookup                   |  1.71 ms |  2.54 ms |                −32.6% |
 
-Percent change is `(result / pvi − 1) × 100`. Negative values mean less memory
-or shorter elapsed time, not a percentage increase in overall editor speed.
+Percent change is `(result / baseline − 1) × 100`; negative values mean less
+memory or elapsed time, not an overall speed improvement. The indexed ctags
+lookup difference is only 0.83 ms.
 
-The 77-run study used a Mac mini M4 with LSP disabled. These measurements compare
-the current configurations, not general editor performance or weak-server
-latency. Peak memory excludes child processes such as language servers.
+Measurements used a Mac mini M4, not a restricted Linux server. Peak memory
+excludes child processes. Large-file results are reported separately because
+protective policies reduce functionality. Actual LSP-enabled workflows, SSH/NFS,
+and feature parity have not been measured.
 
-See the detailed comparison in [English](docs/performance/flash-pvi-vimrc.md) or
+See the use-case comparison in [English](docs/performance/flash-pvi-vimrc.md) or
 [한국어](docs/performance/flash-pvi-vimrc.ko.md), and the
 [performance index](docs/performance/README.md) for ctags results, methodology,
 raw data, and historical experiments.

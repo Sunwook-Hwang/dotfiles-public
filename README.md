@@ -44,6 +44,17 @@ lower is better):
 | 600 cursor moves with redraw | 472 ms | 600 ms | **423 ms** |
 | 200 window switches with redraw | **271 ms** | 309 ms | 371 ms |
 
+Relative to pvi, using the unrounded medians:
+
+| Measurement | FLASH | pvi (baseline) | vimrc |
+| --- | ---: | ---: | ---: |
+| Peak editor memory | **−23.9%** | 0% | +81.0% |
+| Cursor movement time | −21.4% | 0% | **−29.6%** |
+| Window switching time | **−12.3%** | 0% | +20.3% |
+
+Percent change is `(result / pvi − 1) × 100`. Negative values mean less memory
+or shorter elapsed time, not a percentage increase in overall editor speed.
+
 The 77-run study used a Mac mini M4 with LSP disabled. These measurements compare
 the current configurations, not general editor performance or weak-server
 latency. Peak memory excludes child processes such as language servers.
